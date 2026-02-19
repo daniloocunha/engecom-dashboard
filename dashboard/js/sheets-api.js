@@ -3,6 +3,20 @@
  * Carrega dados das abas RDO, Servicos, Materiais, etc.
  */
 
+/**
+ * Valida se um número de O.S segue o padrão aceito:
+ *   - 6 dígitos começando com 98 ou 99  (ex: 987654, 998070)
+ *   - 7 dígitos começando com 100 a 199 (ex: 1001234, 1020999)
+ * Qualquer outro valor é considerado inválido → "Sem O.S"
+ */
+function validarNumeroOS(os) {
+    if (!os) return false;
+    const s = String(os).trim();
+    if (/^9[89]\d{4}$/.test(s)) return true;   // 98xxxx ou 99xxxx (6 dígitos)
+    if (/^1\d{6}$/.test(s)) return true;         // 100xxxx … 199xxxx (7 dígitos)
+    return false;
+}
+
 class GoogleSheetsAPI {
     constructor() {
         this.baseURL = 'https://sheets.googleapis.com/v4/spreadsheets';
@@ -252,8 +266,21 @@ class GoogleSheetsAPI {
 
             // Converter para objetos
             this.atualizarProgresso(abas.length + 1, total, 'Processando dados...');
+            const rdosBrutos = this.converterParaObjetos(resultados['RDO']);
+
+            // Marcar RDOs com Número OS inválido
+            rdosBrutos.forEach(rdo => {
+                const os = (rdo['Número OS'] || rdo.numeroOS || '').toString().trim();
+                if (!validarNumeroOS(os)) {
+                    rdo._osOriginal  = os;   // guardar valor original para exibição
+                    rdo._osInvalida  = true; // flag usada em gestao-os.js
+                    rdo['Número OS'] = 'Sem O.S';
+                    rdo.numeroOS     = 'Sem O.S';
+                }
+            });
+
             const dados = {
-                rdos: this.converterParaObjetos(resultados['RDO']),
+                rdos: rdosBrutos,
                 servicos: this.converterParaObjetos(resultados['Serviços']),
                 horasImprodutivas: this.converterParaObjetos(resultados['Horas Improdutivas']),
                 efetivos: this.converterParaObjetos(resultados['Efetivo']),

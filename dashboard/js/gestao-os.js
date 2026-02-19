@@ -732,6 +732,145 @@ class GestaoOS {
         new bootstrap.Modal(document.getElementById(modalId)).show();
     }
 
+    // ── Correção de O.S inválida via Apps Script ──────────────────────────
+
+    /**
+     * Salva a O.S corrigida de um RDO no Google Sheets via Apps Script.
+     * Chamada pelo botão inline na seção "Sem O.S".
+     */
+    async salvarOS(numeroRDO, inputId) {
+        const input = document.getElementById(inputId);
+        if (!input) return;
+        const novaOS = input.value.trim();
+
+        if (!validarNumeroOS(novaOS)) {
+            input.classList.add('is-invalid');
+            input.title = 'Formato inválido. Use 6 dígitos (98/99xxxx) ou 7 dígitos (100xxxx…199xxxx)';
+            setTimeout(() => { input.classList.remove('is-invalid'); }, 3000);
+            return;
+        }
+
+        const btn = input.nextElementSibling;
+        const btnOrigText = btn?.innerHTML;
+        if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+
+        try {
+            const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
+            if (!url) throw new Error('APPS_SCRIPT_URL não configurada');
+
+            const resp = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ acao: 'atualizarOS', numeroRDO, novaOS })
+            });
+
+            let json;
+            try { json = await resp.json(); } catch (_) { json = {}; }
+
+            if (resp.ok && json.sucesso !== false) {
+                // Sucesso: remover a linha da tabela sem recarregar tudo
+                const tr = input.closest('tr');
+                if (tr) {
+                    tr.style.transition = 'opacity 0.4s';
+                    tr.style.opacity = '0';
+                    setTimeout(() => tr.remove(), 400);
+                }
+                // Também atualizar o dado em memória para evitar re-aparecer sem reload
+                const rdo = this.dados.rdos.find(r => {
+                    const nr = (r['Número RDO'] || r.numeroRDO || r.numeroRdo || '').trim();
+                    return nr === numeroRDO;
+                });
+                if (rdo) {
+                    rdo['Número OS'] = novaOS;
+                    rdo.numeroOS     = novaOS;
+                    rdo._osInvalida  = false;
+                }
+            } else {
+                throw new Error(json.erro || json.message || `HTTP ${resp.status}`);
+            }
+        } catch (err) {
+            alert(`Erro ao salvar O.S: ${err.message}`);
+            if (btn) { btn.disabled = false; btn.innerHTML = btnOrigText; }
+        }
+    }
+
+    // ── Seção "Sem O.S" ───────────────────────────────────────────────────
+
+    _renderizarSemOS() {
+        if (!this.dados) return '';
+
+        const rdosSemOS = this.dados.rdos.filter(r => r._osInvalida);
+        if (!rdosSemOS.length) return '';
+
+        // Ordenar por data desc
+        rdosSemOS.sort((a, b) => {
+            const da = _parseData((a.Data || a.data || '').trim());
+            const db = _parseData((b.Data || b.data || '').trim());
+            if (!da && !db) return 0;
+            if (!da) return 1;
+            if (!db) return -1;
+            return db - da;
+        });
+
+        const rows = rdosSemOS.map((rdo, idx) => {
+            const numeroRDO  = (rdo['Número RDO'] || rdo.numeroRDO || rdo.numeroRdo || '').trim();
+            const data       = (rdo.Data || rdo.data || '').trim();
+            const turma      = (rdo['Código Turma'] || rdo.codigoTurma || '-').trim();
+            const encarregado= (rdo.Encarregado || rdo.encarregado || '-').trim();
+            const osOriginal = (rdo._osOriginal || '').trim();
+            const inputId    = `inputOS_${idx}_${CSS.escape(numeroRDO)}`;
+
+            return `<tr>
+              <td class="text-monospace small">${_esc(numeroRDO)}</td>
+              <td>${_fmtData(data)}</td>
+              <td>${_esc(turma)}</td>
+              <td>${_esc(encarregado)}</td>
+              <td class="text-muted small">${_esc(osOriginal) || '<em>vazio</em>'}</td>
+              <td style="min-width:220px;">
+                <div class="input-group input-group-sm">
+                  <input id="${inputId}"
+                         type="text"
+                         class="form-control"
+                         placeholder="Ex: 998070 ou 1001234"
+                         maxlength="7"
+                         style="font-family:monospace;">
+                  <button class="btn btn-success btn-sm"
+                          onclick="gestaoOS.salvarOS('${_esc(numeroRDO)}', '${inputId}')"
+                          title="Salvar O.S">
+                    <i class="fas fa-check"></i> Salvar
+                  </button>
+                </div>
+              </td>
+            </tr>`;
+        }).join('');
+
+        return `
+        <div class="card mb-4 shadow-sm border-warning mt-2">
+          <div class="card-header fw-bold py-2 text-warning" style="background:#fff8e1;">
+            <i class="fas fa-exclamation-triangle me-2"></i>RDOs sem O.S válida
+            <span class="badge bg-warning text-dark ms-2">${rdosSemOS.length}</span>
+            <span class="text-muted fw-normal small ms-2">— Corrija o número da O.S para que estes RDOs apareçam na lista acima</span>
+          </div>
+          <div class="card-body p-0">
+            <div class="table-responsive">
+              <table class="table table-sm table-hover mb-0 align-middle">
+                <thead class="table-warning">
+                  <tr>
+                    <th>Número RDO</th>
+                    <th>Data</th>
+                    <th>Turma</th>
+                    <th>Encarregado</th>
+                    <th>O.S Original</th>
+                    <th>Corrigir O.S</th>
+                  </tr>
+                </thead>
+                <tbody>${rows}</tbody>
+              </table>
+            </div>
+          </div>
+        </div>`;
+    }
+
     // ── Renderização ──────────────────────────────────────────────────────
 
     renderizar() {
@@ -836,7 +975,8 @@ class GestaoOS {
 
         if (!blocos.length) {
             container.innerHTML = `<div class="alert alert-warning">
-                <i class="fas fa-search me-2"></i>Nenhuma O.S encontrada com os filtros selecionados.</div>`;
+                <i class="fas fa-search me-2"></i>Nenhuma O.S encontrada com os filtros selecionados.</div>`
+                + this._renderizarSemOS();
             return;
         }
 
@@ -868,7 +1008,7 @@ class GestaoOS {
           </div>
         </div>`;
 
-        container.innerHTML = resumo + blocos.join('');
+        container.innerHTML = resumo + blocos.join('') + this._renderizarSemOS();
     }
 }
 
