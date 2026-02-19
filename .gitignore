@@ -22,3 +22,8 @@ app/calculadorahh-release.keystore
 
 # Dashboard — config com secrets (gerado pelo build do Netlify)
 dashboard/js/config.js
+
+# Arquivos temporários com nomes inválidos (Windows artifacts)
+coef
+normalized
+nul
