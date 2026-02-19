@@ -1,0 +1,28 @@
+<resources>
+    <string name="app_name">Controle de Campo</string>
+    <string name="calculadora">Calculadora</string>
+
+    <!-- Títulos das Abas -->
+    <string name="tab_calculadora">Calculadora HH</string>
+    <string name="tab_rdo">RDO</string>
+    <string name="logo">Logo</string>
+    <string name="ir">Ir</string>
+    <string name="cancelar">Cancelar</string>
+    <string name="adicionar">Adicionar</string>
+
+    <!-- Versão -->
+    <string name="app_version_placeholder">Carregando versão…</string>
+
+    <!-- Home Activity -->
+    <string name="app_title">Controle de Campo</string>
+    <string name="company_name">ENGECOM ENGENHARIA</string>
+    <string name="criar_rdo">Criar RDO</string>
+    <string name="criar_rdo_desc">Gerar Registro Diário de Obra</string>
+    <string name="calculadora_hh">Calculadora HH</string>
+    <string name="calculadora_hh_desc">Calcular o HH e HI do dia</string>
+    <string name="historico">Histórico</string>
+    <string name="historico_desc">Ver RDOs salvos</string>
+    <string name="sincronizar_todos">Sincronizar todos os RDOs</string>
+    <string name="hor_rios">Horários</string>
+    <string name="transporte_de_cabos">Transporte de cabos</string>
+</resources>

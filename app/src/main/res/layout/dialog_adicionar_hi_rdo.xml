@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:text="Adicionar Hora Improdutiva"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="20sp"
+        android:textStyle="bold" />
+
+    <!-- Tipo de HI -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:text="Tipo"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="14sp" />
+
+    <Spinner
+        android:id="@+id/spinnerTipoHI"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:minHeight="48dp" />
+
+    <!-- Descrição -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:text="Descrição"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/etDescricaoHI"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:autofillHints=""
+        android:hint="Ex: Deslocamento até o KM 123"
+        android:inputType="text"
+        android:minHeight="48dp" />
+
+    <!-- Horários (lado a lado) -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:text="@string/hor_rios"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="14sp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginBottom="12dp">
+
+        <EditText
+            android:id="@+id/etHorarioInicioHI"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginEnd="8dp"
+            android:hint="Início (00:00)"
+            android:inputType="number"
+            android:maxLength="5"
+            android:minHeight="48dp" />
+
+        <EditText
+            android:id="@+id/etHorarioFimHI"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:layout_marginStart="8dp"
+            android:hint="Fim (00:00)"
+            android:inputType="number"
+            android:maxLength="5"
+            android:minHeight="48dp" />
+    </LinearLayout>
+
+    <!-- Operadores envolvidos -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="4dp"
+        android:text="Operadores envolvidos"
+        android:textColor="?attr/colorOnSurface"
+        android:textSize="14sp" />
+
+    <EditText
+        android:id="@+id/etOperadoresHI"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:autofillHints=""
+        android:hint="Número de operadores (padrão: 12)"
+        android:inputType="number"
+        android:text="12"
+        android:minHeight="48dp" />
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="end"
+        android:orientation="horizontal">
+
+        <Button
+            android:id="@+id/btnCancelarHI"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/cancelar"
+            android:backgroundTint="#757575"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/btnConfirmarHI"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:backgroundTint="#4CAF50"
+            android:text="@string/adicionar" />
+
+    </LinearLayout>
+</LinearLayout>

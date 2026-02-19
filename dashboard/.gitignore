@@ -1,0 +1,35 @@
+# Arquivos de configuração com credenciais
+js/config.js
+
+# Não versionar credenciais
+*.key
+*.secret
+.env
+.env.local
+
+# Node modules (se usar npm futuramente)
+node_modules/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cache
+.cache/
+*.cache
+
+# Sistema operacional
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build outputs (se houver)
+dist/
+build/

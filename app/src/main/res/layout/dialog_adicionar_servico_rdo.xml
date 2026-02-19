@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Adicionar Serviço"
+        android:textSize="18sp"
+        android:textStyle="bold"
+        android:textColor="?attr/colorOnSurface"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Pesquisar Serviço:"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp"/>
+
+    <AutoCompleteTextView
+        android:id="@+id/autoCompleteServicoRDO"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:hint="Digite para pesquisar..."
+        android:inputType="textNoSuggestions"
+        android:completionThreshold="1"
+        android:dropDownHeight="300dp"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Quantidade:"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp"/>
+
+    <EditText
+        android:id="@+id/etQuantidadeServicoRDO"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="numberDecimal"
+        android:hint="Digite a quantidade"
+        android:minHeight="48dp"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Observações (opcional):"
+        android:textSize="14sp"
+        android:layout_marginBottom="8dp"/>
+
+    <EditText
+        android:id="@+id/etObservacoesServicoRDO"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="textCapSentences|textMultiLine"
+        android:hint="Observações sobre a execução"
+        android:minHeight="48dp"
+        android:maxLines="3"
+        android:layout_marginBottom="16dp"/>
+
+    <CheckBox
+        android:id="@+id/cbServicoCustomizadoRDO"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Serviço Customizado"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:id="@+id/tvAvisoCustomizadoRDO"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="⚠️ Serviço customizado! Informe HH manual se desejar calcular horas."
+        android:textSize="12sp"
+        android:textColor="#FF9800"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp"/>
+
+    <TextView
+        android:id="@+id/tvLabelUnidadeCustom"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Unidade:"
+        android:textSize="14sp"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp"/>
+
+    <Spinner
+        android:id="@+id/spinnerUnidadeServicoRDO"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:minHeight="48dp"
+        android:visibility="gone"
+        android:layout_marginBottom="16dp"/>
+
+    <TextView
+        android:id="@+id/tvLabelHHManual"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="HH por unidade (opcional):"
+        android:textSize="14sp"
+        android:visibility="gone"
+        android:layout_marginBottom="8dp"/>
+
+    <EditText
+        android:id="@+id/etHHManualServicoRDO"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:inputType="numberDecimal"
+        android:hint="Ex: 0.81"
+        android:minHeight="48dp"
+        android:visibility="gone"
+        android:layout_marginBottom="16dp"/>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="end">
+
+        <Button
+            android:id="@+id/btnCancelarServicoRDO"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Cancelar"
+            android:backgroundTint="#757575"
+            android:layout_marginEnd="8dp"/>
+
+        <Button
+            android:id="@+id/btnConfirmarServicoRDO"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Adicionar"
+            android:backgroundTint="#4CAF50"/>
+
+    </LinearLayout>
+
+</LinearLayout>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="sectionClimaSeguranca" type="id"/>
+    <item name="sectionServicos" type="id"/>
+    <item name="sectionMateriais" type="id"/>
+    <item name="sectionEquipamentos" type="id"/>
+    <item name="sectionHI" type="id"/>
+</resources>

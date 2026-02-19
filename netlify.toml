@@ -1,0 +1,41 @@
+# Netlify Build Configuration
+# Dashboard de Medição — Engecom/Encogel / RUMO Logística
+#
+# Variáveis de ambiente necessárias (configurar em Netlify → Site settings → Environment variables):
+#   SPREADSHEET_ID   — ID da planilha Google Sheets
+#   SHEETS_API_KEY   — API Key do Google (com restrição HTTP Referrer)
+#   SECRET_KEY       — Senha de acesso ao dashboard (ex: rumo01)
+#   APPS_SCRIPT_URL  — URL do Google Apps Script (opcional)
+
+[build]
+  command = "node scripts/build-config.js"
+  publish = "dashboard"
+
+[build.environment]
+  NODE_VERSION = "18"
+
+# Cabeçalhos de segurança aplicados a todas as páginas
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Frame-Options = "DENY"
+    X-Content-Type-Options = "nosniff"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Permissions-Policy = "geolocation=(), microphone=(), camera=()"
+
+# Cache longo para assets estáticos (JS/CSS com cache busting via ?v=)
+[[headers]]
+  for = "/js/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+[[headers]]
+  for = "/css/*"
+  [headers.values]
+    Cache-Control = "public, max-age=3600"
+
+# Nunca cachear config.js (gerado no build com secrets)
+[[headers]]
+  for = "/js/config.js"
+  [headers.values]
+    Cache-Control = "no-store"

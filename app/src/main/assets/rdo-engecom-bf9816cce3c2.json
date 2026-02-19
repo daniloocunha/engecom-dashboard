@@ -1,0 +1,13 @@
+{
+  "type": "service_account",
+  "project_id": "rdo-engecom",
+  "private_key_id": "bf9816cce3c218ca2277e01ca6fe281327b07e4c",
+  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDEGmOBWR2mCETZ\nk5jSEKDqwp/KSoUFShUIz0RxF3pqhmueEGsnQTlSqjyE/244YAKvGhPAZfyWNMLp\nbVexdF+vnJkB25klXH0hYJKwo+i/AGcpV8aYG1tgcU2yYVk7XHZcM9X1eBqf3z/y\n00/Nmoov2Q7DzhB8rO2K8hTfR5VuTcUqc5+PpMXl9wt6KxAv5Ko9UbZlSw2nGQoO\nZCxhjQrdnHBEl3D1NN41l9hGTrbkjGVFV80m95/xXd4y8HUum5vNQuREqpjVyx7q\nwLUtt7xy/YfWGcFA18Xe585cqxWq1nfJS1QPiRbzliggCnzxPXyeaRpsl4utbpfO\nNwFasifPAgMBAAECggEABm4KaDHTVTUn3hhxpiWcbnDI4M72Xe4yvVy1FPOHny7e\nysp6sPP5sgUEl08cE+YgqxFy/K0mDd4XVqRaqpCzGHoifDCb7LaDyyXe+W1jvWuB\nIRZl276TOEN5dYlX7dMsyv4kxvfUAPzxcaqjDw3rolZUHnBxvZzFQc0z3lRQXn2d\n8Wtm9KF+pHNJMX035nCT0DkG4u+rMUqQakCl5opSgerXvNFretZCRTr1aX/ieffH\nhf9xPJaf7lIXWxpa1MSVjC5AvV5tpiNdlBrjKy4/hsJw9cqNat1VR1bufLtscWgN\n3xuVwm+GmpIgozeqW3u2BXK1XYIz4bQX0kf1EIWZDQKBgQDgVLSUvozci7TkcW+a\nOpvvdnzOgbOHcSK42HTIpi6fYJP1vMINnu2ovZRqFCmVapnmva0yn7mOIbtLL/QB\nktr1eYi6dGg1j0HVR+sraGv6i8ZpdphY/eePC7XzjX4/ykHXrKLZKJX4PBH7GAKG\neL2YDUQGO4d6TNvFOjFrEQ/y1QKBgQDfyYiXxMns5LiTJ9EoC5WzMhyDL2T+9VIv\nW8/1pi0Smv5QW5OCzDFa0ZhU3WzLAJkk/L1rNVqjwdo/olfQ0QQFuOBQ0MaBd9sv\nxH5g61lz/QVQa+nxVeP8XnUqnB3nJvMbChQN7nDmwHvAicq9Fvrb3v3dvcCeSON+\nU1GIpjOaEwKBgQC6F8qNsdzsf8CZ2Tg5evEsnuA99v5VFxc0u+t1H9aBQ/651dIs\ntnB0kH/z17H/TyVIcoShADtPms/iOW9zdr3I8P7pnfNsquBz62s84Szh9N2tU0Ji\nYI6c7ZwM5I2coU4pef7FopN2D27jGzHNF5A/+JE7klp6rBOL8xBXvxm52QKBgBj6\ncq+V/H/fi6aJNDRHDr+AoWQXHyvCEBlPIyglEzTXbflkL1PTHNMpP9qBGIqUF4Pk\nXfQgcWyDz6t4oFqjadKFryv2EaIT0bhEM2L4AfULUdOHKAaS8q6RkHxgDoplc48a\nEeD4M0veQjHcb2+pp/hwrF9ataw1MIdCH4CkJHBXAoGAI5patfkpnKf90zLwlsb1\ngY51gVsW/wJOi5EmTjb1/DvFTvoxBO7drOnx8ACcz9Ko/O/MT/pPvuNx1vJ39YU+\nieHO86xjpZlWPWSk6T6QFWCxpB9qxH1n/h9eFozJsv2CL4F2X27jKRJJst9QBrkM\n2VwDsHybdTlOiLbTAoCgO60=\n-----END PRIVATE KEY-----\n",
+  "client_email": "rdo-sync-service@rdo-engecom.iam.gserviceaccount.com",
+  "client_id": "100646140530944679308",
+  "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+  "token_uri": "https://oauth2.googleapis.com/token",
+  "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+  "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/rdo-sync-service%40rdo-engecom.iam.gserviceaccount.com",
+  "universe_domain": "googleapis.com"
+}

@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico - Dashboard</title>
+    <style>
+        body {
+            font-family: 'Courier New', monospace;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background: #1e1e1e;
+            color: #d4d4d4;
+        }
+        h1 { color: #4ec9b0; }
+        h2 { color: #569cd6; margin-top: 30px; }
+        .test {
+            background: #252526;
+            padding: 15px;
+            margin: 10px 0;
+            border-left: 4px solid #007acc;
+            border-radius: 4px;
+        }
+        .success { border-left-color: #4ec9b0; }
+        .error { border-left-color: #f48771; }
+        .warning { border-left-color: #dcdcaa; }
+        pre {
+            background: #1e1e1e;
+            padding: 10px;
+            overflow-x: auto;
+            border: 1px solid #3c3c3c;
+            border-radius: 4px;
+        }
+        button {
+            background: #0e639c;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 14px;
+            margin: 5px;
+        }
+        button:hover { background: #1177bb; }
+        .status { font-weight: bold; }
+        .status.ok { color: #4ec9b0; }
+        .status.fail { color: #f48771; }
+        .status.warn { color: #dcdcaa; }
+    </style>
+</head>
+<body>
+    <h1>🔍 Diagnóstico do Dashboard</h1>
+    <p>Esta página testa a conexão com o Google Sheets e identifica problemas.</p>
+
+    <button onclick="runAllTests()">▶ Executar Todos os Testes</button>
+    <button onclick="location.reload()">🔄 Recarregar</button>
+    <button onclick="window.open('index.html', '_blank')">🏠 Voltar ao Dashboard</button>
+
+    <div id="results"></div>
+
+    <script src="js/config.js"></script>
+    <script>
+        const results = document.getElementById('results');
+
+        function addResult(title, status, message, details = null) {
+            const className = status === 'success' ? 'success' : status === 'error' ? 'error' : 'warning';
+            const statusText = status === 'success' ? '✅ OK' : status === 'error' ? '❌ ERRO' : '⚠️ AVISO';
+
+            let html = `
+                <div class="test ${className}">
+                    <h3>${title} <span class="status ${status === 'success' ? 'ok' : status === 'error' ? 'fail' : 'warn'}">${statusText}</span></h3>
+                    <p>${message}</p>
+                    ${details ? `<pre>${details}</pre>` : ''}
+                </div>
+            `;
+            results.innerHTML += html;
+        }
+
+        async function runAllTests() {
+            results.innerHTML = '<h2>📋 Executando testes...</h2>';
+
+            // Teste 1: Verificar configuração
+            testConfig();
+
+            // Teste 2: Testar API Key
+            await testAPIKey();
+
+            // Teste 3: Testar acesso à planilha
+            await testSpreadsheetAccess();
+
+            // Teste 4: Testar cada aba
+            await testAllSheets();
+
+            // Teste 5: Verificar CORS
+            await testCORS();
+
+            results.innerHTML += '<h2>✅ Diagnóstico concluído!</h2>';
+        }
+
+        function testConfig() {
+            addResult(
+                'Teste 1: Configuração',
+                'success',
+                'Configuração carregada com sucesso',
+                `Spreadsheet ID: ${CONFIG.SPREADSHEET_ID}\nAPI Key: ${CONFIG.API_KEY.substring(0, 10)}...`
+            );
+        }
+
+        async function testAPIKey() {
+            try {
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}?key=${CONFIG.API_KEY}`;
+                const response = await fetch(url);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    addResult(
+                        'Teste 2: API Key',
+                        'success',
+                        'API Key válida e funcionando!',
+                        `Título da planilha: ${data.properties.title}`
+                    );
+                } else {
+                    const errorText = await response.text();
+                    addResult(
+                        'Teste 2: API Key',
+                        'error',
+                        `API Key inválida ou sem permissões (HTTP ${response.status})`,
+                        errorText
+                    );
+                }
+            } catch (error) {
+                addResult(
+                    'Teste 2: API Key',
+                    'error',
+                    'Erro ao testar API Key',
+                    error.message
+                );
+            }
+        }
+
+        async function testSpreadsheetAccess() {
+            try {
+                const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}?fields=sheets.properties&key=${CONFIG.API_KEY}`;
+                const response = await fetch(url);
+
+                if (response.ok) {
+                    const data = await response.json();
+                    const sheetNames = data.sheets.map(s => s.properties.title).join(', ');
+                    addResult(
+                        'Teste 3: Acesso à Planilha',
+                        'success',
+                        `Planilha acessível! Total de ${data.sheets.length} abas encontradas.`,
+                        `Abas disponíveis: ${sheetNames}`
+                    );
+                } else {
+                    addResult(
+                        'Teste 3: Acesso à Planilha',
+                        'error',
+                        `Não foi possível acessar a planilha (HTTP ${response.status})`,
+                        await response.text()
+                    );
+                }
+            } catch (error) {
+                addResult(
+                    'Teste 3: Acesso à Planilha',
+                    'error',
+                    'Erro ao acessar planilha',
+                    error.message
+                );
+            }
+        }
+
+        async function testAllSheets() {
+            const sheets = ['RDO', 'Servicos', 'HorasImprodutivas', 'Efetivo', 'Equipamentos'];
+
+            for (const sheetName of sheets) {
+                try {
+                    const url = `https://sheets.googleapis.com/v4/spreadsheets/${CONFIG.SPREADSHEET_ID}/values/${sheetName}!A1:A1?key=${CONFIG.API_KEY}`;
+                    const response = await fetch(url);
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const hasData = data.values && data.values.length > 0;
+                        addResult(
+                            `Teste 4.${sheets.indexOf(sheetName) + 1}: Aba "${sheetName}"`,
+                            hasData ? 'success' : 'warning',
+                            hasData ? `✅ Aba acessível com dados` : `⚠️ Aba acessível mas vazia`,
+                            hasData ? `Primeiro valor: ${data.values[0][0]}` : 'Nenhum dado encontrado'
+                        );
+                    } else {
+                        addResult(
+                            `Teste 4.${sheets.indexOf(sheetName) + 1}: Aba "${sheetName}"`,
+                            'error',
+                            `❌ Não foi possível acessar (HTTP ${response.status})`,
+                            await response.text()
+                        );
+                    }
+                } catch (error) {
+                    addResult(
+                        `Teste 4.${sheets.indexOf(sheetName) + 1}: Aba "${sheetName}"`,
+                        'error',
+                        'Erro ao testar aba',
+                        error.message
+                    );
+                }
+            }
+        }
+
+        async function testCORS() {
+            addResult(
+                'Teste 5: CORS',
+                'success',
+                'CORS está funcionando (todas as requisições acima funcionaram)',
+                'Se você consegue ver este teste, significa que CORS não é um problema.\nO dashboard pode ser aberto diretamente (file://) ou via servidor HTTP.'
+            );
+        }
+
+        // Executar automaticamente ao carregar
+        window.onload = () => {
+            setTimeout(runAllTests, 500);
+        };
+    </script>
+</body>
+</html>

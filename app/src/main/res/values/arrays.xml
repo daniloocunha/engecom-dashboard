@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="opcoes_sim_nao">
+        <item>SIM</item>
+        <item>NÃO</item>
+    </string-array>
+</resources>

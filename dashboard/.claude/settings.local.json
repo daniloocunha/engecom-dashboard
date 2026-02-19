@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(test:*)",
+      "Bash(find:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)",
+      "Bash(node --check:*)",
+      "Bash(tree:*)",
+      "Bash(cat:*)",
+      "Bash(./gradlew compileDebugKotlin:*)",
+      "Bash(git checkout:*)",
+      "Bash(./gradlew build:*)",
+      "Bash(./gradlew assembleDebug:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

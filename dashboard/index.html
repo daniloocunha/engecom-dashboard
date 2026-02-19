@@ -1,0 +1,1155 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard de Medição | Engecom/Encogel</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+    <!-- Chart.js Plugins -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="css/dashboard.css">
+    <link rel="stylesheet" href="css/minimal-view.css">
+
+    <!-- Favicon - Usar emoji como fallback -->
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
+</head>
+<body>
+    <!-- Navbar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="fas fa-chart-line me-2"></i>
+                Dashboard de Medição
+            </a>
+            <span class="navbar-text text-white me-3">
+                <small>Engecom / Encogel</small>
+            </span>
+
+            <!-- Toggle de Visualização -->
+            <div class="view-toggle me-3">
+                <div class="btn-group btn-group-sm" role="group">
+                    <input type="radio" class="btn-check" name="viewMode" id="viewClassic" autocomplete="off" checked>
+                    <label class="btn btn-outline-light" for="viewClassic" title="Visualização Clássica">
+                        <i class="fas fa-th-large"></i>
+                        <span class="d-none d-md-inline ms-1">Clássico</span>
+                    </label>
+
+                    <input type="radio" class="btn-check" name="viewMode" id="viewMinimal" autocomplete="off">
+                    <label class="btn btn-outline-light" for="viewMinimal" title="Visualização Minimalista">
+                        <i class="fas fa-list"></i>
+                        <span class="d-none d-md-inline ms-1">Minimalista</span>
+                    </label>
+                </div>
+            </div>
+
+            <button class="btn btn-outline-light btn-sm" onclick="auth.logout()">
+                <i class="fas fa-sign-out-alt me-1"></i>
+                Sair
+            </button>
+        </div>
+    </nav>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="loading-overlay">
+        <div class="loading-content">
+            <div class="spinner-border text-primary mb-3" role="status">
+                <span class="visually-hidden">Carregando...</span>
+            </div>
+            <h5 id="loadingMessage">Carregando dados do Google Sheets...</h5>
+            <div class="progress mt-3" style="height: 8px; width: 300px;">
+                <div id="loadingProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
+                     role="progressbar" style="width: 0%"></div>
+            </div>
+            <small id="loadingStep" class="text-muted mt-2 d-block"></small>
+        </div>
+    </div>
+
+    <!-- Cache Warning Banner -->
+    <div id="cacheWarningBanner">
+        <div class="warning-content">
+            <i class="fas fa-exclamation-triangle warning-icon"></i>
+            <div>
+                <div class="warning-text">Atenção: Dados desatualizados</div>
+                <small>Não foi possível atualizar os dados. Exibindo última versão em cache.</small>
+            </div>
+        </div>
+        <button class="btn-close-warning" onclick="sheetsAPI.fecharAvisoCache()">
+            <i class="fas fa-times me-1"></i> Fechar
+        </button>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container-fluid py-4" id="mainContainer" style="display: none;">
+
+        <!-- VIEW CLÁSSICA (Atual) -->
+        <div id="classicView" style="display: block;">
+
+        <!-- Filtros -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <div class="row align-items-end">
+                    <div class="col-md-2">
+                        <label class="form-label">Mês</label>
+                        <select class="form-select" id="filtroMes">
+                            <option value="1">Janeiro</option>
+                            <option value="2">Fevereiro</option>
+                            <option value="3">Março</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Maio</option>
+                            <option value="6">Junho</option>
+                            <option value="7">Julho</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Setembro</option>
+                            <option value="10">Outubro</option>
+                            <option value="11">Novembro</option>
+                            <option value="12">Dezembro</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Ano</label>
+                        <select class="form-select" id="filtroAno">
+                            <!-- Gerado dinamicamente via JS -->
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label">Turma</label>
+                        <select class="form-select" id="filtroTurma">
+                            <option value="todas">Todas as Turmas</option>
+                            <!-- Preenchido via JavaScript -->
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label class="form-label">Tipo</label>
+                        <select class="form-select" id="filtroTipo">
+                            <option value="todos">Todos</option>
+                            <option value="TP">TPs</option>
+                            <option value="TMC">TMCs</option>
+                            <option value="TS">TSs</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-primary w-100" onclick="aplicarFiltros()">
+                            <i class="fas fa-filter me-2"></i>
+                            Aplicar Filtros
+                        </button>
+                    </div>
+                    <div class="col-md-1">
+                        <div class="dropdown">
+                            <button class="btn btn-success w-100 dropdown-toggle" type="button" id="btnExport" data-bs-toggle="dropdown" aria-expanded="false" title="Exportar dados">
+                                <i class="fas fa-download"></i>
+                            </button>
+                            <ul class="dropdown-menu" aria-labelledby="btnExport">
+                                <li><a class="dropdown-item" href="#" onclick="exportarCSV(); return false;"><i class="fas fa-file-csv me-2"></i>Exportar CSV</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="exportarExcel(); return false;"><i class="fas fa-file-excel me-2"></i>Exportar Excel</a></li>
+                                <li><a class="dropdown-item" href="#" onclick="exportarPDF(); return false;"><i class="fas fa-file-pdf me-2"></i>Exportar PDF</a></li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- KPIs Cards -->
+        <div class="row mb-4" id="kpisContainer">
+            <div class="col-md-3">
+                <div class="card kpi-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted mb-1">Total RDOs</h6>
+                                <h3 class="mb-0" id="kpiTotalRdos">0</h3>
+                            </div>
+                            <div class="kpi-icon bg-primary">
+                                <i class="fas fa-file-alt"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card kpi-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted mb-1">Total HH (TPs)</h6>
+                                <h3 class="mb-0" id="kpiTotalHH">0</h3>
+                            </div>
+                            <div class="kpi-icon bg-success">
+                                <i class="fas fa-clock"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card kpi-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted mb-1">Faturamento Total</h6>
+                                <h3 class="mb-0" id="kpiFaturamento">R$ 0,00</h3>
+                            </div>
+                            <div class="kpi-icon bg-warning">
+                                <i class="fas fa-dollar-sign"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card kpi-card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="text-muted mb-1">Média SLA (TPs)</h6>
+                                <h3 class="mb-0" id="kpiMediaSLA">0%</h3>
+                            </div>
+                            <div class="kpi-icon bg-info">
+                                <i class="fas fa-chart-pie"></i>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tabs para TMC e TP -->
+        <ul class="nav nav-tabs mb-4" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="tab-geral" data-bs-toggle="tab" data-bs-target="#panel-geral" type="button">
+                    <i class="fas fa-chart-area me-2"></i>Visão Geral
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-tps" data-bs-toggle="tab" data-bs-target="#panel-tps" type="button">
+                    <i class="fas fa-industry me-2"></i>TPs (Produção)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-tmcs" data-bs-toggle="tab" data-bs-target="#panel-tmcs" type="button">
+                    <i class="fas fa-tools me-2"></i>TMCs (Manutenção)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-tss" data-bs-toggle="tab" data-bs-target="#panel-tss" type="button">
+                    <i class="fas fa-fire me-2"></i>TSs (Solda)
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-gestao-os" data-bs-toggle="tab" data-bs-target="#panel-gestao-os" type="button">
+                    <i class="fas fa-clipboard-list me-2"></i>Gestão de O.S
+                </button>
+            </li>
+        </ul>
+
+        <!-- Tab Content -->
+        <div class="tab-content" id="mainTabContent">
+
+            <!-- Visão Geral -->
+            <div class="tab-pane fade show active" id="panel-geral">
+
+                <!-- 🔔 Seção de Alertas -->
+                <div class="row mb-4">
+                    <div class="col-12">
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-header bg-white">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <h5 class="mb-0">
+                                        <i class="fas fa-bell me-2 text-warning"></i>Alertas e Notificações
+                                    </h5>
+                                    <button class="btn btn-sm btn-outline-secondary" onclick="alertsSystem.renderizarAlertas()">
+                                        <i class="fas fa-sync-alt me-1"></i>Atualizar
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="card-body" id="alertasContainer">
+                                <div class="text-center text-muted py-3">
+                                    <i class="fas fa-spinner fa-spin me-2"></i>Carregando alertas...
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <!-- Gráfico de Evolução -->
+                    <div class="col-md-8 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Evolução de Faturamento</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="chartEvolucao"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Distribuição Engecom/Encogel -->
+                    <div class="col-md-4 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Distribuição</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="chartDistribuicao"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Ranking de Turmas -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-trophy me-2"></i>Ranking de Turmas</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="chartRanking"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TPs (Produção) -->
+            <div class="tab-pane fade" id="panel-tps">
+                <div class="row">
+                    <!-- KPI Média de Efetivo -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card kpi-card" style="border-left-color: #2196F3;">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="text-muted mb-2">Média de Efetivo (Operadores)</h6>
+                                        <h3 class="mb-0" id="kpiMediaEfetivoTP">-</h3>
+                                        <small class="text-muted">Total: <span id="kpiMediaEfetivoTotalTP">-</span> pessoas</small>
+                                    </div>
+                                    <div class="kpi-icon bg-info">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- HH Produtivas vs Improdutivas -->
+                    <div class="col-md-8 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-clock me-2"></i>HH Produtivas vs Improdutivas</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="chartHHComparacao"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Heatmap de Produtividade -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Mapa de Produtividade Diária</h5>
+                                <div class="badge-legend">
+                                    <span class="badge bg-success me-2">≥ 96 HH</span>
+                                    <span class="badge bg-warning me-2">80-95 HH</span>
+                                    <span class="badge bg-danger">< 80 HH</span>
+                                </div>
+                            </div>
+                            <div class="card-body" id="heatmapContainer">
+                                <!-- Preenchido via JavaScript -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Calendário de Performance por Turma -->
+                    <div class="col-md-12 mb-4">
+                        <div id="calendarioTPContainer">
+                            <!-- Preenchido via JavaScript -->
+                        </div>
+                    </div>
+
+                    <!-- Gráficos de Pizza do Período -->
+                    <div class="col-lg-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Distribuição HH do Período</h5>
+                            </div>
+                            <div class="card-body d-flex align-items-center justify-content-center">
+                                <canvas id="chartDistribuicaoHHPeriodo" style="max-height: 450px; max-width: 100%;"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-lg-6 mb-4">
+                        <div class="card h-100">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Top 10 Serviços/HI</h5>
+                            </div>
+                            <div class="card-body d-flex align-items-center justify-content-center">
+                                <canvas id="chartTop10Periodo" style="max-height: 450px; max-width: 100%;"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Totais Mensais de Serviços - PDM e CORRELATOS -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-list-ul me-2"></i>Totais Mensais de Serviços</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover table-sm" id="tabelaTotaisMensais">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <!-- Cabeçalho PDM -->
+                                                <th colspan="5" class="text-center bg-primary text-white">
+                                                    <i class="fas fa-tools me-2"></i>PDM (Plano de Manutenção)
+                                                </th>
+                                                <th class="border-start border-3"></th>
+                                                <!-- Cabeçalho CORRELATOS -->
+                                                <th colspan="5" class="text-center bg-secondary text-white">
+                                                    <i class="fas fa-cogs me-2"></i>CORRELATOS
+                                                </th>
+                                            </tr>
+                                            <tr>
+                                                <!-- Sub-cabeçalho PDM -->
+                                                <th>Serviço</th>
+                                                <th class="text-center">Qtd</th>
+                                                <th class="text-center">Un</th>
+                                                <th class="text-end">HH</th>
+                                                <th class="text-center">Ocorr</th>
+                                                <th class="border-start border-3"></th>
+                                                <!-- Sub-cabeçalho CORRELATOS -->
+                                                <th>Serviço</th>
+                                                <th class="text-center">Qtd</th>
+                                                <th class="text-center">Un</th>
+                                                <th class="text-end">HH</th>
+                                                <th class="text-center">Ocorr</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Preenchido via JavaScript -->
+                                        </tbody>
+                                        <tfoot class="table-secondary">
+                                            <tr>
+                                                <th colspan="3" class="text-end">TOTAL PDM:</th>
+                                                <th class="text-end" id="totalPDM_HH">-</th>
+                                                <th></th>
+                                                <th class="border-start border-3"></th>
+                                                <th colspan="3" class="text-end">TOTAL CORRELATOS:</th>
+                                                <th class="text-end" id="totalCorrelatos_HH">-</th>
+                                                <th></th>
+                                            </tr>
+                                            <tr class="fw-bold">
+                                                <th colspan="5" class="text-end">TOTAL GERAL:</th>
+                                                <th class="border-start border-3"></th>
+                                                <th colspan="3" class="text-end"></th>
+                                                <th class="text-end" id="totalGeral_HH">-</th>
+                                                <th></th>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+            </div>
+
+            <!-- TMCs (Manutenção) -->
+            <div class="tab-pane fade" id="panel-tmcs">
+                <div class="row">
+                    <!-- KPI Média de Efetivo -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card kpi-card" style="border-left-color: #FF9800;">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="text-muted mb-2">Média de Efetivo (Operadores)</h6>
+                                        <h3 class="mb-0" id="kpiMediaEfetivoTMC">-</h3>
+                                        <small class="text-muted">Total: <span id="kpiMediaEfetivoTotalTMC">-</span> pessoas</small>
+                                    </div>
+                                    <div class="kpi-icon bg-warning">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabela de TMCs -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-table me-2"></i>Detalhamento das TMCs</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover" id="tabelaTMCs">
+                                        <thead>
+                                            <tr>
+                                                <th>Turma</th>
+                                                <th>Local</th>
+                                                <th>Dias Úteis</th>
+                                                <th>Dias Trab.</th>
+                                                <th>Média Enc.</th>
+                                                <th>Média Oper.</th>
+                                                <th>Média Efetivo Total</th>
+                                                <th>Engecom</th>
+                                                <th>Encogel</th>
+                                                <th>Total</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Preenchido via JavaScript -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico de Comparação TMCs -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Comparação de Faturamento TMCs</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="chartTMCsComparacao"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TSs (Turmas de Solda) -->
+            <div class="tab-pane fade" id="panel-tss">
+                <div class="row">
+                    <!-- KPIs TS -->
+                    <div class="col-md-3 mb-4">
+                        <div class="card kpi-card">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-1">Total TSs</h6>
+                                <h3 class="mb-0" id="kpiTotalTSs">0</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 mb-4">
+                        <div class="card kpi-card">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-1">HH Soldador</h6>
+                                <h3 class="mb-0" id="kpiHHSoldador">0</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 mb-4">
+                        <div class="card kpi-card">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-1">Média SLA (TSs)</h6>
+                                <h3 class="mb-0" id="kpiMediaSLATS">0%</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="col-md-3 mb-4">
+                        <div class="card kpi-card">
+                            <div class="card-body">
+                                <h6 class="text-muted mb-1">Faturamento TSs</h6>
+                                <h3 class="mb-0" id="kpiFaturamentoTS">R$ 0,00</h3>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- KPI Média de Efetivo -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card kpi-card" style="border-left-color: #F44336;">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="text-muted mb-2">Média de Efetivo (Operadores)</h6>
+                                        <h3 class="mb-0" id="kpiMediaEfetivoTS">-</h3>
+                                        <small class="text-muted">Total: <span id="kpiMediaEfetivoTotalTS">-</span> pessoas</small>
+                                    </div>
+                                    <div class="kpi-icon bg-danger">
+                                        <i class="fas fa-users"></i>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico SLA Gauge TS -->
+                    <div class="col-md-4 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-tachometer-alt me-2"></i>SLA Médio (Soldador)</h5>
+                            </div>
+                            <div class="card-body text-center">
+                                <canvas id="chartSLAGaugeTS"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico Evolução HH Soldador -->
+                    <div class="col-md-8 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Evolução HH Soldador</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="chartEvolucaoTS"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Tabela de TSs -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-table me-2"></i>Detalhamento das TSs</h5>
+                            </div>
+                            <div class="card-body">
+                                <div class="table-responsive">
+                                    <table class="table table-hover" id="tabelaTSs">
+                                        <thead>
+                                            <tr>
+                                                <th>Turma</th>
+                                                <th>Encarregado</th>
+                                                <th>Meta HH (Soldador)</th>
+                                                <th>HH Realizado</th>
+                                                <th>% SLA</th>
+                                                <th>Média Efetivo (Op.)</th>
+                                                <th>Faturamento</th>
+                                                <th>Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <!-- Preenchido via JavaScript -->
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Gráfico de Comparação TSs -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Comparação de Faturamento TSs</h5>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="chartTSsComparacao"></canvas>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Calendário de Acompanhamento TS -->
+                    <div class="col-md-12 mb-4">
+                        <div class="card">
+                            <div class="card-header">
+                                <h5 class="mb-0"><i class="fas fa-calendar-alt me-2"></i>Calendário de Performance</h5>
+                            </div>
+                            <div class="card-body">
+                                <div id="calendarioTSContainer">
+                                    <!-- Preenchido via JavaScript -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Gestão de O.S Trabalhadas -->
+            <div class="tab-pane fade" id="panel-gestao-os">
+                <div class="row mb-3 align-items-end g-2">
+                    <div class="col-md-3">
+                        <label class="form-label mb-1">
+                            <i class="fas fa-filter me-1"></i>Status da O.S
+                        </label>
+                        <select class="form-select form-select-sm" id="filtroStatusGestaoOS">
+                            <option value="todas">Todas</option>
+                            <option value="Em Progresso">🟡 Em Progresso</option>
+                            <option value="Aprovada">🔵 Aprovada</option>
+                            <option value="Finalizada">🟢 Finalizada</option>
+                            <option value="Reprovada">🔴 Reprovada</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <button class="btn btn-sm btn-primary" onclick="gestaoOS.renderizar()">
+                            <i class="fas fa-sync me-1"></i>Atualizar
+                        </button>
+                    </div>
+                    <div class="col-md-7 text-muted small d-flex align-items-end">
+                        <i class="fas fa-info-circle me-1"></i>
+                        O filtro de Mês/Ano do painel principal é aplicado aqui também. Clique em uma O.S para ver detalhes.
+                    </div>
+                </div>
+                <div id="gestaoOSContainer">
+                    <!-- Preenchido via JavaScript -->
+                </div>
+            </div>
+
+        </div>
+
+        </div>
+        <!-- FIM VIEW CLÁSSICA -->
+
+        <!-- VIEW MINIMALISTA (Nova) -->
+        <div id="minimalView" style="display: none;">
+
+            <!-- Filtros Offcanvas -->
+            <div class="offcanvas offcanvas-end" tabindex="-1" id="filtrosOffcanvas">
+                <div class="offcanvas-header">
+                    <h5 class="offcanvas-title">
+                        <i class="fas fa-filter me-2"></i>
+                        Filtros
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
+                </div>
+                <div class="offcanvas-body">
+                    <div class="mb-3">
+                        <label class="form-label">Período</label>
+                        <div class="row g-2">
+                            <div class="col-7">
+                                <select class="form-select" id="filtroMesMinimal">
+                                    <option value="1">Janeiro</option>
+                                    <option value="2">Fevereiro</option>
+                                    <option value="3">Março</option>
+                                    <option value="4">Abril</option>
+                                    <option value="5">Maio</option>
+                                    <option value="6">Junho</option>
+                                    <option value="7">Julho</option>
+                                    <option value="8">Agosto</option>
+                                    <option value="9">Setembro</option>
+                                    <option value="10">Outubro</option>
+                                    <option value="11">Novembro</option>
+                                    <option value="12">Dezembro</option>
+                                </select>
+                            </div>
+                            <div class="col-5">
+                                <select class="form-select" id="filtroAnoMinimal">
+                                    <!-- Gerado dinamicamente via JS -->
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Turma</label>
+                        <select class="form-select" id="filtroTurmaMinimal">
+                            <option value="todas">Todas as Turmas</option>
+                        </select>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label">Tipo de Turma</label>
+                        <div class="d-grid gap-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="filtroTPMinimal" checked>
+                                <label class="form-check-label" for="filtroTPMinimal">
+                                    <span class="badge bg-primary">TPs</span> Turmas de Produção
+                                </label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="filtroTMCMinimal" checked>
+                                <label class="form-check-label" for="filtroTMCMinimal">
+                                    <span class="badge bg-warning">TMCs</span> Turmas de Manutenção
+                                </label>
+                            </div>
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="filtroTSMinimal" checked>
+                                <label class="form-check-label" for="filtroTSMinimal">
+                                    <span class="badge bg-danger">TSs</span> Turmas de Solda
+                                </label>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-primary w-100 mb-2" onclick="aplicarFiltrosMinimal()">
+                        <i class="fas fa-check me-2"></i>
+                        Aplicar Filtros
+                    </button>
+                    <button class="btn btn-outline-secondary w-100" onclick="limparFiltrosMinimal()">
+                        <i class="fas fa-times me-2"></i>
+                        Limpar Filtros
+                    </button>
+                </div>
+            </div>
+
+            <!-- Card Hero - Faturamento -->
+            <div class="hero-kpi-card mb-4" id="heroCard">
+                <div class="row align-items-center">
+                    <div class="col-md-8">
+                        <div class="hero-label">Faturamento Total do Período</div>
+                        <div class="hero-value" id="heroFaturamento">R$ 0,00</div>
+                        <div class="hero-trend" id="heroTrend">
+                            <i class="fas fa-minus"></i> Calculando...
+                        </div>
+                        <div class="hero-meta mt-2" id="heroMeta">
+                            <span id="heroPeriodo"></span>
+                        </div>
+                    </div>
+                    <div class="col-md-4 text-end">
+                        <canvas id="heroSparkline" width="200" height="80"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- KPIs Secundários -->
+            <div class="row mb-4" id="kpisSecundarios">
+                <div class="col-md-4">
+                    <div class="card kpi-card-mini">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="kpi-mini-label">Total de RDOs</div>
+                                    <div class="kpi-mini-value" id="kpiRDOs">0</div>
+                                </div>
+                                <div class="kpi-mini-icon bg-info">
+                                    <i class="fas fa-file-alt"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card kpi-card-mini">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="kpi-mini-label">Total HH (TPs)</div>
+                                    <div class="kpi-mini-value" id="kpiHH">0</div>
+                                </div>
+                                <div class="kpi-mini-icon bg-primary">
+                                    <i class="fas fa-clock"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card kpi-card-mini">
+                        <div class="card-body">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <div class="kpi-mini-label">SLA Médio (TPs)</div>
+                                    <div class="kpi-mini-value" id="kpiSLA">0%</div>
+                                </div>
+                                <div class="kpi-mini-icon bg-success">
+                                    <i class="fas fa-chart-line"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Accordions por Tipo -->
+            <div class="accordion mb-4" id="turmasAccordion">
+
+                <!-- TPs -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTPs">
+                            <i class="fas fa-industry me-2 text-primary"></i>
+                            <strong>TPs - Turmas de Produção</strong>
+                            <span class="badge bg-primary ms-2" id="badgeTPs">0 turmas</span>
+                            <span class="ms-auto me-3 text-muted" id="resumoTPs">0 HH | 0% SLA</span>
+                        </button>
+                    </h2>
+                    <div id="collapseTPs" class="accordion-collapse collapse show" data-bs-parent="#turmasAccordion">
+                        <div class="accordion-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Turma</th>
+                                            <th>HH Total</th>
+                                            <th>SLA %</th>
+                                            <th>Faturamento</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabelaTPsMinimal">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">
+                                                <em>Nenhuma TP encontrada para o período selecionado</em>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TMCs -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTMCs">
+                            <i class="fas fa-tools me-2 text-warning"></i>
+                            <strong>TMCs - Turmas de Manutenção</strong>
+                            <span class="badge bg-warning ms-2" id="badgeTMCs">0 turmas</span>
+                            <span class="ms-auto me-3 text-muted" id="resumoTMCs">0 dias trabalhados</span>
+                        </button>
+                    </h2>
+                    <div id="collapseTMCs" class="accordion-collapse collapse" data-bs-parent="#turmasAccordion">
+                        <div class="accordion-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Turma</th>
+                                            <th>Dias Trab.</th>
+                                            <th>Média Efetivo</th>
+                                            <th>Faturamento</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabelaTMCsMinimal">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">
+                                                <em>Nenhuma TMC encontrada para o período selecionado</em>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- TSs -->
+                <div class="accordion-item">
+                    <h2 class="accordion-header">
+                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTSs">
+                            <i class="fas fa-fire me-2 text-danger"></i>
+                            <strong>TSs - Turmas de Solda</strong>
+                            <span class="badge bg-danger ms-2" id="badgeTSs">0 turmas</span>
+                            <span class="ms-auto me-3 text-muted" id="resumoTSs">0 HH Soldador</span>
+                        </button>
+                    </h2>
+                    <div id="collapseTSs" class="accordion-collapse collapse" data-bs-parent="#turmasAccordion">
+                        <div class="accordion-body">
+                            <div class="table-responsive">
+                                <table class="table table-hover table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>Turma</th>
+                                            <th>HH Soldador</th>
+                                            <th>SLA %</th>
+                                            <th>Faturamento</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="tabelaTSsMinimal">
+                                        <tr>
+                                            <td colspan="5" class="text-center text-muted">
+                                                <em>Nenhuma TS encontrada para o período selecionado</em>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Calendário de Produtividade -->
+            <div class="card mb-4">
+                <div class="card-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5 class="mb-0">
+                            <i class="fas fa-calendar-alt me-2"></i>
+                            Calendário de Produtividade
+                        </h5>
+                        <div class="btn-group btn-group-sm">
+                            <input type="radio" class="btn-check" name="tipoCalendarioMinimal" id="calTPMinimal" checked>
+                            <label class="btn btn-outline-primary" for="calTPMinimal">TPs</label>
+
+                            <input type="radio" class="btn-check" name="tipoCalendarioMinimal" id="calTMCMinimal">
+                            <label class="btn btn-outline-warning" for="calTMCMinimal">TMCs</label>
+
+                            <input type="radio" class="btn-check" name="tipoCalendarioMinimal" id="calTSMinimal">
+                            <label class="btn btn-outline-danger" for="calTSMinimal">TSs</label>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body" id="calendarioMinimalContainer">
+                    <!-- Calendário será renderizado aqui -->
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-calendar-alt fa-3x mb-3"></i>
+                        <p>Selecione um período nos filtros para visualizar o calendário</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Botão de Ações -->
+            <div class="d-grid gap-2 d-md-flex justify-content-md-center mb-4">
+                <button class="btn btn-outline-primary" onclick="abrirAnaliseAvancada()">
+                    <i class="fas fa-chart-bar me-2"></i>
+                    Ver Análises Avançadas
+                </button>
+                <button class="btn btn-outline-secondary" onclick="exportarRelatorio()">
+                    <i class="fas fa-download me-2"></i>
+                    Exportar Relatório
+                </button>
+            </div>
+
+        </div>
+        <!-- FIM VIEW MINIMALISTA -->
+
+    </div>
+
+    <!-- Botão Flutuante de Filtros (apenas no modo minimalista) -->
+    <button class="btn-filtros-float" id="btnFiltrosFloat" data-bs-toggle="offcanvas" data-bs-target="#filtrosOffcanvas" style="display: none;">
+        <i class="fas fa-filter"></i>
+        <span class="badge bg-danger filter-badge" id="filterBadge" style="display: none;">0</span>
+    </button>
+
+    <!-- Footer -->
+    <footer class="footer mt-5 py-3 bg-light">
+        <div class="container-fluid text-center">
+            <p class="text-muted mb-0">
+                <strong>Engecom Engenharia / Encogel</strong> - Consórcio RUMO Logística
+                <br>
+                <small>Dashboard v1.0.0 | <i class="fas fa-shield-alt"></i> Acesso Restrito</small>
+            </p>
+        </div>
+    </footer>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Scripts do Dashboard (cache-bust: altere ?v=X.Y.Z a cada release) -->
+    <script src="js/config.js?v=3.0.12"></script>
+    <script src="js/auth.js?v=3.0.12"></script>
+    <script src="js/field-helper.js?v=3.0.12"></script>
+    <script src="js/export-helper.js?v=3.0.12"></script>
+    <script src="js/alerts-system.js?v=3.0.12"></script>
+    <!-- Dados de serviços embutidos (fallback para CORS quando abrindo como file://) -->
+    <script src="js/servicos-data.js?v=3.0.12"></script>
+    <script src="js/sheets-api.js?v=3.0.12"></script>
+    <script src="js/calculations.js?v=3.0.12"></script>
+    <script src="js/charts.js?v=3.0.12"></script>
+    <script src="js/filters.js?v=3.0.12"></script>
+    <script src="js/calendario-tp.js?v=3.0.12"></script>
+    <script src="js/calendario-ts.js?v=3.0.12"></script>
+    <script src="js/view-manager.js?v=3.0.12"></script>
+
+    <!-- Bibliotecas de Export (opcional - fallback para CSV se não disponíveis) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha512-r22gChDnGvBylk90+2e/ycr+equG2BpL+A7r1cZDfq6dKqL0dN0YxMr2ov9+XH8bvPzNDnIYa6aQJ8tqOJ7FzQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js" integrity="sha512-dtc4c4hJA7nTpnKcOXfYLizhYJyX7A/4MYQYJV3RiAqADeCxST1rHQl0qPQlmHmidAZNrQYMh3chUbP0fAQ45w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <script src="js/export.js?v=3.0.12"></script>
+    <script src="js/gestao-os.js?v=3.0.12"></script>
+    <script src="js/main.js?v=3.0.12"></script>
+
+    <script>
+        // Inicialização com retry automático
+        let tentativasCarregamento = 0;
+        const MAX_TENTATIVAS = 3;
+
+        async function inicializarDashboard() {
+            tentativasCarregamento++;
+
+            try {
+                // Inicializar view manager primeiro (se existir)
+                if (typeof viewManager !== 'undefined') {
+                    viewManager.inicializar();
+                }
+
+                // Depois inicializar dashboard
+                await dashboardMain.inicializar();
+
+                // Renderizar view minimalista se estiver ativa
+                if (typeof viewManager !== 'undefined' && viewManager.currentView === 'minimal') {
+                    viewManager.renderizarViewMinimal();
+                }
+            } catch (error) {
+                console.error(`[Dashboard] Erro ao inicializar (tentativa ${tentativasCarregamento}/${MAX_TENTATIVAS}):`, error);
+
+                // Tentar novamente se não excedeu o limite
+                if (tentativasCarregamento < MAX_TENTATIVAS) {
+                    const delay = Math.pow(2, tentativasCarregamento) * 1000; // Backoff exponencial
+
+                    document.getElementById('loadingOverlay').innerHTML = `
+                        <div class="spinner-border text-warning" role="status">
+                            <span class="visually-hidden">Carregando...</span>
+                        </div>
+                        <p class="mt-3">Erro ao carregar. Tentando novamente... (${tentativasCarregamento}/${MAX_TENTATIVAS})</p>
+                        <p class="text-muted"><small>${error.message}</small></p>
+                    `;
+
+                    setTimeout(() => inicializarDashboard(), delay);
+                } else {
+                    // Falhou após todas as tentativas
+                    document.getElementById('loadingOverlay').innerHTML = `
+                        <div class="alert alert-danger" style="max-width: 600px;">
+                            <h5 class="alert-heading">
+                                <i class="fas fa-exclamation-triangle me-2"></i>
+                                Erro ao Carregar Dashboard
+                            </h5>
+                            <hr>
+                            <p><strong>Detalhes do erro:</strong></p>
+                            <p class="mb-2"><code>${error.message}</code></p>
+                            <hr>
+                            <p class="mb-2"><strong>Possíveis causas:</strong></p>
+                            <ul class="text-start">
+                                <li>Sem conexão com a Internet</li>
+                                <li>API Key do Google Sheets inválida ou expirada</li>
+                                <li>Planilha não encontrada ou sem permissões</li>
+                                <li>Estrutura da planilha diferente do esperado</li>
+                            </ul>
+                            <hr>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-primary" onclick="window.location.reload()">
+                                    <i class="fas fa-sync me-2"></i>Tentar Novamente
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="console.log('Erro completo:', '${JSON.stringify(error, null, 2)}')">
+                                    <i class="fas fa-bug me-2"></i>Ver Detalhes no Console
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+            }
+        }
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Verificar autenticação
+            if (!auth.inicializar()) {
+                return; // Não autenticado, exibir tela de login
+            }
+
+            // Inicializar dashboard com retry
+            await inicializarDashboard();
+        });
+
+        // Função global para aplicar filtros
+        function aplicarFiltros() {
+            dashboardMain.aplicarFiltros();
+        }
+    </script>
+</body>
+</html>

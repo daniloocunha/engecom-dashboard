@@ -1,0 +1,411 @@
+/**
+ * Filtros Dinâmicos
+ * Gerencia filtros e interações do usuário
+ */
+
+class DashboardFilters {
+    constructor() {
+        this.filtrosAplicados = {};
+        this.filtrosFavoritos = this.carregarFavoritos();
+    }
+
+    /**
+     * 🔍 Salva filtros atuais como favorito (Sprint 3)
+     */
+    salvarFavorito(nome) {
+        const elMes   = document.getElementById('filtroMes');
+        const elAno   = document.getElementById('filtroAno');
+        const elTurma = document.getElementById('filtroTurma');
+        const elTipo  = document.getElementById('filtroTipo');
+
+        if (!elMes || !elAno || !elTurma || !elTipo) return false;
+
+        const filtroAtual = {
+            mes: parseInt(elMes.value),
+            ano: parseInt(elAno.value),
+            turma: elTurma.value,
+            tipo: elTipo.value
+        };
+
+        this.filtrosFavoritos[nome] = filtroAtual;
+        localStorage.setItem('filtrosFavoritos', JSON.stringify(this.filtrosFavoritos));
+        debugLog(`[Filters] Favorito "${nome}" salvo`);
+        return true;
+    }
+
+    /**
+     * 🔍 Carrega filtros favoritos do localStorage (Sprint 3)
+     */
+    carregarFavoritos() {
+        try {
+            const favoritos = localStorage.getItem('filtrosFavoritos');
+            return favoritos ? JSON.parse(favoritos) : {};
+        } catch (error) {
+            console.error('[Filters] Erro ao carregar favoritos:', error);
+            return {};
+        }
+    }
+
+    /**
+     * 🔍 Aplica filtro favorito (Sprint 3)
+     */
+    aplicarFavorito(nome) {
+        const favorito = this.filtrosFavoritos[nome];
+        if (!favorito) return false;
+
+        const elMes   = document.getElementById('filtroMes');
+        const elAno   = document.getElementById('filtroAno');
+        const elTurma = document.getElementById('filtroTurma');
+        const elTipo  = document.getElementById('filtroTipo');
+
+        if (elMes)   elMes.value   = favorito.mes;
+        if (elAno)   elAno.value   = favorito.ano;
+        if (elTurma) elTurma.value = favorito.turma;
+        if (elTipo)  elTipo.value  = favorito.tipo;
+
+        return true;
+    }
+
+    /**
+     * 🔍 Remove filtro favorito (Sprint 3)
+     */
+    removerFavorito(nome) {
+        delete this.filtrosFavoritos[nome];
+        localStorage.setItem('filtrosFavoritos', JSON.stringify(this.filtrosFavoritos));
+        return true;
+    }
+
+    /**
+     * 🔍 Lista todos os favoritos (Sprint 3)
+     */
+    listarFavoritos() {
+        return Object.keys(this.filtrosFavoritos);
+    }
+
+    /**
+     * Inicializa event listeners para filtros
+     */
+    inicializar() {
+        // Event listeners com null guards (elementos podem não existir em todas as views)
+        const elMes   = document.getElementById('filtroMes');
+        const elAno   = document.getElementById('filtroAno');
+        const elTurma = document.getElementById('filtroTurma');
+        const elTipo  = document.getElementById('filtroTipo');
+
+        elMes?.addEventListener('change',   () => this.marcarComoPendente());
+        elAno?.addEventListener('change',   () => this.marcarComoPendente());
+        elTurma?.addEventListener('change', () => this.marcarComoPendente());
+        elTipo?.addEventListener('change',  () => {
+            this.filtrarTurmasPorTipo();
+            this.marcarComoPendente();
+        });
+    }
+
+    /**
+     * Filtra turmas no select baseado no tipo selecionado
+     */
+    filtrarTurmasPorTipo() {
+        const tipo = document.getElementById('filtroTipo').value;
+        const select = document.getElementById('filtroTurma');
+        const optgroupTPs = select.querySelector('optgroup[label="TPs - Turmas de Produção"]');
+        const optgroupTMCs = select.querySelector('optgroup[label="TMCs - Turmas de Manutenção"]');
+        const optgroupOutras = select.querySelector('optgroup[label="Outras"]');
+
+        // Se os optgroups não existirem ainda (carregamento), não fazer nada
+        if (!optgroupTPs && !optgroupTMCs) {
+            return;
+        }
+
+        // Usar disabled ao invés de style.display para melhor compatibilidade
+        if (tipo === 'todos') {
+            if (optgroupTPs) {
+                optgroupTPs.disabled = false;
+                Array.from(optgroupTPs.querySelectorAll('option')).forEach(opt => opt.disabled = false);
+            }
+            if (optgroupTMCs) {
+                optgroupTMCs.disabled = false;
+                Array.from(optgroupTMCs.querySelectorAll('option')).forEach(opt => opt.disabled = false);
+            }
+            if (optgroupOutras) {
+                optgroupOutras.disabled = false;
+                Array.from(optgroupOutras.querySelectorAll('option')).forEach(opt => opt.disabled = false);
+            }
+        } else if (tipo === 'TP') {
+            if (optgroupTPs) {
+                optgroupTPs.disabled = false;
+                Array.from(optgroupTPs.querySelectorAll('option')).forEach(opt => opt.disabled = false);
+            }
+            if (optgroupTMCs) {
+                optgroupTMCs.disabled = true;
+                Array.from(optgroupTMCs.querySelectorAll('option')).forEach(opt => opt.disabled = true);
+            }
+            if (optgroupOutras) {
+                optgroupOutras.disabled = true;
+                Array.from(optgroupOutras.querySelectorAll('option')).forEach(opt => opt.disabled = true);
+            }
+
+            // Se estava selecionada uma TMC, resetar para "todas"
+            if (select.value && select.value.startsWith('TMC')) {
+                select.value = 'todas';
+            }
+        } else if (tipo === 'TMC') {
+            if (optgroupTPs) {
+                optgroupTPs.disabled = true;
+                Array.from(optgroupTPs.querySelectorAll('option')).forEach(opt => opt.disabled = true);
+            }
+            if (optgroupTMCs) {
+                optgroupTMCs.disabled = false;
+                Array.from(optgroupTMCs.querySelectorAll('option')).forEach(opt => opt.disabled = false);
+            }
+            if (optgroupOutras) {
+                optgroupOutras.disabled = true;
+                Array.from(optgroupOutras.querySelectorAll('option')).forEach(opt => opt.disabled = true);
+            }
+
+            // Se estava selecionada uma TP, resetar para "todas"
+            if (select.value && select.value.startsWith('TP')) {
+                select.value = 'todas';
+            }
+        }
+    }
+
+    /**
+     * Marca filtro como pendente (visual feedback)
+     */
+    marcarComoPendente() {
+        const btnAplicar = document.querySelector('button[onclick="aplicarFiltros()"]');
+        if (btnAplicar && !btnAplicar.classList.contains('btn-warning')) {
+            btnAplicar.classList.remove('btn-primary');
+            btnAplicar.classList.add('btn-warning');
+            btnAplicar.innerHTML = '<i class="fas fa-sync me-2"></i>Filtros Alterados - Clique para Aplicar';
+        }
+    }
+
+    /**
+     * Reseta visual do botão após aplicar
+     */
+    resetarBotao() {
+        const btnAplicar = document.querySelector('button[onclick="aplicarFiltros()"]');
+        if (btnAplicar) {
+            btnAplicar.classList.remove('btn-warning');
+            btnAplicar.classList.add('btn-primary');
+            btnAplicar.innerHTML = '<i class="fas fa-filter me-2"></i>Aplicar Filtros';
+        }
+    }
+
+    /**
+     * Obtém valores atuais dos filtros
+     */
+    obterFiltros() {
+        return {
+            mes: parseInt(document.getElementById('filtroMes')?.value || 0),
+            ano: parseInt(document.getElementById('filtroAno')?.value || 0),
+            turma: document.getElementById('filtroTurma')?.value || 'todas',
+            tipo: document.getElementById('filtroTipo')?.value || 'todos'
+        };
+    }
+
+    /**
+     * Exporta dados filtrados para CSV
+     */
+    exportarCSV(estatisticas, nomeArquivo = 'dashboard-engecom-encogel.csv') {
+        if (!estatisticas) {
+            alert('Nenhum dado disponível para exportação');
+            return;
+        }
+
+        const { tmcs, tps } = estatisticas;
+        const linhas = [];
+
+        // Cabeçalho
+        linhas.push('Tipo,Turma,Encarregado,Meta HH,HH Realizado,% SLA,Engecom,Encogel,Total');
+
+        // TPs
+        tps.forEach(tp => {
+            const encarregado = tp.rdos[0] ? (tp.rdos[0].Encarregado || tp.rdos[0].encarregado || '-') : '-';
+            linhas.push([
+                'TP',
+                tp.turma,
+                encarregado,
+                tp.metaMensal.toFixed(0),
+                tp.hh.total.toFixed(0),
+                (tp.percentualSLA * 100).toFixed(1) + '%',
+                tp.engecom.toFixed(2),
+                tp.encogel.toFixed(2),
+                tp.totalGeral.toFixed(2)
+            ].join(','));
+        });
+
+        // TMCs
+        tmcs.forEach(tmc => {
+            linhas.push([
+                'TMC',
+                tmc.turma,
+                '-',
+                '-',
+                '-',
+                '-',
+                tmc.engecom.total.toFixed(2),
+                tmc.encogel.total.toFixed(2),
+                tmc.totalGeral.toFixed(2)
+            ].join(','));
+        });
+
+        // Criar blob e download
+        const csv = linhas.join('\n');
+        const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' }); // BOM para UTF-8
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+
+        link.setAttribute('href', url);
+        link.setAttribute('download', nomeArquivo);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        debugLog('[Export] CSV gerado com sucesso:', nomeArquivo);
+    }
+
+    /**
+     * Exporta dados filtrados para Excel (formato HTML que Excel reconhece)
+     */
+    exportarExcel(estatisticas, nomeArquivo = 'dashboard-engecom-encogel.xls') {
+        if (!estatisticas) {
+            alert('Nenhum dado disponível para exportação');
+            return;
+        }
+
+        const { tmcs, tps, totalEngecom, totalEncogel, totalGeral } = estatisticas;
+
+        // Criar tabela HTML (Excel reconhece)
+        let html = `
+            <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
+            <head>
+                <meta charset="utf-8">
+                <!--[if gte mso 9]><xml>
+                <x:ExcelWorkbook>
+                    <x:ExcelWorksheets>
+                        <x:ExcelWorksheet>
+                            <x:Name>Dashboard Medição</x:Name>
+                            <x:WorksheetOptions><x:DisplayGridlines/></x:WorksheetOptions>
+                        </x:ExcelWorksheet>
+                    </x:ExcelWorksheets>
+                </x:ExcelWorkbook>
+                </xml><![endif]-->
+            </head>
+            <body>
+                <h2>Dashboard de Medição - Engecom/Encogel</h2>
+                <p>Data de exportação: ${new Date().toLocaleString('pt-BR')}</p>
+
+                <h3>TPs - Turmas de Produção</h3>
+                <table border="1">
+                    <thead>
+                        <tr style="background-color: #1976D2; color: white; font-weight: bold;">
+                            <th>Turma</th>
+                            <th>Encarregado</th>
+                            <th>Meta HH</th>
+                            <th>HH Realizado</th>
+                            <th>% SLA</th>
+                            <th>Engecom (R$)</th>
+                            <th>Encogel (R$)</th>
+                            <th>Total (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        tps.forEach(tp => {
+            const encarregado = tp.rdos[0] ? (tp.rdos[0].Encarregado || tp.rdos[0].encarregado || '-') : '-';
+            const cor = tp.percentualSLA >= 0.96 ? '#4CAF50' : tp.percentualSLA >= 0.80 ? '#FFC107' : '#F44336';
+
+            html += `
+                <tr>
+                    <td>${tp.turma}</td>
+                    <td>${encarregado}</td>
+                    <td>${tp.metaMensal.toFixed(0)}</td>
+                    <td>${tp.hh.total.toFixed(0)}</td>
+                    <td style="background-color: ${cor}; color: white; font-weight: bold;">
+                        ${(tp.percentualSLA * 100).toFixed(1)}%
+                    </td>
+                    <td>${tp.engecom.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td>${tp.encogel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td>${tp.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                </table>
+
+                <h3>TMCs - Turmas de Manutenção Corretiva</h3>
+                <table border="1">
+                    <thead>
+                        <tr style="background-color: #1976D2; color: white; font-weight: bold;">
+                            <th>Turma</th>
+                            <th>Dias Úteis</th>
+                            <th>Dias Trab.</th>
+                            <th>Engecom (R$)</th>
+                            <th>Encogel (R$)</th>
+                            <th>Total (R$)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+
+        tmcs.forEach(tmc => {
+            html += `
+                <tr>
+                    <td>${tmc.turma}</td>
+                    <td>${tmc.diasUteis}</td>
+                    <td>${tmc.diasTrabalhados}</td>
+                    <td>${tmc.engecom.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td>${tmc.encogel.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                    <td>${tmc.totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                </tr>
+            `;
+        });
+
+        html += `
+                    </tbody>
+                    <tfoot>
+                        <tr style="background-color: #f0f0f0; font-weight: bold;">
+                            <td colspan="3">TOTAL GERAL</td>
+                            <td>${totalEngecom.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td>${totalEncogel.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                            <td>${totalGeral.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</td>
+                        </tr>
+                    </tfoot>
+                </table>
+            </body>
+            </html>
+        `;
+
+        // Criar blob e download
+        const blob = new Blob([html], { type: 'application/vnd.ms-excel' });
+        const link = document.createElement('a');
+        const url = URL.createObjectURL(blob);
+
+        link.setAttribute('href', url);
+        link.setAttribute('download', nomeArquivo);
+        link.style.visibility = 'hidden';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        debugLog('[Export] Excel gerado com sucesso:', nomeArquivo);
+    }
+}
+
+// Instância global
+const dashboardFilters = new DashboardFilters();
+
+// Inicializar quando o DOM estiver pronto
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', () => {
+        dashboardFilters.inicializar();
+    });
+} else {
+    dashboardFilters.inicializar();
+}

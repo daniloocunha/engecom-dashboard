@@ -1,0 +1,35 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(del /f \"C:\\Users\\dan\\CalculadoraHH\\scripts\\remover_coluna_colaboradores_hi.py\")",
+      "Bash(./gradlew assembleDebug:*)",
+      "Bash(node -e:*)",
+      "Bash(node:*)",
+      "Bash(find:*)",
+      "Bash(dir:*)",
+      "Bash(tree:*)",
+      "Bash(del /f \"C:\\Users\\dan\\CalculadoraHH\\nul\")",
+      "Bash(del /f \"C:\\Users\\dan\\CalculadoraHH\\coeficientes.txt\")",
+      "Bash(del /f \"C:\\Users\\dan\\CalculadoraHH\\coeficientes.xlsx\")",
+      "Bash(del /f \"C:\\Users\\dan\\CalculadoraHH\\precos.txt\")",
+      "Bash(del /f \"C:\\Users\\dan\\CalculadoraHH\\preços.csv\")",
+      "Bash(del /f \"C:\\Users\\dan\\CalculadoraHH\\preços.xlsx\")",
+      "Bash(rm:*)",
+      "Bash(findstr:*)",
+      "Bash(wc:*)",
+      "Bash(./gradlew compileDebugKotlin:*)",
+      "Bash(git checkout:*)",
+      "Bash(git -C . rev-parse --git-dir)",
+      "Bash(./gradlew test:*)",
+      "Bash(del \"C:\\\\Users\\\\dan\\\\CalculadoraHH\\\\app\\\\src\\\\main\\\\java\\\\com\\\\example\\\\calculadorahh\\\\data\\\\database\\\\DatabaseTransactions.kt\")",
+      "WebFetch(domain:sheets.googleapis.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(grep:*)",
+      "Bash(npm run sync-servicos:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(cmd /c:*)"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}

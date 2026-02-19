@@ -1,0 +1,168 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_margin="8dp"
+    app:cardCornerRadius="8dp"
+    app:cardElevation="4dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+
+        <!-- Cabeçalho: Número RDO + Status Sync -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:gravity="center_vertical">
+
+            <!-- Número do RDO -->
+            <TextView
+                android:id="@+id/tvNumeroRDO"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="RDO: 20240101-001"
+                android:textSize="18sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface" />
+
+            <!-- Ícone de Status de Sincronização -->
+            <ImageView
+                android:id="@+id/ivSyncStatus"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:src="@android:drawable/ic_popup_sync"
+                android:contentDescription="Status de sincronização"
+                android:layout_marginStart="8dp" />
+
+        </LinearLayout>
+
+        <!-- Status de Sincronização (texto) -->
+        <TextView
+            android:id="@+id/tvSyncStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="⏳ Aguardando sincronização"
+            android:textSize="12sp"
+            android:layout_marginTop="4dp"
+            android:textStyle="italic"
+            android:textColor="?attr/colorSecondary" />
+
+        <!-- Data -->
+        <TextView
+            android:id="@+id/tvData"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Data: 01/01/2024"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <!-- Local -->
+        <TextView
+            android:id="@+id/tvLocal"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Local: Km 100"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <!-- Encarregado -->
+        <TextView
+            android:id="@+id/tvEncarregado"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Encarregado: João Silva"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <!-- Número OS -->
+        <TextView
+            android:id="@+id/tvNumeroOS"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="OS: 12345"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <!-- Status OS -->
+        <TextView
+            android:id="@+id/tvStatusOS"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Status: Em Andamento"
+            android:textSize="14sp"
+            android:layout_marginTop="4dp"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <!-- Botões de Ação -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal"
+            android:layout_marginTop="12dp"
+            android:gravity="end">
+
+            <!-- Botão Sincronizar Individual -->
+            <ImageButton
+                android:id="@+id/btnSyncIndividual"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_popup_sync"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Sincronizar agora"
+                android:layout_marginEnd="8dp"
+                android:visibility="gone" />
+
+            <!-- Botão Editar -->
+            <ImageButton
+                android:id="@+id/btnEditar"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@android:drawable/ic_menu_edit"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Editar RDO"
+                android:layout_marginEnd="8dp" />
+
+            <!-- Botão Usar como Modelo -->
+            <ImageButton
+                android:id="@+id/btnUsarModelo"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_copy"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Usar como modelo"
+                android:layout_marginEnd="8dp" />
+
+            <!-- Botão Enviar -->
+            <ImageButton
+                android:id="@+id/btnEnviar"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_share"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Compartilhar RDO"
+                android:layout_marginEnd="8dp" />
+
+            <!-- Botão Deletar -->
+            <ImageButton
+                android:id="@+id/btnDeletar"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:src="@drawable/ic_delete"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="Deletar RDO" />
+
+        </LinearLayout>
+
+    </LinearLayout>
+
+</com.google.android.material.card.MaterialCardView>

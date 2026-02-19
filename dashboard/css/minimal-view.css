@@ -1,0 +1,437 @@
+/**
+ * CSS para Visualização Minimalista
+ * Dashboard de Medição - Engecom/Encogel
+ */
+
+/* ============================================
+   HERO KPI CARD
+   ============================================ */
+
+.hero-kpi-card {
+    background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%);
+    color: white;
+    padding: 2.5rem 2rem;
+    border-radius: 16px;
+    box-shadow: 0 8px 24px rgba(25, 118, 210, 0.3);
+    animation: slideIn 0.5s ease-out;
+}
+
+.hero-label {
+    font-size: 0.9rem;
+    font-weight: 500;
+    opacity: 0.9;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 0.5rem;
+}
+
+.hero-value {
+    font-size: 3rem;
+    font-weight: 800;
+    margin: 0.75rem 0;
+    line-height: 1;
+}
+
+.hero-trend {
+    font-size: 1.1rem;
+    font-weight: 600;
+    opacity: 0.95;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.hero-trend.positive {
+    color: #4CAF50;
+}
+
+.hero-trend.negative {
+    color: #F44336;
+}
+
+.hero-trend.neutral {
+    color: #FFC107;
+}
+
+.hero-meta {
+    font-size: 0.9rem;
+    opacity: 0.85;
+}
+
+/* ============================================
+   KPI CARDS MINI
+   ============================================ */
+
+.kpi-card-mini {
+    border: none;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.kpi-card-mini:hover {
+    transform: translateY(-4px);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+}
+
+.kpi-mini-label {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #666;
+    margin-bottom: 0.5rem;
+}
+
+.kpi-mini-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #212121;
+}
+
+.kpi-mini-icon {
+    width: 50px;
+    height: 50px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+    color: white;
+}
+
+/* ============================================
+   ACCORDIONS
+   ============================================ */
+
+.accordion-item {
+    border: none;
+    border-radius: 12px;
+    margin-bottom: 1rem;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    overflow: hidden;
+    animation: fadeIn 0.5s ease-out;
+}
+
+.accordion-button {
+    background: white;
+    border: none;
+    font-size: 1rem;
+    padding: 1.25rem 1.5rem;
+    box-shadow: none;
+}
+
+.accordion-button:not(.collapsed) {
+    background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+    color: var(--primary);
+    box-shadow: none;
+}
+
+.accordion-button:focus {
+    border: none;
+    box-shadow: none;
+}
+
+.accordion-button::after {
+    background-size: 1.25rem;
+}
+
+.accordion-body {
+    padding: 1.5rem;
+    background: white;
+}
+
+/* ============================================
+   BOTÃO FLUTUANTE DE FILTROS
+   ============================================ */
+
+.btn-filtros-float {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #1976D2, #1565C0);
+    color: white;
+    border: none;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    cursor: pointer;
+    z-index: 1000;
+    transition: all 0.3s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.5rem;
+}
+
+.btn-filtros-float:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+    background: linear-gradient(135deg, #1565C0, #1976D2);
+}
+
+.btn-filtros-float:active {
+    transform: scale(0.95);
+}
+
+.filter-badge {
+    position: absolute;
+    top: -5px;
+    right: -5px;
+    min-width: 20px;
+    height: 20px;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0 0.35rem;
+}
+
+/* ============================================
+   OFFCANVAS FILTROS
+   ============================================ */
+
+.offcanvas-end {
+    width: 350px !important;
+}
+
+.offcanvas-header {
+    background: linear-gradient(135deg, #1976D2 0%, #1565C0 100%);
+    color: white;
+}
+
+.offcanvas-header .btn-close {
+    filter: brightness(0) invert(1);
+}
+
+.offcanvas-body {
+    padding: 1.5rem;
+}
+
+.form-check-label {
+    cursor: pointer;
+    user-select: none;
+}
+
+.form-check-label .badge {
+    font-size: 0.7rem;
+    padding: 0.25rem 0.5rem;
+    margin-right: 0.5rem;
+}
+
+/* ============================================
+   VIEW TOGGLE (NAVBAR)
+   ============================================ */
+
+.view-toggle .btn-outline-light:hover {
+    background: rgba(255, 255, 255, 0.2);
+    border-color: rgba(255, 255, 255, 0.5);
+}
+
+.view-toggle .btn-check:checked + .btn-outline-light {
+    background: rgba(255, 255, 255, 0.25);
+    border-color: rgba(255, 255, 255, 0.7);
+    font-weight: 600;
+}
+
+/* ============================================
+   TABELAS MINIMAL
+   ============================================ */
+
+#minimalView .table {
+    margin-bottom: 0;
+}
+
+#minimalView .table thead {
+    background: linear-gradient(135deg, var(--primary) 0%, #1565C0 100%);
+}
+
+#minimalView .table thead th {
+    font-size: 0.75rem;
+    padding: 0.75rem;
+}
+
+#minimalView .table tbody td {
+    padding: 0.75rem;
+    vertical-align: middle;
+}
+
+#minimalView .table tbody tr {
+    transition: all 0.2s;
+}
+
+#minimalView .table tbody tr:hover {
+    background-color: rgba(25, 118, 210, 0.05);
+    transform: scale(1.005);
+}
+
+/* ============================================
+   CALENDÁRIO MINIMAL
+   ============================================ */
+
+#calendarioMinimalContainer {
+    min-height: 300px;
+}
+
+/* ============================================
+   ANIMAÇÕES
+   ============================================ */
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* ============================================
+   RESPONSIVO
+   ============================================ */
+
+@media (max-width: 992px) {
+    .hero-value {
+        font-size: 2.5rem;
+    }
+
+    .kpi-mini-value {
+        font-size: 1.75rem;
+    }
+
+    .offcanvas-end {
+        width: 300px !important;
+    }
+}
+
+@media (max-width: 768px) {
+    .hero-kpi-card {
+        padding: 2rem 1.5rem;
+    }
+
+    .hero-value {
+        font-size: 2rem;
+    }
+
+    .hero-trend {
+        font-size: 1rem;
+    }
+
+    .kpi-mini-value {
+        font-size: 1.5rem;
+    }
+
+    .kpi-mini-icon {
+        width: 40px;
+        height: 40px;
+        font-size: 1.25rem;
+    }
+
+    .btn-filtros-float {
+        bottom: 1.5rem;
+        right: 1.5rem;
+        width: 55px;
+        height: 55px;
+        font-size: 1.25rem;
+    }
+
+    .offcanvas-end {
+        width: 280px !important;
+    }
+
+    .accordion-button {
+        font-size: 0.9rem;
+        padding: 1rem;
+    }
+
+    .accordion-body {
+        padding: 1rem;
+    }
+}
+
+@media (max-width: 576px) {
+    .hero-kpi-card {
+        padding: 1.5rem 1rem;
+    }
+
+    .hero-value {
+        font-size: 1.75rem;
+    }
+
+    .hero-label {
+        font-size: 0.8rem;
+    }
+
+    .kpi-card-mini .card-body {
+        padding: 0.75rem;
+    }
+
+    .kpi-mini-label {
+        font-size: 0.7rem;
+    }
+
+    .kpi-mini-value {
+        font-size: 1.25rem;
+    }
+
+    .btn-filtros-float {
+        bottom: 1rem;
+        right: 1rem;
+        width: 50px;
+        height: 50px;
+        font-size: 1.1rem;
+    }
+
+    /* Ocultar textos em mobile no accordion */
+    .accordion-button .ms-auto {
+        display: none;
+    }
+
+    #minimalView .d-none.d-md-inline {
+        display: none !important;
+    }
+}
+
+/* ============================================
+   MODO ESCURO (FUTURO)
+   ============================================ */
+
+@media (prefers-color-scheme: dark) {
+    /* Preparado para implementação futura */
+}
+
+/* ============================================
+   PRINT
+   ============================================ */
+
+@media print {
+    .btn-filtros-float,
+    .offcanvas,
+    .accordion-button {
+        display: none !important;
+    }
+
+    .accordion-collapse {
+        display: block !important;
+    }
+
+    .hero-kpi-card {
+        box-shadow: none;
+        border: 1px solid #ddd;
+    }
+}

@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.cardview.widget.CardView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginBottom="8dp"
+    android:elevation="2dp">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:padding="12dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvDescricaoServico"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Nome do Serviço"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:textColor="?attr/colorOnSurface"/>
+
+            <TextView
+                android:id="@+id/tvDetalhesServico"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Qtd: 10 × 0.5 = 5.00h"
+                android:textSize="12sp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:layout_marginTop="4dp"/>
+
+            <TextView
+                android:id="@+id/tvBadgeCustomizado"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="CUSTOMIZADO"
+                android:textSize="10sp"
+                android:textColor="#FF6F00"
+                android:textStyle="bold"
+                android:layout_marginTop="4dp"
+                android:visibility="gone"/>
+
+            <TextView
+                android:id="@+id/tvObservacoes"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Obs: Observação do serviço"
+                android:textSize="11sp"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textStyle="italic"
+                android:layout_marginTop="4dp"
+                android:visibility="gone"/>
+
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/btnRemover"
+            android:layout_width="48dp"
+            android:layout_height="48dp"
+            android:src="@android:drawable/ic_menu_delete"
+            android:background="@android:color/transparent"
+            android:contentDescription="Remover"/>
+
+    </LinearLayout>
+</androidx.cardview.widget.CardView>
