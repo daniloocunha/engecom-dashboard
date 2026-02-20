@@ -4,6 +4,7 @@
   "description": "Controle de Campo - Calculadora HH e RDO para Engecom Engenharia",
   "private": true,
   "scripts": {
+    "build": "node scripts/build-config.js",
     "sync-servicos": "node scripts/sync-servicos.js",
     "help": "echo \"Comandos disponíveis:\\n  npm run sync-servicos - Sincroniza servicos.json entre app e dashboard\""
   },
