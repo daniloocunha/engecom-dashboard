@@ -1,0 +1,9 @@
+{
+  // Configuração para deploy estático via Cloudflare Pages
+  // O wrangler publica a pasta "dashboard" como assets estáticos
+  "name": "engecom-dashboard",
+  "compatibility_date": "2026-02-20",
+  "assets": {
+    "directory": "./dashboard"
+  }
+}
