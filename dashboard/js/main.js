@@ -299,15 +299,45 @@ class DashboardMain {
 
     /**
      * Calcula estatísticas baseadas nos filtros
+     * Aplica filtro de turma/tipo após o cálculo consolidado
      */
     async calcularEstatisticas() {
         debugLog('[Dashboard] Calculando estatísticas...');
 
-        const { mes, ano } = this.filtros;
+        const { mes, ano, turma, tipo } = this.filtros;
 
         this.estatisticas = this.calculadora.calcularEstatisticasConsolidadas(mes, ano);
 
-        debugLog('[Dashboard] Estatísticas calculadas');
+        // Aplicar filtro de turma específica
+        if (turma && turma !== 'todas') {
+            this.estatisticas.tps  = this.estatisticas.tps.filter(t => t.turma === turma);
+            this.estatisticas.tmcs = this.estatisticas.tmcs.filter(t => t.turma === turma);
+            this.estatisticas.tss  = this.estatisticas.tss.filter(t => t.turma === turma);
+        }
+
+        // Aplicar filtro de tipo (TP / TMC / TS)
+        if (tipo && tipo !== 'todos') {
+            if (tipo !== 'TP')  this.estatisticas.tps  = [];
+            if (tipo !== 'TMC') this.estatisticas.tmcs = [];
+            if (tipo !== 'TS')  this.estatisticas.tss  = [];
+        }
+
+        // Recalcular totais após filtragem
+        this.estatisticas.totalEngecom = [
+            ...this.estatisticas.tps,
+            ...this.estatisticas.tss
+        ].reduce((s, t) => s + t.engecom, 0)
+        + this.estatisticas.tmcs.reduce((s, t) => s + t.engecom.total, 0);
+
+        this.estatisticas.totalEncogel = [
+            ...this.estatisticas.tps,
+            ...this.estatisticas.tss
+        ].reduce((s, t) => s + t.encogel, 0)
+        + this.estatisticas.tmcs.reduce((s, t) => s + t.encogel.total, 0);
+
+        this.estatisticas.totalGeral = this.estatisticas.totalEngecom + this.estatisticas.totalEncogel;
+
+        debugLog('[Dashboard] Estatísticas calculadas e filtradas');
     }
 
     /**
@@ -438,59 +468,6 @@ class DashboardMain {
             kpiOperadores.textContent = totalOperadores.toFixed(1);
             kpiTotal.textContent = totalGeral.toFixed(1);
         }
-    }
-
-    /**
-     * Renderiza tabela de TPs
-     */
-    renderizarTabelaTPs() {
-        const tbody = document.querySelector('#tabelaTPs tbody');
-        tbody.innerHTML = '';
-
-        const { tps } = this.estatisticas;
-
-        if (tps.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted">Nenhuma TP encontrada no período</td></tr>';
-            return;
-        }
-
-        tps.forEach(tp => {
-            // Buscar encarregado (do primeiro RDO da turma)
-            const rdo = tp.rdos[0];
-            const encarregado = rdo ? (rdo.Encarregado || rdo.encarregado || '-') : '-';
-
-            // Calcular média de efetivo da turma
-            const rdosTurma = this.calculadora.filtrarRDOsPorTurma(tp.turma, this.filtros.mes, this.filtros.ano);
-            const diasUteis = this.calculadora.getDiasUteis(this.filtros.mes, this.filtros.ano);
-            const mediaEfetivo = this.calculadora.calcularMediaEfetivo(rdosTurma, diasUteis);
-
-            const tr = document.createElement('tr');
-
-            // Status badge
-            let statusBadge = '';
-            if (tp.percentualSLA >= THRESHOLDS.SLA_OK) {
-                statusBadge = '<span class="badge bg-success">Atingido</span>';
-            } else if (tp.percentualSLA >= THRESHOLDS.SLA_ALERTA) {
-                statusBadge = '<span class="badge bg-warning">Próximo</span>';
-            } else {
-                statusBadge = '<span class="badge bg-danger">Crítico</span>';
-            }
-
-            tr.innerHTML = `
-                <td><strong>${_escHtml(tp.turma)}</strong></td>
-                <td>${_escHtml(encarregado)}</td>
-                <td>${tp.metaMensal.toFixed(0)} HH</td>
-                <td>${tp.hh.total.toFixed(0)} HH</td>
-                <td style="color: ${getCorPorSLA(tp.percentualSLA)}">
-                    <strong>${formatarPercentual(tp.percentualSLA)}</strong>
-                </td>
-                <td>${mediaEfetivo.operadores.toFixed(1)} (${mediaEfetivo.total.toFixed(1)} total)</td>
-                <td>${formatarMoeda(tp.totalGeral)}</td>
-                <td>${statusBadge}</td>
-            `;
-
-            tbody.appendChild(tr);
-        });
     }
 
     /**

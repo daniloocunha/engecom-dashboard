@@ -28,35 +28,7 @@ class GoogleSheetsAPI {
     }
 
     /**
-     * Verifica se há nova versão da planilha
-     */
-    async verificarVersao() {
-        try {
-            const url = `${this.baseURL}/${this.spreadsheetId}?fields=properties.title,modifiedTime&key=${this.apiKey}`;
-            const response = await fetch(url);
-
-            if (response.ok) {
-                const data = await response.json();
-                // Google Sheets não retorna modifiedTime via API pública, usar alternativa
-                // Buscar aba Config para versão
-                const configData = await this.carregarAbaSemCache(CONFIG.SHEETS.CONFIG || 'Config', 'A1:B10');
-
-                // Procurar por campo "versao" ou "ultima_atualizacao"
-                for (let i = 0; i < configData.length; i++) {
-                    if (configData[i][0] && configData[i][0].toLowerCase().includes('versao')) {
-                        return configData[i][1] || Date.now().toString();
-                    }
-                }
-            }
-        } catch (error) {
-            console.warn('[Cache] Não foi possível verificar versão da planilha:', error);
-        }
-
-        return Date.now().toString();
-    }
-
-    /**
-     * Carrega dados de uma aba sem usar cache (para verificação de versão)
+     * Carrega dados de uma aba sem usar cache
      */
     async carregarAbaSemCache(nomeAba, range = 'A:Z') {
         const url = `${this.baseURL}/${this.spreadsheetId}/values/${nomeAba}!${range}?key=${this.apiKey}`;
@@ -483,7 +455,13 @@ class GoogleSheetsAPI {
                 hhImprodutivas = 0;
                 debugLog(`🔴 [HI] ${numeroRDO} [${tipo}]: TREM < 15 min (${(duracaoHoras * 60).toFixed(0)} min) - HH ZERADO`);
             } else {
-                debugLog(`[HI] ${numeroRDO} [${tipo}]: ${horaInicio}-${horaFim} × ${operadores} op = ${hhImprodutivas.toFixed(2)} HH`);
+                // 🔴 REGRA: Chuva conta como metade das HH
+                if (tipo.toLowerCase().includes('chuva')) {
+                    hhImprodutivas = hhImprodutivas / METAS.DIVISOR_CHUVA;
+                    debugLog(`🌧️ [HI] ${numeroRDO} [${tipo}]: Chuva ÷2 → ${hhImprodutivas.toFixed(2)} HH`);
+                } else {
+                    debugLog(`[HI] ${numeroRDO} [${tipo}]: ${horaInicio}-${horaFim} × ${operadores} op = ${hhImprodutivas.toFixed(2)} HH`);
+                }
             }
 
             return {
@@ -535,39 +513,6 @@ class GoogleSheetsAPI {
     }
 
     /**
-     * Calcula diferença entre duas horas em formato HH:MM e multiplica pelo número de operadores
-     * Retorna em formato decimal (horas)
-     */
-    calcularDiferencaHoras(horaInicio, horaFim, operadores) {
-        if (!horaInicio || !horaFim || horaInicio.trim() === '' || horaFim.trim() === '') {
-            return 0;
-        }
-
-        // Converter HH:MM para minutos
-        const minutosInicio = this.converterHoraParaMinutos(horaInicio);
-        const minutosFim = this.converterHoraParaMinutos(horaFim);
-
-        if (minutosInicio === null || minutosFim === null) {
-            return 0;
-        }
-
-        // Calcular diferença (considerar período noturno)
-        let diferencaMinutos;
-        if (minutosFim >= minutosInicio) {
-            diferencaMinutos = minutosFim - minutosInicio;
-        } else {
-            // Passou da meia-noite
-            diferencaMinutos = (METAS.MINUTOS_POR_DIA - minutosInicio) + minutosFim;
-        }
-
-        // Converter para horas decimais
-        const horasDecimais = diferencaMinutos / 60;
-
-        // Multiplicar pelo número de operadores
-        return horasDecimais * operadores;
-    }
-
-    /**
      * Converte hora em formato HH:MM para minutos totais
      */
     converterHoraParaMinutos(hora) {
@@ -582,15 +527,6 @@ class GoogleSheetsAPI {
         if (isNaN(horas) || isNaN(minutos)) return null;
 
         return horas * 60 + minutos;
-    }
-
-    /**
-     * Normaliza objetos (legado - agora já normalizado em converterParaObjetos)
-     * Mantido para compatibilidade
-     */
-    normalizarDados(objetos) {
-        // Já está normalizado, retornar como está
-        return objetos;
     }
 
     /**

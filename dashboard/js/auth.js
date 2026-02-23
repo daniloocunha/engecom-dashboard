@@ -25,7 +25,7 @@ class Auth {
 
         if (key === CONFIG.SECRET_KEY) {
             this.autenticado = true;
-            sessionStorage.setItem('dashboard_auth', 'true');
+            try { sessionStorage.setItem('dashboard_auth', 'true'); } catch (e) { /* modo privado */ }
             // Limpar a URL para não expor a chave
             this.limparURL();
             return true;
@@ -111,7 +111,7 @@ class Auth {
         if (key === CONFIG.SECRET_KEY) {
             // Autenticação bem-sucedida
             this.autenticado = true;
-            sessionStorage.setItem('dashboard_auth', 'true');
+            try { sessionStorage.setItem('dashboard_auth', 'true'); } catch (e) { /* modo privado */ }
 
             // Animação de sucesso
             btnAuth.innerHTML = '<i class="fas fa-check me-2"></i>Acesso Liberado!';
@@ -146,7 +146,7 @@ class Auth {
 
                 // Bloquear por 15 minutos
                 const bloqueioAte = Date.now() + (15 * 60 * 1000);
-                localStorage.setItem('dashboard_bloqueio', bloqueioAte);
+                try { localStorage.setItem('dashboard_bloqueio', bloqueioAte); } catch (e) { /* modo privado */ }
             }
         }
     }

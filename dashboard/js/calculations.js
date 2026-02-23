@@ -226,10 +226,9 @@ class CalculadoraMedicao {
         let totalOperadoresDia = 0;
 
         rdos.forEach(rdo => {
-            // Pegar efetivo do RDO
-            const efetivo = this.efetivos.find(e =>
-                e.numeroRDO === rdo.numeroRDO && e.data === rdo.data
-            );
+            // ⚡ Lookup O(1) via índice Map (Sprint 3)
+            const numeroRDO = rdo['Número RDO'] || rdo.numeroRDO || rdo.numeroRdo || '';
+            const efetivo = this.indices.efetivosPorRDO.get(numeroRDO);
 
             if (efetivo) {
                 totalOperadoresDia += parseInt(efetivo.operadores || 0);
@@ -558,11 +557,8 @@ class CalculadoraMedicao {
         rdos.forEach(rdo => {
             const numeroRDO = rdo['Número RDO'] || rdo.numeroRDO || rdo.numeroRdo || '';
 
-            // ✅ FIX: Buscar por Número RDO (NÃO usar ID que é do banco local!)
-            const servicosRDO = this.servicos.filter(s => {
-                const sNumeroRDO = s['Número RDO'] || s.numeroRDO || s.numeroRdo || '';
-                return sNumeroRDO === numeroRDO;
-            });
+            // ⚡ Lookup O(1) via índice Map (Sprint 3)
+            const servicosRDO = this.indices.servicosPorRDO.get(numeroRDO) || [];
 
             servicosRDO.forEach(servico => {
                 // HH = quantidade × coeficiente
@@ -592,11 +588,8 @@ class CalculadoraMedicao {
         rdos.forEach(rdo => {
             const numeroRDO = rdo['Número RDO'] || rdo.numeroRDO || rdo.numeroRdo || '';
 
-            // ✅ FIX: Buscar por Número RDO (NÃO usar ID!)
-            const hisRDO = this.horasImprodutivas.filter(hi => {
-                const hiNumeroRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
-                return hiNumeroRDO === numeroRDO;
-            });
+            // ⚡ Lookup O(1) via índice Map (Sprint 3)
+            const hisRDO = this.indices.hiPorRDO.get(numeroRDO) || [];
 
             hisRDO.forEach(hi => {
                 const horaInicio = hi['Hora Início'] || hi.horaInicio || '';
@@ -671,11 +664,8 @@ class CalculadoraMedicao {
                 hhPorDia[data].observacoes.push(obs.trim());
             }
 
-            // ✅ FIX: Serviços do dia (buscar por Número RDO)
-            const servicosDia = this.servicos.filter(s => {
-                const sNumeroRDO = s['Número RDO'] || s.numeroRDO || s.numeroRdo || '';
-                return sNumeroRDO === numeroRDO;
-            });
+            // ⚡ Lookup O(1) via índice Map (Sprint 3)
+            const servicosDia = this.indices.servicosPorRDO.get(numeroRDO) || [];
 
             servicosDia.forEach(servico => {
                 const quantidade = parseFloat(servico.quantidade || servico.Quantidade || 0);
@@ -684,11 +674,8 @@ class CalculadoraMedicao {
                 hhPorDia[data].hhServicos += hh;
             });
 
-            // ✅ FIX: Improdutivas do dia (buscar por Número RDO)
-            const hisDia = this.horasImprodutivas.filter(hi => {
-                const hiNumeroRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
-                return hiNumeroRDO === numeroRDO;
-            });
+            // ⚡ Lookup O(1) via índice Map (Sprint 3)
+            const hisDia = this.indices.hiPorRDO.get(numeroRDO) || [];
 
             hisDia.forEach(hi => {
                 const horaInicio = hi['Hora Início'] || hi.horaInicio || '';

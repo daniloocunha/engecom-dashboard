@@ -138,23 +138,11 @@
                             <option value="TS">TSs</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-3">
                         <button class="btn btn-primary w-100" onclick="aplicarFiltros()">
                             <i class="fas fa-filter me-2"></i>
                             Aplicar Filtros
                         </button>
-                    </div>
-                    <div class="col-md-1">
-                        <div class="dropdown">
-                            <button class="btn btn-success w-100 dropdown-toggle" type="button" id="btnExport" data-bs-toggle="dropdown" aria-expanded="false" title="Exportar dados">
-                                <i class="fas fa-download"></i>
-                            </button>
-                            <ul class="dropdown-menu" aria-labelledby="btnExport">
-                                <li><a class="dropdown-item" href="#" onclick="exportarCSV(); return false;"><i class="fas fa-file-csv me-2"></i>Exportar CSV</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="exportarExcel(); return false;"><i class="fas fa-file-excel me-2"></i>Exportar Excel</a></li>
-                                <li><a class="dropdown-item" href="#" onclick="exportarPDF(); return false;"><i class="fas fa-file-pdf me-2"></i>Exportar PDF</a></li>
-                            </ul>
-                        </div>
                     </div>
                 </div>
             </div>
@@ -1008,10 +996,6 @@
                     <i class="fas fa-chart-bar me-2"></i>
                     Ver Análises Avançadas
                 </button>
-                <button class="btn btn-outline-secondary" onclick="exportarRelatorio()">
-                    <i class="fas fa-download me-2"></i>
-                    Exportar Relatório
-                </button>
             </div>
 
         </div>
@@ -1043,7 +1027,6 @@
     <script src="js/config.js?v=3.0.13"></script>
     <script src="js/auth.js?v=3.0.13"></script>
     <script src="js/field-helper.js?v=3.0.13"></script>
-    <script src="js/export-helper.js?v=3.0.13"></script>
     <script src="js/alerts-system.js?v=3.0.13"></script>
     <!-- Dados de serviços embutidos (fallback para CORS quando abrindo como file://) -->
     <script src="js/servicos-data.js?v=3.0.13"></script>
@@ -1055,12 +1038,9 @@
     <script src="js/calendario-ts.js?v=3.0.13"></script>
     <script src="js/view-manager.js?v=3.0.13"></script>
 
-    <!-- Bibliotecas de Export (opcional - fallback para CSV se não disponíveis) -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js" integrity="sha512-r22gChDnGvBylk90+2e/ycr+equG2BpL+A7r1cZDfq6dKqL0dN0YxMr2ov9+XH8bvPzNDnIYa6aQJ8tqOJ7FzQ==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" integrity="sha512-qZvrmS2ekKPF2mSznTQsxqPgnpkI4DNTlrdUmTzrDgektczlKNRRhy5X5AAOnx5S09ydFYWWNSfcEqDTTHgtNA==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js" integrity="sha512-dtc4c4hJA7nTpnKcOXfYLizhYJyX7A/4MYQYJV3RiAqADeCxST1rHQl0qPQlmHmidAZNrQYMh3chUbP0fAQ45w==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
-
-    <script src="js/export.js?v=3.0.13"></script>
+    <script src="js/acompanhamento-diario.js?v=3.0.13"></script>
+    <script src="js/analise-tmc.js?v=3.0.13"></script>
+    <script src="js/period-comparison.js?v=3.0.13"></script>
     <script src="js/gestao-os.js?v=3.0.13"></script>
     <script src="js/main.js?v=3.0.13"></script>
 

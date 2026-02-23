@@ -10,6 +10,7 @@ class CalendarioTS {
         this.mesAtual = new Date().getMonth() + 1;
         this.anoAtual = new Date().getFullYear();
         this.turmaFiltro = null;
+        this.modalCharts = []; // Rastrear charts do modal para evitar memory leaks
     }
 
     /**
@@ -535,8 +536,10 @@ class CalendarioTS {
             this.renderizarGraficoPerformance(dados);
         });
 
-        // Limpar modal do DOM após fechar
+        // Limpar modal do DOM após fechar (destruir charts para evitar memory leaks)
         modalElement.addEventListener('hidden.bs.modal', () => {
+            this.modalCharts.forEach(chart => chart.destroy());
+            this.modalCharts = [];
             modalElement.remove();
         });
     }
@@ -552,7 +555,7 @@ class CalendarioTS {
             ? (dados.hhSoldador / dados.metaDiaria) * 100
             : 0;
 
-        new Chart(ctx, {
+        const chart = new Chart(ctx, {
             type: 'doughnut',
             data: {
                 labels: ['HH Soldador', 'Falta para Meta'],
@@ -590,6 +593,7 @@ class CalendarioTS {
                 }
             }
         });
+        this.modalCharts.push(chart);
     }
 }
 
