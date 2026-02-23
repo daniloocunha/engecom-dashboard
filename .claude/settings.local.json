@@ -27,7 +27,17 @@
       "Bash(grep:*)",
       "Bash(npm run sync-servicos:*)",
       "Bash(powershell -Command:*)",
-      "Bash(cmd /c:*)"
+      "Bash(cmd /c:*)",
+      "Bash(git rm:*)",
+      "Bash(echo:*)",
+      "Bash(git config:*)",
+      "Bash(Select-String -Pattern \"coef|normalized\")",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(Test-Path \"C:\\\\Users\\\\dan\\\\CalculadoraHH\\\\netlify.toml\")",
+      "Bash(git ls-tree:*)",
+      "Bash(git -C:*)"
     ],
     "deny": [],
     "ask": []

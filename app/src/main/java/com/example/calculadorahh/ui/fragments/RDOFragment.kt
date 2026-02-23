@@ -131,6 +131,7 @@ class RDOFragment : Fragment() {
     private val codigosTurma = listOf(
         "TP-273",
         "TP-274",
+        "TP-764",
         "TP-891",
         "TP-876",
         "TP-900",
@@ -152,7 +153,6 @@ class RDOFragment : Fragment() {
         "Adalton Trindade da Paixão",
         "Ilson Soares de Oliveira",
         "Leandro Morais da Silva",
-        "Paulo Cezar Sousa da Silva",
         "Tharlleson M. Sobrinho",
         "Werbet Santos dos Santos",
         "Wilson Puff",
