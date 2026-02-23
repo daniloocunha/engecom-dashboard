@@ -33,6 +33,36 @@ function _isTMC(turma) {
     return turma.toUpperCase().startsWith('TMC');
 }
 
+/** Cores de fundo de linha/célula por status (fonte única) */
+const STATUS_ROW_COLORS = {
+    'Aprovada':     '#e8f4ff',  // azul claro
+    'Finalizada':   '#d4edda',  // verde claro
+    'Em Progresso': '#fff9e6',  // amarelo muito claro
+    'Reprovada':    '#fde8e8'   // vermelho claro
+};
+
+/** Opções do select de status com ícones (fonte única) */
+const STATUS_OPTS = [
+    { val: 'Em Progresso', icon: '🟡' },
+    { val: 'Aprovada',     icon: '🔵' },
+    { val: 'Finalizada',   icon: '🟢' },
+    { val: 'Reprovada',    icon: '🔴' }
+];
+
+/**
+ * Converte string de KM para número (metros) para comparação correta.
+ * Suporta formato de estacamento ferroviário "123+456" e números simples.
+ * Retorna null se o valor não for parseável.
+ */
+function _kmToNum(kmStr) {
+    if (!kmStr) return null;
+    const s = String(kmStr).trim().replace(',', '.');
+    const match = s.match(/^(\d+)\+(\d+)$/);  // formato 123+456
+    if (match) return parseInt(match[1]) * 1000 + parseInt(match[2]);
+    const n = parseFloat(s);
+    return isNaN(n) ? null : n;
+}
+
 /**
  * Normaliza o status que vem da planilha para o sistema de 4 estados.
  * 'Concluída' / 'Concluida' da planilha → 'Finalizada'
@@ -91,7 +121,7 @@ class GestaoOS {
         if (!valor) {
             localStorage.removeItem('gestaoOS_status_' + numeroOS);
         } else {
-            localStorage.setItem('gestaoOS_status_' + numeroOS, valor);
+            try { localStorage.setItem('gestaoOS_status_' + numeroOS, valor); } catch (e) { /* quota/privado */ }
         }
 
         // Atualiza cor da linha inteira
@@ -122,15 +152,7 @@ class GestaoOS {
         const cel = document.getElementById(`status-cel-${CSS.escape(numeroOS)}`);
         const tr  = cel?.closest('tr');
         if (!tr) return;
-
-        const colorMap = {
-            'Aprovada':    '#e8f4ff',  // azul claro
-            'Finalizada':  '#d4edda',  // verde claro
-            'Em Progresso':'#fff9e6',  // amarelo muito claro
-            'Reprovada':   '#fde8e8'   // vermelho claro
-        };
-        tr.style.backgroundColor = colorMap[status] || '';
-        // Remover cursor para não sobrepor o hover do Bootstrap
+        tr.style.backgroundColor = STATUS_ROW_COLORS[status] || '';
         tr.style.transition = 'background-color 0.2s ease';
     }
 
@@ -147,13 +169,7 @@ class GestaoOS {
     _statusSelectHTML(grupo) {
         const status = this.getStatus(grupo);
         const osEsc  = _esc(grupo.numeroOS);
-        const opts   = [
-            { val: 'Em Progresso', icon: '🟡' },
-            { val: 'Aprovada',     icon: '🔵' },
-            { val: 'Finalizada',   icon: '🟢' },
-            { val: 'Reprovada',    icon: '🔴' }
-        ];
-        const optionsHTML = opts.map(o =>
+        const optionsHTML = STATUS_OPTS.map(o =>
             `<option value="${o.val}" ${status === o.val ? 'selected' : ''}>${o.icon} ${o.val}</option>`
         ).join('');
 
@@ -173,13 +189,7 @@ class GestaoOS {
     _statusModalHTML(grupo, modalOsId) {
         const status = this.getStatus(grupo);
         const osEsc  = _esc(grupo.numeroOS);
-        const opts   = [
-            { val: 'Em Progresso', icon: '🟡' },
-            { val: 'Aprovada',     icon: '🔵' },
-            { val: 'Finalizada',   icon: '🟢' },
-            { val: 'Reprovada',    icon: '🔴' }
-        ];
-        const optionsHTML = opts.map(o =>
+        const optionsHTML = STATUS_OPTS.map(o =>
             `<option value="${o.val}" ${status === o.val ? 'selected' : ''}>${o.icon} ${o.val}</option>`
         ).join('');
         const cfg      = this._statusConfig(status);
@@ -248,7 +258,7 @@ class GestaoOS {
         if (!valor || valor === 'Pendente') {
             localStorage.removeItem('gestaoOS_gevia_' + numeroOS);
         } else {
-            localStorage.setItem('gestaoOS_gevia_' + numeroOS, valor);
+            try { localStorage.setItem('gestaoOS_gevia_' + numeroOS, valor); } catch (e) { /* quota/privado */ }
         }
         const cel = document.getElementById(`gevia-cel-${CSS.escape(numeroOS)}`);
         if (cel) cel.innerHTML = this._geviaHTML(numeroOS);
@@ -342,9 +352,11 @@ class GestaoOS {
         const ta = document.getElementById(`notaTA_${CSS.escape(numeroOS)}`);
         if (!ta) return;
         const texto = ta.value.trim();
-        texto === ''
-            ? localStorage.removeItem('gestaoOS_nota_' + numeroOS)
-            : localStorage.setItem('gestaoOS_nota_' + numeroOS, texto);
+        if (texto === '') {
+            localStorage.removeItem('gestaoOS_nota_' + numeroOS);
+        } else {
+            try { localStorage.setItem('gestaoOS_nota_' + numeroOS, texto); } catch (e) { /* quota/privado */ }
+        }
 
         const cel = document.getElementById(`nota-cel-${CSS.escape(numeroOS)}`);
         if (cel) cel.innerHTML = this._notaHTML(numeroOS);
@@ -408,9 +420,11 @@ class GestaoOS {
         const ta = document.getElementById(`notaTAModal_${modalOsId}`);
         if (!ta) return;
         const texto = ta.value.trim();
-        texto === ''
-            ? localStorage.removeItem('gestaoOS_nota_' + numeroOS)
-            : localStorage.setItem('gestaoOS_nota_' + numeroOS, texto);
+        if (texto === '') {
+            localStorage.removeItem('gestaoOS_nota_' + numeroOS);
+        } else {
+            try { localStorage.setItem('gestaoOS_nota_' + numeroOS, texto); } catch (e) { /* quota/privado */ }
+        }
 
         const display = document.getElementById(`notaDisplay_${modalOsId}`);
         if (display) {
@@ -504,8 +518,13 @@ class GestaoOS {
             const statusNorm = _normalizarStatusPlanilha(statusRDO);
             if (statusNorm === 'Finalizada') go.statusPlanilha = 'Finalizada';
 
-            if (kmIni && (!go.kmInicio || kmIni < go.kmInicio)) go.kmInicio = kmIni;
-            if (kmFim  && (!go.kmFim   || kmFim  > go.kmFim))  go.kmFim    = kmFim;
+            const numKmIni    = _kmToNum(kmIni);
+            const numKmAtual  = _kmToNum(go.kmInicio);
+            if (numKmIni !== null && (numKmAtual === null || numKmIni < numKmAtual)) go.kmInicio = kmIni;
+
+            const numKmFim     = _kmToNum(kmFim);
+            const numKmFimAtual = _kmToNum(go.kmFim);
+            if (numKmFim !== null && (numKmFimAtual === null || numKmFim > numKmFimAtual)) go.kmFim = kmFim;
         });
 
         // ── PASSO 2: Calcular datas e filtrar por ÚLTIMO RDO no mês/ano
@@ -729,7 +748,13 @@ class GestaoOS {
         </div>`;
 
         document.body.insertAdjacentHTML('beforeend', modalHTML);
-        new bootstrap.Modal(document.getElementById(modalId)).show();
+        const modalEl = document.getElementById(modalId);
+        const bsModal  = new bootstrap.Modal(modalEl);
+        modalEl.addEventListener('hidden.bs.modal', () => {
+            bsModal.dispose();
+            modalEl.remove();
+        }, { once: true });
+        bsModal.show();
     }
 
     // ── Correção de O.S inválida via Apps Script ──────────────────────────
@@ -768,14 +793,13 @@ class GestaoOS {
             try { json = await resp.json(); } catch (_) { json = {}; }
 
             if (resp.ok && json.sucesso !== false) {
-                // Sucesso: remover a linha da tabela sem recarregar tudo
-                const tr = input.closest('tr');
-                if (tr) {
-                    tr.style.transition = 'opacity 0.4s';
-                    tr.style.opacity = '0';
-                    setTimeout(() => tr.remove(), 400);
+                // Feedback visual de sucesso antes do fade-out
+                if (btn) {
+                    btn.innerHTML = '<i class="fas fa-check"></i> Salvo!';
+                    btn.classList.replace('btn-success', 'btn-outline-success');
                 }
-                // Também atualizar o dado em memória para evitar re-aparecer sem reload
+
+                // Atualizar o dado em memória para evitar re-aparecer
                 const rdo = this.dados.rdos.find(r => {
                     const nr = (r['Número RDO'] || r.numeroRDO || r.numeroRdo || '').trim();
                     return nr === numeroRDO;
@@ -784,6 +808,19 @@ class GestaoOS {
                     rdo['Número OS'] = novaOS;
                     rdo.numeroOS     = novaOS;
                     rdo._osInvalida  = false;
+                }
+
+                // Fade-out da linha e re-renderização da aba completa (mostra OS na lista)
+                const tr = input.closest('tr');
+                if (tr) {
+                    tr.style.transition = 'opacity 0.4s';
+                    tr.style.opacity = '0';
+                    setTimeout(() => {
+                        tr.remove();
+                        this.renderizar(); // exibe a OS corrigida na lista principal
+                    }, 400);
+                } else {
+                    this.renderizar();
                 }
             } else {
                 throw new Error(json.erro || json.message || `HTTP ${resp.status}`);
@@ -799,7 +836,17 @@ class GestaoOS {
     _renderizarSemOS() {
         if (!this.dados) return '';
 
-        const rdosSemOS = this.dados.rdos.filter(r => r._osInvalida);
+        const rdosSemOS = this.dados.rdos.filter(r => {
+            if (!r._osInvalida) return false;
+            if (this.filtroMes && this.filtroAno) {
+                const dataStr = (r.Data || r.data || '').trim();
+                if (!dataStr) return false;
+                const parts = dataStr.split('/');
+                if (parts.length < 3) return false;
+                if (+parts[1] !== this.filtroMes || +parts[2] !== this.filtroAno) return false;
+            }
+            return true;
+        });
         if (!rdosSemOS.length) return '';
 
         // Ordenar por data desc
@@ -923,13 +970,7 @@ class GestaoOS {
 
             const rows = ordens.map(o => {
                 const status   = this.getStatus(o);
-                const colorMap = {
-                    'Aprovada':    '#e8f4ff',
-                    'Finalizada':  '#d4edda',
-                    'Em Progresso':'#fff9e6',
-                    'Reprovada':   '#fde8e8'
-                };
-                const rowBg = colorMap[status] || '';
+                const rowBg = STATUS_ROW_COLORS[status] || '';
 
                 return `<tr style="cursor:pointer;background-color:${rowBg};transition:background-color 0.2s;"
                             onclick="gestaoOS.abrirModal('${_esc(o.numeroOS)}')">
