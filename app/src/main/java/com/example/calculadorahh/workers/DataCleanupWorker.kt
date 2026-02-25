@@ -4,12 +4,12 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.content.Context
 import android.os.Build
-import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.calculadorahh.R
 import com.example.calculadorahh.services.GoogleSheetsService
+import com.example.calculadorahh.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -36,7 +36,7 @@ class DataCleanupWorker(
     }
 
     override suspend fun doWork(): Result = withContext(Dispatchers.IO) {
-        Log.d(TAG, "🧹 Iniciando job de limpeza de dados órfãos")
+        AppLogger.d(TAG, "🧹 Iniciando job de limpeza de dados órfãos")
 
         try {
             // Criar notificação de progresso
@@ -47,22 +47,22 @@ class DataCleanupWorker(
             val initialized = sheetsService.initialize()
 
             if (!initialized) {
-                Log.e(TAG, "❌ Google Sheets Service não disponível")
+                AppLogger.e(TAG, "❌ Google Sheets Service não disponível")
                 showNotification("⚠ Falha ao conectar ao Google Sheets", autoCancel = true)
                 return@withContext Result.failure()
             }
 
             // 1. Obter lista de RDOs válidos (não deletados)
-            Log.d(TAG, "📋 Obtendo lista de RDOs válidos...")
+            AppLogger.d(TAG, "📋 Obtendo lista de RDOs válidos...")
             val validRDOs = sheetsService.getValidRDONumbers()
 
             if (validRDOs.isEmpty()) {
-                Log.w(TAG, "⚠ Nenhum RDO válido encontrado. Abortando limpeza.")
+                AppLogger.w(TAG, "⚠ Nenhum RDO válido encontrado. Abortando limpeza.")
                 cancelNotification()
                 return@withContext Result.success()
             }
 
-            Log.i(TAG, "✅ ${validRDOs.size} RDOs válidos encontrados")
+            AppLogger.i(TAG, "✅ ${validRDOs.size} RDOs válidos encontrados")
 
             // 2. Limpar cada aba relacionada
             val sheetsToClean = listOf(
@@ -79,49 +79,49 @@ class DataCleanupWorker(
 
             sheetsToClean.forEach { sheetName ->
                 try {
-                    Log.d(TAG, "🔍 Verificando $sheetName...")
+                    AppLogger.d(TAG, "🔍 Verificando $sheetName...")
                     val orphansRemoved = sheetsService.cleanOrphanedData(sheetName, validRDOs)
 
                     cleanupResults[sheetName] = orphansRemoved
                     totalOrphansRemoved += orphansRemoved
 
                     if (orphansRemoved > 0) {
-                        Log.i(TAG, "✅ $sheetName: $orphansRemoved linha(s) órfã(s) removida(s)")
+                        AppLogger.i(TAG, "✅ $sheetName: $orphansRemoved linha(s) órfã(s) removida(s)")
                     } else {
-                        Log.d(TAG, "✓ $sheetName: Nenhum órfão encontrado")
+                        AppLogger.d(TAG, "✓ $sheetName: Nenhum órfão encontrado")
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "❌ Erro ao limpar $sheetName: ${e.message}", e)
+                    AppLogger.e(TAG, "❌ Erro ao limpar $sheetName: ${e.message}", e)
                     cleanupResults[sheetName] = -1  // Indica erro
                 }
             }
 
             // 3. Mostrar resultado final
             if (totalOrphansRemoved > 0) {
-                Log.i(TAG, "🎯 Limpeza concluída: $totalOrphansRemoved linha(s) órfã(s) removida(s)")
+                AppLogger.i(TAG, "🎯 Limpeza concluída: $totalOrphansRemoved linha(s) órfã(s) removida(s)")
                 showNotification(
                     "✓ Limpeza concluída: $totalOrphansRemoved dado(s) órfão(s) removido(s)",
                     autoCancel = true
                 )
             } else {
-                Log.i(TAG, "✓ Nenhum dado órfão encontrado. Sistema íntegro!")
+                AppLogger.i(TAG, "✓ Nenhum dado órfão encontrado. Sistema íntegro!")
                 showNotification("✓ Dados verificados. Sistema íntegro!", autoCancel = true)
             }
 
             // Log detalhado dos resultados
-            Log.d(TAG, "📊 Resultados da limpeza:")
+            AppLogger.d(TAG, "📊 Resultados da limpeza:")
             cleanupResults.forEach { (sheet, count) ->
                 when {
-                    count > 0 -> Log.d(TAG, "  - $sheet: $count órfãos removidos")
-                    count == 0 -> Log.d(TAG, "  - $sheet: OK (sem órfãos)")
-                    else -> Log.e(TAG, "  - $sheet: ERRO durante limpeza")
+                    count > 0 -> AppLogger.d(TAG, "  - $sheet: $count órfãos removidos")
+                    count == 0 -> AppLogger.d(TAG, "  - $sheet: OK (sem órfãos)")
+                    else -> AppLogger.e(TAG, "  - $sheet: ERRO durante limpeza")
                 }
             }
 
             Result.success()
 
         } catch (e: Exception) {
-            Log.e(TAG, "❌ Erro durante job de limpeza: ${e.message}", e)
+            AppLogger.e(TAG, "❌ Erro durante job de limpeza: ${e.message}", e)
             e.printStackTrace()
             showNotification("⚠ Erro na verificação de dados", autoCancel = true)
             Result.retry()

@@ -92,7 +92,7 @@ class SheetsRelatedDataManager(
                     listOf(
                         numeroRDO, rdo.numeroOS, rdo.data, rdo.codigoTurma, rdo.encarregado,
                         hi.tipo, hi.descricao, hi.horaInicio, hi.horaFim,
-                        hi.operadores.takeIf { it > 0 } ?: 12  // Default 12 para records antigos (Gson retorna 0)
+                        hi.colaboradores.takeIf { it > 0 } ?: 12  // Default 12 para records antigos (Gson retorna 0)
                     )
                 }
                 updates.add(ValueRange().setRange("${SheetsConstants.SHEET_HI}!A:J").setValues(hiRows))

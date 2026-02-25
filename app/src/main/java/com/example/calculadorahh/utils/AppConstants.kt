@@ -136,6 +136,15 @@ object AppConstants {
     const val ENABLE_VERBOSE_LOGS = true
 
 
+    // ========== MATERIAIS ==========
+
+    /** Unidades disponíveis para materiais */
+    val UNIDADES_MATERIAL = listOf("uni", "m", "m²", "m³", "kg", "L", "cx", "PC")
+
+    /** Quantidade padrão de colaboradores em um evento HI */
+    const val DEFAULT_COLABORADORES_HI = 12
+
+
     // ========== UI ==========
 
     /** Duração padrão de Toast (em milissegundos) */

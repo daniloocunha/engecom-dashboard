@@ -9,6 +9,7 @@ import android.util.Log
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
 import com.example.calculadorahh.data.models.*
+import com.example.calculadorahh.utils.AppLogger
 import java.text.SimpleDateFormat
 import java.util.*
 import androidx.core.database.sqlite.transaction
@@ -618,36 +619,42 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         val servicos: List<ServicoRDO> = try {
             gson.fromJson(servicosJson, servicosType) ?: emptyList()
         } catch (e: Exception) {
+            AppLogger.w(TAG, "JSON inválido em 'servicos' para RDO id=$id ($numeroRDO): ${e.message}")
             emptyList()
         }
 
         val materiais: List<MaterialRDO> = try {
             gson.fromJson(materiaisJson, materiaisType) ?: emptyList()
         } catch (e: Exception) {
+            AppLogger.w(TAG, "JSON inválido em 'materiais' para RDO id=$id ($numeroRDO): ${e.message}")
             emptyList()
         }
 
         val efetivo: Efetivo = try {
             gson.fromJson(efetivoJson, Efetivo::class.java) ?: Efetivo(0, 0, 0, 0, 0, 0)
         } catch (e: Exception) {
+            AppLogger.w(TAG, "JSON inválido em 'efetivo' para RDO id=$id ($numeroRDO): ${e.message}")
             Efetivo(0, 0, 0, 0, 0, 0)
         }
 
         val equipamentos: List<Equipamento> = try {
             gson.fromJson(equipamentosJson, equipamentosType) ?: emptyList()
         } catch (e: Exception) {
+            AppLogger.w(TAG, "JSON inválido em 'equipamentos' para RDO id=$id ($numeroRDO): ${e.message}")
             emptyList()
         }
 
         val horasImprodutivas: List<HIItem> = try {
             gson.fromJson(hiItensJson, hiItensType) ?: emptyList()
         } catch (e: Exception) {
+            AppLogger.w(TAG, "JSON inválido em 'hiItens' para RDO id=$id ($numeroRDO): ${e.message}")
             emptyList()
         }
 
         val transportes: List<TransporteItem> = try {
             gson.fromJson(transportesJson, transportesType) ?: emptyList()
         } catch (e: Exception) {
+            AppLogger.w(TAG, "JSON inválido em 'transportes' para RDO id=$id ($numeroRDO): ${e.message}")
             emptyList()
         }
 

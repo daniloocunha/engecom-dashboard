@@ -113,7 +113,7 @@ class HIManager(
         val btnEditar = itemView.findViewById<ImageButton>(R.id.btnEditarHI)
         val btnRemover = itemView.findViewById<ImageButton>(R.id.btnRemoverHI)
 
-        val operadoresEfetivos = if (hi.operadores > 0) hi.operadores else 12
+        val operadoresEfetivos = if (hi.colaboradores > 0) hi.colaboradores else 12
 
         tvTipo.text = hi.tipo
         tvDescricao.text = hi.descricao
@@ -173,7 +173,7 @@ class HIManager(
         etDescricao.setText(hiAtual.descricao)
         etHorarioInicio.setText(hiAtual.horaInicio)
         etHorarioFim.setText(hiAtual.horaFim)
-        val operadoresAtual = if (hiAtual.operadores > 0) hiAtual.operadores else 12
+        val operadoresAtual = if (hiAtual.colaboradores > 0) hiAtual.colaboradores else 12
         etOperadores.setText(operadoresAtual.toString())
 
         btnCancelar.setOnClickListener {

@@ -125,6 +125,12 @@ class SheetsAuditService(
      * @return Quantidade de linhas órfãs removidas
      */
     suspend fun cleanOrphanedData(sheetName: String, validRDOs: Set<String>): Int = withContext(Dispatchers.IO) {
+        // Guard: se validRDOs estiver vazio, abortar para prevenir deleção em massa acidental
+        if (validRDOs.isEmpty()) {
+            Log.w(tag, "⚠ validRDOs está vazio — abortando limpeza de '$sheetName' para prevenir deleção em massa")
+            return@withContext 0
+        }
+
         try {
             val response = sheetsService.spreadsheets().values()
                 .get(spreadsheetId, "${sheetName}!A2:A")
@@ -147,13 +153,14 @@ class SheetsAuditService(
                 return@withContext 0
             }
 
+            var deletedCount = 0
             orphanRows.forEach { rowIndex ->
-                deleteSheetRow(sheetName, rowIndex)
+                if (deleteSheetRow(sheetName, rowIndex)) deletedCount++
             }
 
-            Log.i(tag, "✅ $sheetName: ${orphanRows.size} linha(s) órfã(s) removida(s)")
+            Log.i(tag, "✅ $sheetName: $deletedCount/${orphanRows.size} linha(s) órfã(s) removida(s)")
 
-            return@withContext orphanRows.size
+            return@withContext deletedCount
 
         } catch (e: Exception) {
             Log.e(tag, "❌ Erro ao limpar $sheetName: ${e.message}", e)
@@ -163,11 +170,16 @@ class SheetsAuditService(
 
     /**
      * Deleta uma única linha de uma aba.
+     * @return true se a deleção foi bem-sucedida, false em caso de erro
      */
-    internal fun deleteSheetRow(sheetName: String, rowIndex: Int) {
-        try {
+    internal fun deleteSheetRow(sheetName: String, rowIndex: Int): Boolean {
+        return try {
             val spreadsheet = sheetsService.spreadsheets().get(spreadsheetId).execute()
-            val sheet = spreadsheet.sheets.find { it.properties.title == sheetName } ?: return
+            val sheet = spreadsheet.sheets.find { it.properties.title == sheetName }
+                ?: run {
+                    Log.w(tag, "Aba '$sheetName' não encontrada ao tentar deletar linha $rowIndex")
+                    return false
+                }
             val sheetId = sheet.properties.sheetId
 
             val request = com.google.api.services.sheets.v4.model.Request().setDeleteDimension(
@@ -184,9 +196,11 @@ class SheetsAuditService(
             val batchUpdateRequest = com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest()
                 .setRequests(listOf(request))
             sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchUpdateRequest).execute()
+            true
 
         } catch (e: Exception) {
-            Log.e(tag, "Erro ao deletar linha: ${e.message}", e)
+            Log.e(tag, "Erro ao deletar linha $rowIndex de '$sheetName': ${e.message}", e)
+            false
         }
     }
 }

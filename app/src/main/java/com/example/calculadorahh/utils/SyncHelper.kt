@@ -18,6 +18,7 @@ object SyncHelper {
     private const val KEY_ULTIMO_ID_VALIDADO = "ultimo_id_validado"
     private const val INTERVALO_VALIDACAO = 10 // Validar a cada 10 RDOs novos
 
+    @Volatile
     private var validacaoFeitaNestaSessao = false
 
     /**
