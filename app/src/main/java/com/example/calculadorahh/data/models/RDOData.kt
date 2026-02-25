@@ -1,6 +1,7 @@
 package com.example.calculadorahh.data.models
 
 
+import com.google.gson.annotations.SerializedName
 import kotlinx.parcelize.Parcelize
 import android.os.Parcelable
 
@@ -103,7 +104,8 @@ data class HIItem(
     val descricao: String,
     val horaInicio: String,
     val horaFim: String,
-    val operadores: Int = 12  // Operadores envolvidos no evento HI (default 12, Gson retorna 0 para records antigos)
+    @SerializedName("operadores")  // Mantém compatibilidade com JSON existente no banco
+    val colaboradores: Int = 12  // Colaboradores envolvidos no evento HI (default 12, Gson retorna 0 para records antigos)
 ) : Parcelable
 
 

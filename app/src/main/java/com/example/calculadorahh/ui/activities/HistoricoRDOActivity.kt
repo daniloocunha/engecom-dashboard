@@ -1,16 +1,13 @@
 package com.example.calculadorahh.ui.activities
-import com.example.calculadorahh.R
 
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
-import android.widget.CalendarView
-import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
-import androidx.recyclerview.widget.RecyclerView
+import com.example.calculadorahh.databinding.ActivityHistoricoRdoBinding
 import com.example.calculadorahh.utils.RDORelatorioUtil
 import com.example.calculadorahh.utils.SyncHelper
 import androidx.lifecycle.lifecycleScope
@@ -20,63 +17,63 @@ import kotlinx.coroutines.withContext
 import com.example.calculadorahh.data.database.DatabaseHelper
 import com.example.calculadorahh.data.models.*
 import com.example.calculadorahh.ui.adapters.HistoricoRDOAdapter
-import com.google.android.material.appbar.MaterialToolbar
 import java.text.SimpleDateFormat
 import java.util.*
 
 class HistoricoRDOActivity : AppCompatActivity() {
 
-    private lateinit var recyclerView: RecyclerView
+    private lateinit var binding: ActivityHistoricoRdoBinding
     private lateinit var adapter: HistoricoRDOAdapter
     private lateinit var databaseHelper: DatabaseHelper
-    private lateinit var toolbar: MaterialToolbar
-    private lateinit var calendarView: CalendarView
-    private lateinit var tvDataSelecionada: TextView
-    private lateinit var tvTotalRDOs: TextView
+    private var currentData: String = ""
 
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_historico_rdo)
-
-        recyclerView = findViewById(R.id.rvHistoricoRDO)
-        toolbar = findViewById(R.id.toolbar)
-        calendarView = findViewById(R.id.calendarView)
-        tvDataSelecionada = findViewById(R.id.tvDataSelecionada)
-        tvTotalRDOs = findViewById(R.id.tvTotalRDOs)
+        binding = ActivityHistoricoRdoBinding.inflate(layoutInflater)
+        setContentView(binding.root)
 
         databaseHelper = DatabaseHelper.getInstance(this)
-        recyclerView.layoutManager = LinearLayoutManager(this)
+        binding.rvHistoricoRDO.layoutManager = LinearLayoutManager(this)
 
-        toolbar.setNavigationOnClickListener { finish() }
+        // Criar adapter uma única vez com callbacks que referenciam currentData
+        adapter = HistoricoRDOAdapter(
+            rdoList = mutableListOf(),
+            context = this,
+            onDeletar = { rdo -> deletarRDO(rdo, currentData) },
+            onEnviar = { rdo -> compartilharRDO(rdo) },
+            onUsarModelo = { rdo -> usarComoModelo(rdo) },
+            onEditar = { rdo -> editarRDO(rdo) },
+            onSyncIndividual = { rdo -> sincronizarRDOIndividual(rdo, currentData) }
+        )
+        binding.rvHistoricoRDO.adapter = adapter
+
+        binding.toolbar.setNavigationOnClickListener { finish() }
 
         // 🔥 NOVO: Validar RDOs sincronizados (1x por sessão, a cada 10 RDOs criados)
         lifecycleScope.launch {
             val remarcados = SyncHelper.validarRDOsSincronizados(this@HistoricoRDOActivity)
             if (remarcados > 0) {
-                withContext(Dispatchers.Main) {
-                    Toast.makeText(
-                        this@HistoricoRDOActivity,
-                        "⚠️ $remarcados RDO(s) não encontrado(s) no Sheets - serão re-sincronizados",
-                        Toast.LENGTH_LONG
-                    ).show()
-                }
+                Toast.makeText(
+                    this@HistoricoRDOActivity,
+                    "⚠️ $remarcados RDO(s) não encontrado(s) no Sheets - serão re-sincronizados",
+                    Toast.LENGTH_LONG
+                ).show()
             }
         }
 
         // Carregar RDOs de hoje ao iniciar
-        val hoje = Calendar.getInstance()
         val sdf = SimpleDateFormat("dd/MM/yyyy", Locale.getDefault())
-        val dataHoje = sdf.format(hoje.time)
-        tvDataSelecionada.text = "Data: $dataHoje"
+        val dataHoje = sdf.format(Calendar.getInstance().time)
+        binding.tvDataSelecionada.text = "Data: $dataHoje"
         carregarRDOsDoDia(dataHoje)
 
         // Listener para mudança de data no calendário
-        calendarView.setOnDateChangeListener { _, year, month, dayOfMonth ->
+        binding.calendarView.setOnDateChangeListener { _, year, month, dayOfMonth ->
             val calendar = Calendar.getInstance()
             calendar.set(year, month, dayOfMonth)
             val dataSelecionada = sdf.format(calendar.time)
-            tvDataSelecionada.text = "Data: $dataSelecionada"
+            binding.tvDataSelecionada.text = "Data: $dataSelecionada"
             carregarRDOsDoDia(dataSelecionada)
         }
     }
@@ -84,33 +81,25 @@ class HistoricoRDOActivity : AppCompatActivity() {
     override fun onResume() {
         super.onResume()
         // Recarregar RDOs da data atualmente selecionada
-        val dataAtual = tvDataSelecionada.text.toString().replace("Data: ", "")
-        if (dataAtual != "--/--/----") {
-            carregarRDOsDoDia(dataAtual)
+        if (currentData.isNotEmpty()) {
+            carregarRDOsDoDia(currentData)
         }
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        binding.calendarView.setOnDateChangeListener(null)
     }
 
     @SuppressLint("SetTextI18n")
     private fun carregarRDOsDoDia(data: String) {
+        currentData = data
         lifecycleScope.launch {
-            // Buscar RDOs em background thread
             val rdos = withContext(Dispatchers.IO) {
                 databaseHelper.obterRDOsPorData(data)
             }
-
-            // Atualizar UI na main thread
-            tvTotalRDOs.text = "Total de RDOs: ${rdos.size}"
-
-            adapter = HistoricoRDOAdapter(
-                rdoList = rdos.toMutableList(),
-                context = this@HistoricoRDOActivity,
-                onDeletar = { rdo -> deletarRDO(rdo, data) },
-                onEnviar = { rdo -> compartilharRDO(rdo) },
-                onUsarModelo = { rdo -> usarComoModelo(rdo) },
-                onEditar = { rdo -> editarRDO(rdo) },
-                onSyncIndividual = { rdo -> sincronizarRDOIndividual(rdo, data) }
-            )
-            recyclerView.adapter = adapter
+            binding.tvTotalRDOs.text = "Total de RDOs: ${rdos.size}"
+            adapter.atualizarLista(rdos)
         }
     }
 

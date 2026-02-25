@@ -41,6 +41,8 @@ class RDOFragment : Fragment() {
     // Edit mode tracking
     private var isEditMode = false
     private var editRdoId: Long = -1L
+    // Flag para controlar se um RDO foi gerado nesta sessão (previne substituição acidental)
+    private var rdoSalvoNestaSessao = false
 
     // Launcher para receber resultado do Histórico
     private val historicoLauncher = registerForActivityResult(
@@ -370,6 +372,12 @@ class RDOFragment : Fragment() {
 
             val dados = coletarDadosFormulario()
 
+            // Se já gerou um RDO nesta sessão, perguntar ao usuário o que deseja fazer
+            if (rdoSalvoNestaSessao) {
+                mostrarDialogoNovoOuAlterarRDO(dados, isCompartilhar = false)
+                return@setOnClickListener
+            }
+
             // Desabilitar botão durante processamento
             btnGerarRelatorio.isEnabled = false
             btnCompartilhar.isEnabled = false
@@ -423,10 +431,11 @@ class RDOFragment : Fragment() {
                         if (id > 0) {
                             Toast.makeText(requireContext(), "RDO salvo com sucesso!", Toast.LENGTH_SHORT).show()
 
-                            // ✅ FIX: Entrar em modo edição para prevenir duplicatas
-                            // Se usuário clicar novamente em "Compartilhar", vai atualizar ao invés de inserir
+                            // Entrar em modo "salvo nesta sessão" para perguntar ao usuário
+                            // se ele deseja criar novo RDO ou alterar este ao clicar novamente
                             isEditMode = true
                             editRdoId = id
+                            rdoSalvoNestaSessao = true
 
                             // Sincronizar com Google Sheets (agora RDO está garantidamente no banco)
                             SyncHelper.syncRDO(requireContext(), id,
@@ -474,6 +483,12 @@ class RDOFragment : Fragment() {
 
             val dados = coletarDadosFormulario()
 
+            // Se já gerou um RDO nesta sessão, perguntar ao usuário o que deseja fazer
+            if (rdoSalvoNestaSessao) {
+                mostrarDialogoNovoOuAlterarRDO(dados, isCompartilhar = true)
+                return@setOnClickListener
+            }
+
             // Desabilitar botões durante processamento
             btnGerarRelatorio.isEnabled = false
             btnCompartilhar.isEnabled = false
@@ -519,6 +534,11 @@ class RDOFragment : Fragment() {
                         // Retornar para UI thread
                         if (idSalvo > 0) {
                             Toast.makeText(requireContext(), "RDO salvo e compartilhado!", Toast.LENGTH_SHORT).show()
+
+                            // Registrar sessão de salvamento
+                            isEditMode = true
+                            editRdoId = idSalvo
+                            rdoSalvoNestaSessao = true
 
                             // Sincronizar com Google Sheets (agora RDO está garantidamente no banco)
                             SyncHelper.syncRDO(requireContext(), idSalvo,
@@ -931,7 +951,38 @@ class RDOFragment : Fragment() {
         horarioCruzaMeiaNoiteConfirmado = false
         pendingAction = null
 
+        // Resetar modo de edição ao limpar formulário
+        isEditMode = false
+        editRdoId = -1L
+        rdoSalvoNestaSessao = false
+
         Toast.makeText(requireContext(), "Formulário limpo", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Exibe diálogo perguntando se o usuário quer criar um novo RDO ou alterar o que já gerou.
+     * Chamado quando o formulário ainda tem dados de um RDO gerado nesta sessão.
+     */
+    private fun mostrarDialogoNovoOuAlterarRDO(dados: RDOData, isCompartilhar: Boolean) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("O que deseja fazer?")
+            .setMessage("Você já gerou um RDO nesta sessão. Deseja criar um novo RDO com estes dados ou alterar o RDO anterior?")
+            .setPositiveButton("Novo RDO") { _, _ ->
+                // Resetar para modo de inserção e re-executar
+                isEditMode = false
+                editRdoId = -1L
+                rdoSalvoNestaSessao = false
+                if (isCompartilhar) btnCompartilhar.performClick()
+                else btnGerarRelatorio.performClick()
+            }
+            .setNegativeButton("Alterar RDO anterior") { _, _ ->
+                // Manter isEditMode = true (update) e re-executar
+                rdoSalvoNestaSessao = false
+                if (isCompartilhar) btnCompartilhar.performClick()
+                else btnGerarRelatorio.performClick()
+            }
+            .setNeutralButton("Cancelar", null)
+            .show()
     }
 
     /**

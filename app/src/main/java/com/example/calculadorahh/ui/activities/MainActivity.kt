@@ -29,8 +29,9 @@ class MainActivity : AppCompatActivity() {
             }
         }.attach()
 
-        // Verificar qual aba deve ser aberta
+        // Verificar qual aba deve ser aberta (consumir e limpar para não re-aplicar na rotação)
         val tabPosition = intent.getIntExtra("TAB_POSITION", 0)
+        intent.removeExtra("TAB_POSITION")
         binding.viewPager.setCurrentItem(tabPosition, false)
 
         // Configurar toolbar navigation
