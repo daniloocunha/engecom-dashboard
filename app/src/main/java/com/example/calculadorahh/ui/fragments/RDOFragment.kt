@@ -133,6 +133,7 @@ class RDOFragment : Fragment() {
     private val codigosTurma = listOf(
         "TP-273",
         "TP-274",
+        "TP-761",
         "TP-764",
         "TP-891",
         "TP-876",
