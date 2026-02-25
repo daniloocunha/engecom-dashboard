@@ -44,6 +44,11 @@ class RDOFragment : Fragment() {
     // Flag para controlar se um RDO foi gerado nesta sessão (previne substituição acidental)
     private var rdoSalvoNestaSessao = false
 
+    // Causa de não haver serviço: "RUMO", "ENGECOM" ou "" (vazio quando houveServico=true)
+    private var causaNaoServico: String = ""
+    // Impede que o diálogo apareça durante carga programática do spinner
+    private var spinnerHouveServicoListenerAtivo = false
+
     // Launcher para receber resultado do Histórico
     private val historicoLauncher = registerForActivityResult(
         ActivityResultContracts.StartActivityForResult()
@@ -206,6 +211,8 @@ class RDOFragment : Fragment() {
         configurarSpinners()
         configurarListeners()
         configurarFormatadores()
+        // Ativar listener do spinner depois da configuração inicial para evitar diálogo falso
+        spinnerHouveServicoListenerAtivo = true
         verificarModoEdicao()
         carregarModelo()
     }
@@ -290,15 +297,18 @@ class RDOFragment : Fragment() {
         spinnerHouveServico.onItemSelectedListener = object : AdapterView.OnItemSelectedListener {
             override fun onItemSelected(parent: AdapterView<*>?, view: View?, position: Int, id: Long) {
                 val houveServico = spinnerHouveServico.selectedItem.toString() == "SIM"
-                val visibilidade = if (houveServico) View.VISIBLE else View.GONE
-
-                sectionClimaSeguranca.visibility = visibilidade
-                sectionServicos.visibility = visibilidade
-                sectionMateriais.visibility = visibilidade
-                containerEquipamentos.visibility = visibilidade
-                containerHI.visibility = visibilidade
-                containerEfetivo.visibility = visibilidade
-                containerTransportes.visibility = visibilidade
+                if (houveServico) {
+                    causaNaoServico = ""
+                    mostrarSecoesPorHouveServico(true, "")
+                } else {
+                    if (spinnerHouveServicoListenerAtivo) {
+                        // Interação manual do usuário → perguntar a causa
+                        mostrarDialogoCausaNaoServico()
+                    } else {
+                        // Carga programática → aplicar visibilidade com causa já definida
+                        mostrarSecoesPorHouveServico(false, causaNaoServico)
+                    }
+                }
             }
 
             override fun onNothingSelected(parent: AdapterView<*>?) {}
@@ -773,8 +783,11 @@ class RDOFragment : Fragment() {
         etNomeColaboradores.setText(rdoCompleto.nomeColaboradores)
         etObservacoes.setText(rdoCompleto.observacoes)
 
-        // Carregar houve serviço
+        // Carregar houve serviço (desativa listener para evitar diálogo durante carga)
+        causaNaoServico = rdoCompleto.causaNaoServico
+        spinnerHouveServicoListenerAtivo = false
         spinnerHouveServico.setSelection(if (rdoCompleto.houveServico) 0 else 1) // 0=SIM, 1=NÃO
+        spinnerHouveServicoListenerAtivo = true
 
         // Carregar houve transporte
         spinnerHouveTransporte.setSelection(if (rdoCompleto.houveTransporte) 0 else 1)
@@ -889,6 +902,7 @@ class RDOFragment : Fragment() {
             clima = climaOpcoes[spinnerClima.selectedItemPosition],
             temaDDS = etTemaDDS.text.toString().trim(),
             houveServico = spinnerHouveServico.selectedItem.toString() == "SIM",
+            causaNaoServico = causaNaoServico,
             servicos = servicosManager.getServicos(),
             materiais = materiaisManager.getMateriais(),
             efetivo = efetivo,
@@ -916,7 +930,11 @@ class RDOFragment : Fragment() {
         etHorarioFim.text.clear()
         spinnerClima.setSelection(0)
         etTemaDDS.text.clear()
+        causaNaoServico = ""
+        spinnerHouveServicoListenerAtivo = false
         spinnerHouveServico.setSelection(0)
+        spinnerHouveServicoListenerAtivo = true
+        mostrarSecoesPorHouveServico(houveServico = true, causa = "")
 
         // Limpar efetivo
         etEfetivoEncarregado.text.clear()
@@ -958,6 +976,66 @@ class RDOFragment : Fragment() {
         rdoSalvoNestaSessao = false
 
         Toast.makeText(requireContext(), "Formulário limpo", Toast.LENGTH_SHORT).show()
+    }
+
+    /**
+     * Exibe diálogo perguntando qual a causa de não haver serviço: RUMO ou ENGECOM.
+     * - RUMO   → mostra seção de Horas Improdutivas para registrar o motivo
+     * - ENGECOM → mantém somente o campo de Observações visível
+     * Chamado apenas quando o usuário muda manualmente o spinner para "NÃO".
+     */
+    private fun mostrarDialogoCausaNaoServico() {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Motivo de não haver serviço")
+            .setMessage("Não houve serviço por causa RUMO ou Engecom?")
+            .setPositiveButton("RUMO") { _, _ ->
+                causaNaoServico = "RUMO"
+                mostrarSecoesPorHouveServico(houveServico = false, causa = "RUMO")
+            }
+            .setNegativeButton("ENGECOM") { _, _ ->
+                causaNaoServico = "ENGECOM"
+                mostrarSecoesPorHouveServico(houveServico = false, causa = "ENGECOM")
+            }
+            .setNeutralButton("Cancelar") { _, _ ->
+                // Reverter spinner para SIM
+                spinnerHouveServicoListenerAtivo = false
+                spinnerHouveServico.setSelection(0)
+                spinnerHouveServicoListenerAtivo = true
+                causaNaoServico = ""
+                mostrarSecoesPorHouveServico(houveServico = true, causa = "")
+            }
+            .setCancelable(false)
+            .show()
+    }
+
+    /**
+     * Controla a visibilidade das seções do formulário de acordo com "houveServico" e a causa.
+     *
+     * - houveServico = true  → todas as seções visíveis
+     * - houveServico = false, causa = "RUMO"   → apenas HI + Observações visíveis
+     * - houveServico = false, causa = "ENGECOM" → apenas Observações visível (comportamento atual)
+     * - houveServico = false, causa = ""        → igual a ENGECOM (estado inicial antes de escolha)
+     */
+    private fun mostrarSecoesPorHouveServico(houveServico: Boolean, causa: String) {
+        if (houveServico) {
+            sectionClimaSeguranca.visibility = View.VISIBLE
+            sectionServicos.visibility       = View.VISIBLE
+            sectionMateriais.visibility      = View.VISIBLE
+            containerEquipamentos.visibility = View.VISIBLE
+            containerHI.visibility           = View.VISIBLE
+            containerEfetivo.visibility      = View.VISIBLE
+            containerTransportes.visibility  = View.VISIBLE
+        } else {
+            // Seções ocultadas independente da causa
+            sectionClimaSeguranca.visibility = View.GONE
+            sectionServicos.visibility       = View.GONE
+            sectionMateriais.visibility      = View.GONE
+            containerEquipamentos.visibility = View.GONE
+            containerEfetivo.visibility      = View.GONE
+            containerTransportes.visibility  = View.GONE
+            // HI: visível apenas quando a causa for RUMO
+            containerHI.visibility = if (causa == "RUMO") View.VISIBLE else View.GONE
+        }
     }
 
     /**

@@ -22,6 +22,7 @@ data class RDOData(
     val clima: String,
     val temaDDS: String,
     val houveServico: Boolean,
+    val causaNaoServico: String = "",   // "RUMO", "ENGECOM" ou "" quando houveServico=true
     val servicos: List<ServicoRDO>,
     val materiais: List<MaterialRDO>,
     val efetivo: Efetivo,
@@ -51,6 +52,7 @@ data class RDODataCompleto(
     val temaDDS: String = "",
     val clima: String = "",
     val houveServico: Boolean = false,
+    val causaNaoServico: String = "",   // "RUMO", "ENGECOM" ou "" quando houveServico=true
     val servicos: List<ServicoRDO> = emptyList(),
     val materiais: List<MaterialRDO> = emptyList(),
     val horasImprodutivas: List<HIItem> = emptyList(),

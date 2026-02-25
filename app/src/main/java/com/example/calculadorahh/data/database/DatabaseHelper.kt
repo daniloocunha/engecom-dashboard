@@ -20,7 +20,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
     companion object {
         private const val TAG = "DatabaseHelper"
         private const val DATABASE_NAME = "rdo.db"
-        private const val DATABASE_VERSION = 9
+        private const val DATABASE_VERSION = 10
 
         @Volatile
         private var INSTANCE: DatabaseHelper? = null
@@ -62,6 +62,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         private const val COLUMN_ULTIMA_TENTATIVA_SYNC = "ultima_tentativa_sync"
         private const val COLUMN_MENSAGEM_ERRO_SYNC = "mensagem_erro_sync"
         private const val COLUMN_TENTATIVAS_SYNC = "tentativas_sync"
+        private const val COLUMN_CAUSA_NAO_SERVICO = "causa_nao_servico"
     }
 
     override fun onCreate(db: SQLiteDatabase?) {
@@ -95,7 +96,8 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
                 $COLUMN_SYNC_STATUS TEXT DEFAULT 'pending',
                 $COLUMN_ULTIMA_TENTATIVA_SYNC TEXT DEFAULT '',
                 $COLUMN_MENSAGEM_ERRO_SYNC TEXT DEFAULT '',
-                $COLUMN_TENTATIVAS_SYNC INTEGER DEFAULT 0
+                $COLUMN_TENTATIVAS_SYNC INTEGER DEFAULT 0,
+                $COLUMN_CAUSA_NAO_SERVICO TEXT DEFAULT ''
             )
         """.trimIndent()
         db?.execSQL(createTable)
@@ -163,6 +165,10 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
             db?.execSQL("UPDATE $TABLE_RDO SET $COLUMN_SYNC_STATUS = 'synced' WHERE $COLUMN_SINCRONIZADO = 1")
 
             Log.i(TAG, "Colunas de controle de sincronização adicionadas com sucesso")
+        }
+        if (oldVersion < 10) {
+            db?.execSQL("ALTER TABLE $TABLE_RDO ADD COLUMN $COLUMN_CAUSA_NAO_SERVICO TEXT DEFAULT ''")
+            Log.i(TAG, "Coluna causa_nao_servico adicionada com sucesso")
         }
     }
 
@@ -398,6 +404,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
                         put(COLUMN_CLIMA, rdoData.clima)
                         put(COLUMN_TEMA_DDS, rdoData.temaDDS)
                         put(COLUMN_HOUVE_SERVICO, if (rdoData.houveServico) 1 else 0)
+                        put(COLUMN_CAUSA_NAO_SERVICO, rdoData.causaNaoServico)
                         put(COLUMN_SERVICOS, gson.toJson(rdoData.servicos))
                         put(COLUMN_MATERIAIS, gson.toJson(rdoData.materiais))
                         put(COLUMN_EFETIVO, gson.toJson(rdoData.efetivo))
@@ -585,6 +592,9 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         val temaDDS = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_TEMA_DDS)) ?: ""
         val clima = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CLIMA)) ?: ""
         val houveServico = cursor.getInt(cursor.getColumnIndexOrThrow(COLUMN_HOUVE_SERVICO)) == 1
+        val causaNaoServico = try {
+            cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_CAUSA_NAO_SERVICO)) ?: ""
+        } catch (e: Exception) { "" }
         val observacoes = cursor.getString(cursor.getColumnIndexOrThrow(COLUMN_OBSERVACOES)) ?: ""
 
         val nomeColaboradores = try {
@@ -699,6 +709,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
             temaDDS = temaDDS,
             clima = clima,
             houveServico = houveServico,
+            causaNaoServico = causaNaoServico,
             servicos = servicos,
             materiais = materiais,
             horasImprodutivas = horasImprodutivas,
@@ -796,6 +807,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
                         put(COLUMN_CLIMA, rdoData.clima)
                         put(COLUMN_TEMA_DDS, rdoData.temaDDS)
                         put(COLUMN_HOUVE_SERVICO, if (rdoData.houveServico) 1 else 0)
+                        put(COLUMN_CAUSA_NAO_SERVICO, rdoData.causaNaoServico)
                         put(COLUMN_SERVICOS, gson.toJson(rdoData.servicos))
                         put(COLUMN_MATERIAIS, gson.toJson(rdoData.materiais))
                         put(COLUMN_EFETIVO, gson.toJson(rdoData.efetivo))
