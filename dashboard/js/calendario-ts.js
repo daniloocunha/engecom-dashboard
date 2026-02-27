@@ -110,6 +110,8 @@ class CalendarioTS {
         const hhSoldador = this.calcularHHSoldadorDia(numeroOS, dataFormatada);
         const efetivo = this.obterEfetivoDia(numeroOS, dataFormatada);
         const observacoes = rdoDia['Observações'] || rdoDia.Observacoes || rdoDia.observacoes || '';
+        const houveServico = (rdoDia['Houve Serviço'] || rdoDia.houveServico || '').toLowerCase() === 'sim';
+        const causaNaoServico = (rdoDia['Causa Não Serviço'] || rdoDia.causaNaoServico || '').toUpperCase().trim();
 
         const metaDiaria = METAS.META_DIARIA_TS;
         const percentualMeta = metaDiaria > 0 ? hhSoldador / metaDiaria : 0;
@@ -130,6 +132,8 @@ class CalendarioTS {
             status,
             efetivo,
             observacoes,
+            houveServico,
+            causaNaoServico,
             rdo: rdoDia
         };
     }
@@ -254,6 +258,13 @@ class CalendarioTS {
                         <div class="dia-efetivo" style="color: #666;">
                             👷 ${dadosDia.efetivo.total} pessoas
                         </div>
+                        ${!dadosDia.houveServico && dadosDia.causaNaoServico ? `
+                            <div class="dia-causa" style="margin-top: 4px;">
+                                <span class="badge" style="background-color: ${dadosDia.causaNaoServico === 'RUMO' ? '#FF9800' : '#F44336'}; font-size: 0.65em;">
+                                    ${dadosDia.causaNaoServico}
+                                </span>
+                            </div>
+                        ` : ''}
                         ${dadosDia.observacoes ? `
                             <div class="dia-obs" style="margin-top: 4px; color: #ff9800;">
                                 📝 ${dadosDia.observacoes.substring(0, 30)}${dadosDia.observacoes.length > 30 ? '...' : ''}
@@ -280,6 +291,8 @@ class CalendarioTS {
                             <div><span class="badge" style="background-color: #4CAF50">Verde</span> ≥ 100% da meta (≥ ${META_DIARIA} HH)</div>
                             <div><span class="badge" style="background-color: #FFC107">Amarelo</span> 80-99% da meta</div>
                             <div><span class="badge" style="background-color: #F44336">Vermelho</span> < 80% da meta</div>
+                            <div><span class="badge" style="background-color: #FF9800">RUMO</span> Sem serviço — motivo do cliente</div>
+                            <div><span class="badge" style="background-color: #F44336">ENGECOM</span> Sem serviço — motivo interno</div>
                         </div>
                     </div>
                 </div>

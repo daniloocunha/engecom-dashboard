@@ -70,8 +70,9 @@ class SheetsAuditService(
         try {
             val rowNumber = lookupHelper.findRowNumberByNumeroRDO(numeroRDO) ?: return null
 
+            // Coluna W: Versão App (após adição de "Causa Não Serviço" em coluna P)
             val response = sheetsService.spreadsheets().values()
-                .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!V$rowNumber")
+                .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!W$rowNumber")
                 .execute()
 
             val values = response.getValues() ?: return null

@@ -144,8 +144,8 @@ class CalculadoraMedicao {
             return null;
         }
 
-        // Contar dias trabalhados (únicos)
-        const diasTrabalhados = this.contarDiasUnicos(rdosTurma);
+        // Contar dias trabalhados (RUMO conta, ENGECOM não conta)
+        const diasTrabalhados = this.contarDiasTrabalhadosMedicao(rdosTurma);
 
         // Dias úteis do mês (pode vir do usuário ou de uma função)
         const diasUteis = this.getDiasUteis(mes, ano);
@@ -276,15 +276,9 @@ class CalculadoraMedicao {
         };
 
         rdos.forEach(rdo => {
-            const numeroOS = rdo['Número OS'] || rdo.numeroOS || '';
-            const data = rdo.Data || rdo.data || '';
-
-            // Buscar efetivo correspondente ao RDO
-            const efetivo = this.efetivos.find(e => {
-                const numOS = e['Número OS'] || e.numeroOS || '';
-                const dataEfetivo = e['Data RDO'] || e.data || '';
-                return numOS === numeroOS && dataEfetivo === data;
-            });
+            // ⚡ Lookup O(1) via índice Map (idêntico ao usado em calcularMediaOperadores)
+            const numeroRDO = rdo['Número RDO'] || rdo.numeroRDO || rdo.numeroRdo || '';
+            const efetivo = this.indices.efetivosPorRDO.get(numeroRDO);
 
             if (efetivo) {
                 const operadores = parseInt(efetivo['Operadores'] || efetivo.operadores || 0);
@@ -510,8 +504,8 @@ class CalculadoraMedicao {
         const valorEncogel = valoresFixos.encogel * percentualSLA;
         const totalGeral = valorEngecom + valorEncogel;
 
-        // Calcular dias trabalhados e médias (para detalhamento)
-        const diasTrabalhados = this.contarDiasUnicos(rdosTurma);
+        // Calcular dias trabalhados e médias (RUMO conta, ENGECOM não conta)
+        const diasTrabalhados = this.contarDiasTrabalhadosMedicao(rdosTurma);
         const mediaEncarregado = diasTrabalhados / diasUteis;
         const mediaOperadores = this.calcularMediaOperadores(rdosTurma, diasUteis);
         const mediaSoldador = diasTrabalhados / diasUteis; // 1 soldador fixo
@@ -579,6 +573,39 @@ class CalculadoraMedicao {
     }
 
     /**
+     * Calcula HH de uma única linha de HI para um dado numeroRDO.
+     * Fonte única de verdade para as regras: Chuva ÷ 2, Trens < 15min = 0.
+     * @private
+     */
+    _calcularHHDeUmaHI(hi, numeroRDO) {
+        const horaInicio = hi['Hora Início'] || hi.horaInicio || '';
+        const horaFim = hi['Hora Fim'] || hi.horaFim || '';
+        const horasImprodutivas = this.calcularDiferencaHoras(horaInicio, horaFim);
+
+        // Ler operadores da linha HI primeiro, fallback para Efetivo via índice O(1)
+        let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
+        if (operadores <= 0) {
+            const efetivo = this.indices.efetivosPorRDO.get(numeroRDO);
+            operadores = efetivo ? parseInt(efetivo.Operadores || efetivo.operadores || 12) : 12;
+        }
+
+        let hhImprodutiva = horasImprodutivas * operadores;
+
+        const tipo = (hi.Tipo || hi.tipo || '').toLowerCase();
+        if (tipo.includes('chuva')) {
+            hhImprodutiva = hhImprodutiva / METAS.DIVISOR_CHUVA;
+        }
+        if (tipo.includes('trem') && horasImprodutivas < (METAS.MINUTOS_MINIMOS_TREM / 60)) {
+            hhImprodutiva = 0;
+        }
+
+        if (hhImprodutiva > 0) {
+            debugLog(`  [HH Improdutiva] ${numeroRDO}: ${tipo} = ${horasImprodutivas.toFixed(2)}h × ${operadores} op = ${hhImprodutiva.toFixed(2)} HH`);
+        }
+        return hhImprodutiva;
+    }
+
+    /**
      * Calcula HH de horas improdutivas
      * Regras: Chuva ÷ 2, Trens > 15min
      */
@@ -587,46 +614,9 @@ class CalculadoraMedicao {
 
         rdos.forEach(rdo => {
             const numeroRDO = rdo['Número RDO'] || rdo.numeroRDO || rdo.numeroRdo || '';
-
-            // ⚡ Lookup O(1) via índice Map (Sprint 3)
             const hisRDO = this.indices.hiPorRDO.get(numeroRDO) || [];
-
             hisRDO.forEach(hi => {
-                const horaInicio = hi['Hora Início'] || hi.horaInicio || '';
-                const horaFim = hi['Hora Fim'] || hi.horaFim || '';
-
-                const horasImprodutivas = this.calcularDiferencaHoras(horaInicio, horaFim);
-
-                // v3.0.0: Ler operadores da linha HI primeiro, fallback para Efetivo
-                let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
-                if (operadores <= 0) {
-                    const efetivo = this.efetivos.find(e => {
-                        const eNumeroRDO = e['Número RDO'] || e.numeroRDO || '';
-                        return eNumeroRDO === numeroRDO;
-                    });
-                    operadores = efetivo ? parseInt(efetivo.Operadores || efetivo.operadores || 12) : 12;
-                }
-
-                let hhImprodutiva = horasImprodutivas * operadores;
-
-                // Se for chuva, divide por 2
-                const tipo = hi.Tipo || hi.tipo || '';
-                if (tipo && tipo.toLowerCase().includes('chuva')) {
-                    hhImprodutiva = hhImprodutiva / METAS.DIVISOR_CHUVA;
-                }
-
-                // Se for trem, só conta se >= 15 min
-                if (tipo && tipo.toLowerCase().includes('trem')) {
-                    if (horasImprodutivas < (METAS.MINUTOS_MINIMOS_TREM / 60)) {
-                        hhImprodutiva = 0;  // Ignora trens < 15 min
-                    }
-                }
-
-                if (hhImprodutiva > 0) {
-                    debugLog(`  [HH Improdutiva] ${numeroRDO}: ${tipo} = ${horasImprodutivas.toFixed(2)}h × ${operadores} op = ${hhImprodutiva.toFixed(2)} HH`);
-                }
-
-                totalHH += hhImprodutiva;
+                totalHH += this._calcularHHDeUmaHI(hi, numeroRDO);
             });
         });
 
@@ -674,37 +664,10 @@ class CalculadoraMedicao {
                 hhPorDia[data].hhServicos += hh;
             });
 
-            // ⚡ Lookup O(1) via índice Map (Sprint 3)
+            // ⚡ Lookup O(1) via índice Map — usa _calcularHHDeUmaHI (fonte única de verdade)
             const hisDia = this.indices.hiPorRDO.get(numeroRDO) || [];
-
             hisDia.forEach(hi => {
-                const horaInicio = hi['Hora Início'] || hi.horaInicio || '';
-                const horaFim = hi['Hora Fim'] || hi.horaFim || '';
-                const horasImprodutivas = this.calcularDiferencaHoras(horaInicio, horaFim);
-
-                // v3.0.0: Ler operadores da linha HI primeiro, fallback para Efetivo
-                let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
-                if (operadores <= 0) {
-                    const efetivo = this.efetivos.find(e => {
-                        const eNumeroRDO = e['Número RDO'] || e.numeroRDO || '';
-                        return eNumeroRDO === numeroRDO;
-                    });
-                    operadores = efetivo ? parseInt(efetivo.Operadores || efetivo.operadores || 12) : 12;
-                }
-                let hhImprodutiva = horasImprodutivas * operadores;
-
-                const tipo = hi.Tipo || hi.tipo || '';
-                if (tipo && tipo.toLowerCase().includes('chuva')) {
-                    hhImprodutiva = hhImprodutiva / METAS.DIVISOR_CHUVA;
-                }
-
-                if (tipo && tipo.toLowerCase().includes('trem')) {
-                    if (horasImprodutivas < (METAS.MINUTOS_MINIMOS_TREM / 60)) {
-                        hhImprodutiva = 0;
-                    }
-                }
-
-                hhPorDia[data].hhImprodutivas += hhImprodutiva;
+                hhPorDia[data].hhImprodutivas += this._calcularHHDeUmaHI(hi, numeroRDO);
             });
 
             // Calcular total e percentual
@@ -729,30 +692,77 @@ class CalculadoraMedicao {
     // ====================================
 
     /**
-     * Filtra RDOs por turma e período
+     * Normaliza data para formato DD/MM/YYYY independente do formato de entrada.
+     * Suporta: "15/01/2025", "2025-01-15" (ISO) e "15/01/25".
+     */
+    _normalizarData(data) {
+        if (!data) return '';
+        // ISO 8601: "2025-01-15" → "15/01/2025"
+        if (/^\d{4}-\d{2}-\d{2}/.test(data)) {
+            const [ano, mes, dia] = data.split('T')[0].split('-');
+            return `${dia}/${mes}/${ano}`;
+        }
+        return data;
+    }
+
+    /**
+     * Filtra RDOs por turma e período, excluindo RDOs marcados como deletados.
      */
     filtrarRDOsPorTurma(turma, mes, ano) {
         return this.rdos.filter(rdo => {
-            // Normalizar nome do campo (pode vir como "Data" ou "data")
-            const data = rdo.Data || rdo.data || '';
-            if (!data) return false;
+            // Excluir RDOs deletados
+            const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
+            if (deletado === 'sim') return false;
 
-            const [dia, mesRDO, anoRDO] = data.split('/');
+            // Normalizar data (suporta DD/MM/YYYY e YYYY-MM-DD)
+            const dataBruta = rdo.Data || rdo.data || '';
+            if (!dataBruta) return false;
+            const data = this._normalizarData(dataBruta);
+
+            const partes = data.split('/');
+            const mesRDO = parseInt(partes[1]);
+            const anoRDO = parseInt(partes[2]);
+
+            if (isNaN(mesRDO) || isNaN(anoRDO)) return false;
 
             // Normalizar código da turma
             const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
 
             return codigoTurma === turma &&
-                   parseInt(mesRDO) === mes &&
-                   parseInt(anoRDO) === ano;
+                   mesRDO === mes &&
+                   anoRDO === ano;
         });
     }
 
     /**
-     * Conta dias únicos trabalhados
+     * Conta dias únicos trabalhados (utilitário genérico)
      */
     contarDiasUnicos(rdos) {
         const datasUnicas = new Set(rdos.map(rdo => rdo.Data || rdo.data || ''));
+        return datasUnicas.size;
+    }
+
+    /**
+     * Conta dias trabalhados para fins de medição (TMC e TS).
+     * Regra de negócio:
+     *   - Houve Serviço = Sim → conta
+     *   - Houve Serviço = Não + Causa = RUMO → conta (impedimento do cliente)
+     *   - Houve Serviço = Não + Causa = ENGECOM → NÃO conta (responsabilidade interna)
+     *   - Houve Serviço = Não + Causa vazia → NÃO conta (benefício da dúvida para o cliente)
+     */
+    contarDiasTrabalhadosMedicao(rdos) {
+        const datasUnicas = new Set();
+        rdos.forEach(rdo => {
+            const data = this._normalizarData(rdo.Data || rdo.data || '');
+            if (!data) return;
+
+            const houveServico = (rdo['Houve Serviço'] || rdo.houveServico || '').toLowerCase() === 'sim';
+            const causaNaoServico = (rdo['Causa Não Serviço'] || rdo.causaNaoServico || '').toUpperCase().trim();
+
+            if (houveServico || causaNaoServico === 'RUMO') {
+                datasUnicas.add(data);
+            }
+        });
         return datasUnicas.size;
     }
 
@@ -763,12 +773,18 @@ class CalculadoraMedicao {
         const turmasSet = new Set();
 
         this.rdos.forEach(rdo => {
-            const data = rdo.Data || rdo.data || '';
-            if (!data) return;
+            // Excluir RDOs deletados
+            const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
+            if (deletado === 'sim') return;
 
-            const [dia, mesRDO, anoRDO] = data.split('/');
+            const dataBruta = rdo.Data || rdo.data || '';
+            if (!dataBruta) return;
+            const data = this._normalizarData(dataBruta);
+            const partes = data.split('/');
+            const mesRDO = parseInt(partes[1]);
+            const anoRDO = parseInt(partes[2]);
 
-            if (parseInt(mesRDO) === mes && parseInt(anoRDO) === ano) {
+            if (mesRDO === mes && anoRDO === ano) {
                 const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
                 const tipoTurma = getTipoTurma(codigoTurma);
 
@@ -1021,10 +1037,14 @@ class CalculadoraMedicao {
 
         resultados.totalGeral = resultados.totalEngecom + resultados.totalEncogel;
 
-        // Adicionar metadados úteis
+        // Adicionar metadados úteis (excluindo RDOs deletados)
         resultados.totalRDOs = this.rdos.filter(rdo => {
-            const rdoMes = parseInt((rdo.Data || rdo.data || '').split('/')[1]);
-            const rdoAno = parseInt((rdo.Data || rdo.data || '').split('/')[2]);
+            const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
+            if (deletado === 'sim') return false;
+            const data = this._normalizarData(rdo.Data || rdo.data || '');
+            const partes = data.split('/');
+            const rdoMes = parseInt(partes[1]);
+            const rdoAno = parseInt(partes[2]);
             return rdoMes === mes && rdoAno === ano;
         }).length;
 

@@ -156,6 +156,8 @@ class CalendarioTP {
         const numeroOS = rdoDia['Número OS'] || rdoDia.numeroOS || rdoDia.numeroOs || '';
         const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '-';
         const observacoes = rdoDia.Observações || rdoDia.observacoes || '';
+        const houveServico = (rdoDia['Houve Serviço'] || rdoDia.houveServico || '').toLowerCase() === 'sim';
+        const causaNaoServico = (rdoDia['Causa Não Serviço'] || rdoDia.causaNaoServico || '').toUpperCase().trim();
 
         // Calcular métricas
         const hhProdutivas = this.calcularHHDia(numeroOS, dataFormatada);
@@ -198,6 +200,8 @@ class CalendarioTP {
             totalHH: hhProdutivas + hhImprodutivas,
             efetivo,
             observacoes,
+            houveServico,
+            causaNaoServico,
             servicos,
             horasImprodutivas
         };
@@ -365,6 +369,13 @@ class CalendarioTP {
                         <div class="dia-efetivo" style="color: #666;">
                             👷 ${dadosDia.efetivo.total} pessoas
                         </div>
+                        ${!dadosDia.houveServico && dadosDia.causaNaoServico ? `
+                            <div class="dia-causa" style="margin-top: 4px;">
+                                <span class="badge" style="background-color: ${dadosDia.causaNaoServico === 'RUMO' ? '#FF9800' : '#F44336'}; font-size: 0.65em;">
+                                    ${dadosDia.causaNaoServico}
+                                </span>
+                            </div>
+                        ` : ''}
                         ${dadosDia.observacoes ? `
                             <div class="dia-obs" style="color: #ff9800;">
                                 📝 ${dadosDia.observacoes.substring(0, 30)}${dadosDia.observacoes.length > 30 ? '...' : ''}
@@ -394,6 +405,8 @@ class CalendarioTP {
                             <div><span class="badge" style="background-color: #FFC107">Amarelo</span> 83-99% da meta (${Math.round(META_DIARIA * 0.83)}-${META_DIARIA - 1} HH)</div>
                             <div><span class="badge" style="background-color: #F44336">Vermelho</span> < 83% da meta (< ${Math.round(META_DIARIA * 0.83)} HH)</div>
                             <div><span class="badge" style="background-color: #FF9800">Laranja</span> Sem produção (só HI)</div>
+                            <div><span class="badge" style="background-color: #FF9800">RUMO</span> Sem serviço — motivo do cliente (conta no TMC)</div>
+                            <div><span class="badge" style="background-color: #F44336">ENGECOM</span> Sem serviço — motivo interno (não conta no TMC)</div>
                         </div>
                     </div>
                 </div>

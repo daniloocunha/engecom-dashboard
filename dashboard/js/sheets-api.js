@@ -345,6 +345,7 @@ class GoogleSheetsAPI {
         // Adicionar coeficiente aos serviços
         let servicosSemCoeficiente = 0;
         let servicosCustomizados = 0;
+        const customizadosSemHH = [];  // Lista para alerta visível ao usuário
         const resultado = servicos.map(servico => {
             const descricaoOriginal = servico.Descrição || servico.descricao || '';
             const descricaoNormalizada = this.normalizarDescricaoServico(descricaoOriginal);
@@ -363,7 +364,11 @@ class GoogleSheetsAPI {
                 if (coeficiente > 0) {
                     debugLog(`✅ [CUSTOMIZADO] "${descricaoOriginal}" - Coeficiente = ${coeficiente} (HH Manual)`);
                 } else {
-                    debugLog(`⚠️ [CUSTOMIZADO] "${descricaoOriginal}" - HH Manual não preenchido (coeficiente = 0)`);
+                    // Serviço executado mas sem HH — registrar para alerta visível
+                    const numeroRDO = servico['Número RDO'] || servico.numeroRDO || '';
+                    const data = servico['Data RDO'] || servico.data || '';
+                    customizadosSemHH.push({ descricao: descricaoOriginal, numeroRDO, data });
+                    console.warn(`⚠️ [CUSTOMIZADO] "${descricaoOriginal}" (RDO ${numeroRDO}) - HH Manual não preenchido, este serviço não será faturado!`);
                 }
             } else {
                 // Serviço normal: buscar coeficiente do servicos.json
@@ -401,6 +406,9 @@ class GoogleSheetsAPI {
         if (servicosSemCoeficiente > 0) {
             console.warn(`[Dashboard] ${servicosSemCoeficiente} serviços sem coeficiente encontrado. Verifique o servicos.json!`);
         }
+
+        // Expor lista de customizados sem HH para que a UI possa exibir alerta
+        this._customizadosSemHH = customizadosSemHH;
 
         return resultado;
     }
