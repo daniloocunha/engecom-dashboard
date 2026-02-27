@@ -131,16 +131,29 @@ class CalendarioTP {
     }
 
     /**
+     * Normaliza data para DD/MM/YYYY — suporta ISO 8601 (YYYY-MM-DD) e formato local
+     */
+    _normalizarData(data) {
+        if (!data) return '';
+        if (/^\d{4}-\d{2}-\d{2}/.test(data)) {
+            const [ano, mes, dia] = data.split('T')[0].split('-');
+            return `${dia}/${mes}/${ano}`;
+        }
+        return data;
+    }
+
+    /**
      * Obtém dados completos de um dia
      */
     obterDadosDia(turma, dia, mes, ano) {
         const dataFormatada = `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`;
 
-        // Buscar RDO do dia
+        // Buscar RDO do dia — normaliza data para suportar ISO 8601, exclui deletados
         const rdoDia = this.dados.rdos.find(rdo => {
             const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
-            const data = rdo.Data || rdo.data || '';
-            return codigoTurma === turma && data === dataFormatada;
+            const data = this._normalizarData(rdo.Data || rdo.data || '');
+            const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
+            return codigoTurma === turma && data === dataFormatada && deletado !== 'sim';
         });
 
         if (!rdoDia) {
@@ -414,8 +427,9 @@ class CalendarioTP {
             const turmaBanco = rdo['Código Turma'] || rdo.codigoTurma || '';
             const dataBanco = rdo['Data'] || rdo.data || '';
             const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
-            if (!dataBanco) return false;
-            const [dia, mes, ano] = dataBanco.split('/');
+            const dataNorm = this._normalizarData(dataBanco);
+            if (!dataNorm) return false;
+            const [, mes, ano] = dataNorm.split('/');
             const mesRDO = parseInt(mes);
             const anoRDO = parseInt(ano);
             return turmaBanco === turma
