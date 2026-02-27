@@ -48,16 +48,14 @@ class CalendarioTS {
     }
 
     /**
-     * Calcula HH do soldador de um dia (serviços executados)
+     * Calcula HH do soldador de um dia — busca por Número RDO (chave única)
      */
-    calcularHHSoldadorDia(numeroOS, data) {
+    calcularHHSoldadorDia(numeroRDO) {
         let hhTotal = 0;
 
-        const servicosDoDia = this.dados.servicos.filter(s => {
-            const numOS = s['Número OS'] || s.numeroOs || s.numeroOS || '';
-            const dataServico = s['Data RDO'] || s.dataRdo || s.data || '';
-            return numOS === numeroOS && dataServico === data;
-        });
+        const servicosDoDia = this.dados.servicos.filter(s =>
+            (s['Número RDO'] || s.numeroRDO || '') === numeroRDO
+        );
 
         servicosDoDia.forEach(servico => {
             const quantidade = parseFloat(servico.Quantidade || servico.quantidade || 0);
@@ -69,14 +67,12 @@ class CalendarioTS {
     }
 
     /**
-     * Obtém efetivo de um dia
+     * Obtém efetivo de um dia — busca por Número RDO (chave única)
      */
-    obterEfetivoDia(numeroOS, data) {
-        const efetivoDia = this.dados.efetivos.find(ef => {
-            const numOS = ef['Número OS'] || ef.numeroOs || ef.numeroOS || '';
-            const dataEfetivo = ef['Data RDO'] || ef.dataRdo || ef.data || '';
-            return numOS === numeroOS && dataEfetivo === data;
-        });
+    obterEfetivoDia(numeroRDO) {
+        const efetivoDia = this.dados.efetivos.find(ef =>
+            (ef['Número RDO'] || ef.numeroRDO || '') === numeroRDO
+        );
 
         if (!efetivoDia) {
             return { total: 0, soldador: 0, operadores: 0, encarregado: 0, motorista: 0 };
@@ -107,8 +103,10 @@ class CalendarioTS {
         if (!rdoDia) return null;
 
         const numeroOS = rdoDia['Número OS'] || rdoDia.numeroOS || '';
-        const hhSoldador = this.calcularHHSoldadorDia(numeroOS, dataFormatada);
-        const efetivo = this.obterEfetivoDia(numeroOS, dataFormatada);
+        const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '';
+        // Busca por Número RDO (chave única, imune a formato de data)
+        const hhSoldador = this.calcularHHSoldadorDia(numeroRDO);
+        const efetivo = this.obterEfetivoDia(numeroRDO);
         const observacoes = rdoDia['Observações'] || rdoDia.Observacoes || rdoDia.observacoes || '';
         const houveServico = (rdoDia['Houve Serviço'] || rdoDia.houveServico || '').toLowerCase() === 'sim';
         const causaNaoServico = (rdoDia['Causa Não Serviço'] || rdoDia.causaNaoServico || '').toUpperCase().trim();
@@ -154,12 +152,11 @@ class CalendarioTS {
                 && deletado !== 'sim';
         });
 
-        // HH Soldador total
+        // HH Soldador total — por Número RDO (chave única)
         let hhSoldadorTotal = 0;
         rdosTurma.forEach(rdo => {
-            const numeroOS = rdo['Número OS'] || rdo.numeroOS || '';
-            const dataBanco = rdo['Data'] || rdo.data || '';
-            hhSoldadorTotal += this.calcularHHSoldadorDia(numeroOS, dataBanco);
+            const numRDO = rdo['Número RDO'] || rdo.numeroRDO || '';
+            hhSoldadorTotal += this.calcularHHSoldadorDia(numRDO);
         });
 
         // Dias trabalhados
