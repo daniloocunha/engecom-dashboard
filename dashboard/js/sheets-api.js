@@ -248,6 +248,26 @@ class GoogleSheetsAPI {
             this.atualizarProgresso(abas.length + 1, total, 'Processando dados...');
             const rdosBrutos = this.converterParaObjetos(resultados['RDO']);
 
+            // Normalizar Número OS a partir do Número RDO quando há inconsistência.
+            // Caso de uso: usuário corrigiu o Número RDO diretamente no Sheets
+            // (ex: "1019299-19.02.26-001" → "1009299-19.02.26-001") mas deixou o
+            // campo "Número OS" com o valor antigo ("1019299"). Neste cenário o
+            // Número RDO é a fonte de verdade — extraímos o OS do seu prefixo.
+            rdosBrutos.forEach(rdo => {
+                const numeroRDO = (rdo['Número RDO'] || rdo.numeroRDO || '').trim();
+                if (!numeroRDO) return;
+                // Formato esperado: "OS-DD.MM.YY-NNN"  ex: "1009299-19.02.26-001"
+                const partes = numeroRDO.split('-');
+                if (partes.length < 3 || !/^\d{2}\.\d{2}\.\d{2}$/.test(partes[1])) return;
+                const osFromRDO = partes[0].trim();
+                const osAtual   = (rdo['Número OS'] || rdo.numeroOS || '').toString().trim();
+                if (osFromRDO && validarNumeroOS(osFromRDO) && osFromRDO !== osAtual) {
+                    console.warn(`[sheets-api] Inconsistência corrigida: "Número OS"="${osAtual}" ≠ prefixo de "Número RDO"="${numeroRDO}" → usando "${osFromRDO}"`);
+                    rdo['Número OS'] = osFromRDO;
+                    rdo.numeroOS     = osFromRDO;
+                }
+            });
+
             // Marcar RDOs com Número OS inválido
             rdosBrutos.forEach(rdo => {
                 const os = (rdo['Número OS'] || rdo.numeroOS || '').toString().trim();
