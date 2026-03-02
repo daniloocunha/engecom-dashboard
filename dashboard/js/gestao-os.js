@@ -979,6 +979,7 @@ class GestaoOS {
                 return `<tr style="cursor:pointer;background-color:${rowBg};transition:background-color 0.2s;"
                             onclick="gestaoOS.abrirModal('${_esc(o.numeroOS)}')">
                   <td class="fw-bold text-primary">${_esc(o.numeroOS)}</td>
+                  <td class="text-center"><span class="badge bg-secondary" title="${o.rdoIds.length} RDO(s) vinculado(s) a esta O.S">${o.rdoIds.length}</span></td>
                   <td>${_fmtData(o.dataInicio)}</td>
                   <td>${_fmtData(o.dataUltimoRDO)}</td>
                   <td>${_esc(o.kmInicio) || '-'}</td>
@@ -1002,6 +1003,7 @@ class GestaoOS {
                     <thead class="table-light">
                       <tr>
                         <th>Nº O.S</th>
+                        <th class="text-center">RDOs</th>
                         <th>Início</th>
                         <th>Último RDO</th>
                         <th>KM Início</th>
