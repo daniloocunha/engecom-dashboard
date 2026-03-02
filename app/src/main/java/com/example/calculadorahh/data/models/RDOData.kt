@@ -1,6 +1,7 @@
 package com.example.calculadorahh.data.models
 
 
+import com.google.gson.annotations.SerializedName
 import kotlinx.parcelize.Parcelize
 import android.os.Parcelable
 
@@ -21,6 +22,7 @@ data class RDOData(
     val clima: String,
     val temaDDS: String,
     val houveServico: Boolean,
+    val causaNaoServico: String = "",   // "RUMO", "ENGECOM" ou "" quando houveServico=true
     val servicos: List<ServicoRDO>,
     val materiais: List<MaterialRDO>,
     val efetivo: Efetivo,
@@ -50,6 +52,7 @@ data class RDODataCompleto(
     val temaDDS: String = "",
     val clima: String = "",
     val houveServico: Boolean = false,
+    val causaNaoServico: String = "",   // "RUMO", "ENGECOM" ou "" quando houveServico=true
     val servicos: List<ServicoRDO> = emptyList(),
     val materiais: List<MaterialRDO> = emptyList(),
     val horasImprodutivas: List<HIItem> = emptyList(),
@@ -103,7 +106,8 @@ data class HIItem(
     val descricao: String,
     val horaInicio: String,
     val horaFim: String,
-    val operadores: Int = 12  // Operadores envolvidos no evento HI (default 12, Gson retorna 0 para records antigos)
+    @SerializedName("operadores")  // Mantém compatibilidade com JSON existente no banco
+    val colaboradores: Int = 12  // Colaboradores envolvidos no evento HI (default 12, Gson retorna 0 para records antigos)
 ) : Parcelable
 
 

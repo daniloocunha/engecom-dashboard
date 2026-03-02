@@ -7,6 +7,7 @@ import android.view.LayoutInflater
 import android.widget.*
 import com.example.calculadorahh.data.models.MaterialRDO
 import com.example.calculadorahh.R
+import com.example.calculadorahh.utils.AppConstants
 import com.example.calculadorahh.utils.ValidationHelper
 
 /**
@@ -36,7 +37,7 @@ class MateriaisManager(
         val btnConfirmar = dialogView.findViewById<Button>(R.id.btnConfirmarMaterialRDO)
 
         // Configurar spinner de unidades
-        val unidades = listOf("uni", "m","m²", "m³", "kg", "L", "cx", "PC")
+        val unidades = AppConstants.UNIDADES_MATERIAL
         val adapter = ArrayAdapter(context, android.R.layout.simple_spinner_item, unidades)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerUnidade.adapter = adapter
@@ -111,7 +112,7 @@ class MateriaisManager(
         val btnConfirmar = dialogView.findViewById<Button>(R.id.btnConfirmarMaterialRDO)
 
         // Configurar spinner de unidades
-        val unidades = listOf("uni", "m","m²", "m³", "kg", "L", "cx", "PC")
+        val unidades = AppConstants.UNIDADES_MATERIAL
         val adapter = ArrayAdapter(context, android.R.layout.simple_spinner_item, unidades)
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item)
         spinnerUnidade.adapter = adapter

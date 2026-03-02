@@ -33,6 +33,7 @@ class CalculadoraHHFragment : Fragment() {
     private var servicoSelecionado: Servico? = null
     private var horaInicio: String = ""
     private var horaFim: String = ""
+    private var servicosBase: List<Servico> = emptyList()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -167,12 +168,20 @@ class CalculadoraHHFragment : Fragment() {
             binding.btnHoraInicio.text = "Selecionar Horário"
             binding.btnHoraFim.text = "Selecionar Horário"
         }
+
+        // Listener de seleção de serviço — configurado uma única vez aqui
+        binding.actvServico.setOnItemClickListener { _, _, position, _ ->
+            val adapter = binding.actvServico.adapter
+            val descricaoSelecionada = adapter?.getItem(position)?.toString()
+            servicoSelecionado = servicosBase.find { it.descricao == descricaoSelecionada }
+        }
     }
 
     @SuppressLint("DefaultLocale")
     private fun observarViewModel() {
         viewModel.servicosBase.observe(viewLifecycleOwner) { servicos ->
             if (servicos != null && servicos.isNotEmpty()) {
+                servicosBase = servicos
                 val nomes = servicos.map(Servico::descricao)
                 val adapter = ArrayAdapter(
                     requireContext(),
@@ -180,12 +189,6 @@ class CalculadoraHHFragment : Fragment() {
                     nomes
                 )
                 binding.actvServico.setAdapter(adapter)
-
-                // Listener para seleção
-                binding.actvServico.setOnItemClickListener { _, _, position, _ ->
-                    val descricaoSelecionada = adapter.getItem(position)
-                    servicoSelecionado = servicos.find { it.descricao == descricaoSelecionada }
-                }
             }
         }
 
