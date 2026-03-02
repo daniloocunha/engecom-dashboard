@@ -137,76 +137,110 @@ class CalendarioTP {
     }
 
     /**
-     * Obtém dados completos de um dia
+     * Obtém dados completos de um dia, agregando TODOS os RDOs.
+     * Uma turma pode ter múltiplos RDOs no mesmo dia quando trabalha em 2+ O.S.
      */
     obterDadosDia(turma, dia, mes, ano) {
         const dataFormatada = `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`;
 
-        // Buscar RDO do dia
-        const rdoDia = this.dados.rdos.find(rdo => {
+        // Buscar TODOS os RDOs do dia (pode haver mais de um quando a turma
+        // trabalha em duas O.S e gera dois RDOs para a mesma data)
+        const rdosDia = this.dados.rdos.filter(rdo => {
             const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
-            const data = rdo.Data || rdo.data || '';
-            return codigoTurma === turma && data === dataFormatada;
+            const data        = rdo.Data || rdo.data || '';
+            const deletado    = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
+            return codigoTurma === turma && data === dataFormatada && deletado !== 'sim';
         });
 
-        if (!rdoDia) {
-            return null;
-        }
+        if (rdosDia.length === 0) return null;
 
-        const numeroOS = rdoDia['Número OS'] || rdoDia.numeroOS || rdoDia.numeroOs || '';
-        const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '-';
-        const observacoes = rdoDia.Observações || rdoDia.observacoes || '';
+        const multiplosRDOs = rdosDia.length > 1;
 
-        // Calcular métricas — usa Número RDO (confiável) em vez de Número OS
-        // (Número OS pode ser placeholder como "SEM O NUMERO DA OS AINDA")
-        const hhProdutivas = this.calcularHHDia(numeroRDO, dataFormatada);
-        const hhImprodutivas = this.calcularHIDia(numeroRDO, dataFormatada);
-        const efetivo = this.obterEfetivoDia(numeroRDO, dataFormatada);
+        // Acumuladores para agregar os valores de todos os RDOs do dia
+        let hhProdutivas   = 0;
+        let hhImprodutivas = 0;
+        const efetivo = { total: 0, operadores: 0, motoristas: 0, encarregado: 0, operadorEGP: 0, tecnicoSeguranca: 0, soldador: 0 };
+        const servicos          = [];
+        const horasImprodutivas = [];
+        const numeroRDOs        = [];
+        const encarregados      = new Set();
+        const observacoesLista  = [];
 
-        // Buscar serviços pelo Número RDO (join confiável)
-        const servicos = this.dados.servicos.filter(s => {
-            const numRDO = s['Número RDO'] || s.numeroRDO || s.numeroRdo || '';
-            return numRDO === numeroRDO;
-        }).map(s => ({
-            descricao: s['Descrição'] || s.descricao || '-',
-            quantidade: parseFloat(s.Quantidade || s.quantidade || 0),
-            unidade: s.Unidade || s.unidade || 'UN',
-            hh: (parseFloat(s.Quantidade || s.quantidade || 0) * parseFloat(s.Coeficiente || s.coeficiente || 0)).toFixed(2)
-        }));
+        rdosDia.forEach(rdoDia => {
+            const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '-';
+            const numeroOS  = rdoDia['Número OS']  || rdoDia.numeroOS  || rdoDia.numeroOs || '';
 
-        // Buscar HIs pelo Número RDO (join confiável)
-        const horasImprodutivas = this.dados.horasImprodutivas.filter(hi => {
-            const numRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
-            return numRDO === numeroRDO;
-        }).map(hi => ({
-            tipo: hi.Tipo || hi.tipo || '-',
-            descricao: hi['Descrição'] || hi.descricao || '-',
-            horaInicio: hi['Hora Início'] || hi.horaInicio || '-',
-            horaFim: hi['Hora Fim'] || hi.horaFim || '-',
-            hh: parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0).toFixed(2)
-        }));
+            numeroRDOs.push(numeroRDO);
+
+            const enc = rdoDia.Encarregado || rdoDia.encarregado || '';
+            if (enc) encarregados.add(enc);
+
+            const obs = rdoDia.Observações || rdoDia.observacoes || '';
+            if (obs) observacoesLista.push(obs);
+
+            // HH produtivas e improdutivas deste RDO
+            hhProdutivas   += this.calcularHHDia(numeroRDO, dataFormatada);
+            hhImprodutivas += this.calcularHIDia(numeroRDO, dataFormatada);
+
+            // Efetivo — soma os totais de cada RDO
+            const ef = this.obterEfetivoDia(numeroRDO, dataFormatada);
+            efetivo.total           += ef.total;
+            efetivo.operadores      += ef.operadores;
+            efetivo.motoristas      += ef.motoristas;
+            efetivo.encarregado     += ef.encarregado;
+            efetivo.operadorEGP     += ef.operadorEGP;
+            efetivo.tecnicoSeguranca+= ef.tecnicoSeguranca;
+            efetivo.soldador        += ef.soldador;
+
+            // Serviços — inclui coluna O.S quando há múltiplos RDOs
+            const servicosRDO = this.dados.servicos
+                .filter(s => (s['Número RDO'] || s.numeroRDO || s.numeroRdo || '') === numeroRDO)
+                .map(s => ({
+                    numeroRDO: multiplosRDOs ? numeroRDO : null,
+                    numeroOS:  multiplosRDOs ? numeroOS  : null,
+                    descricao: s['Descrição'] || s.descricao || '-',
+                    quantidade: parseFloat(s.Quantidade || s.quantidade || 0),
+                    unidade:    s.Unidade || s.unidade || 'UN',
+                    hh: (parseFloat(s.Quantidade || s.quantidade || 0) *
+                         parseFloat(s.Coeficiente || s.coeficiente || 0)).toFixed(2)
+                }));
+            servicos.push(...servicosRDO);
+
+            // Horas Improdutivas
+            const hiRDO = this.dados.horasImprodutivas
+                .filter(hi => (hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '') === numeroRDO)
+                .map(hi => ({
+                    tipo:       hi.Tipo || hi.tipo || '-',
+                    descricao:  hi['Descrição'] || hi.descricao || '-',
+                    horaInicio: hi['Hora Início'] || hi.horaInicio || '-',
+                    horaFim:    hi['Hora Fim']    || hi.horaFim   || '-',
+                    hh: parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0).toFixed(2)
+                }));
+            horasImprodutivas.push(...hiRDO);
+        });
 
         const resultado = {
-            numeroRDO,
-            numeroOS,
-            data: dataFormatada,
+            numeroRDO:    numeroRDOs.join(', '),
+            multiplosRDOs,
+            qtdRDOs:      rdosDia.length,
+            data:         dataFormatada,
             turma,
-            encarregado: rdoDia.Encarregado || rdoDia.encarregado || '-',
+            encarregado:  Array.from(encarregados).join(', ') || '-',
             hhProdutivas,
             hhImprodutivas,
-            totalHH: hhProdutivas + hhImprodutivas,
+            totalHH:      hhProdutivas + hhImprodutivas,
             efetivo,
-            observacoes,
+            observacoes:  observacoesLista.join(' | '),
             servicos,
             horasImprodutivas
         };
 
-        debugLog(`[CalendarioTP] ✅ Dados do dia compilados:`, {
-            numeroRDO: resultado.numeroRDO,
-            hhProdutivas: resultado.hhProdutivas,
-            hhImprodutivas: resultado.hhImprodutivas,
-            totalHH: resultado.totalHH,
-            efetivoTotal: resultado.efetivo.total
+        debugLog(`[CalendarioTP] ✅ Dados do dia compilados (${rdosDia.length} RDO(s)):`, {
+            numeros:       resultado.numeroRDO,
+            hhProdutivas:  resultado.hhProdutivas,
+            hhImprodutivas:resultado.hhImprodutivas,
+            totalHH:       resultado.totalHH,
+            efetivoTotal:  resultado.efetivo.total
         });
 
         return resultado;
@@ -516,6 +550,7 @@ class CalendarioTP {
                                         <i class="fas fa-users me-2"></i>${dados.turma} |
                                         <i class="fas fa-user me-2"></i>${dados.encarregado} |
                                         <i class="fas fa-file-alt me-2"></i>RDO: ${dados.numeroRDO}
+                                        ${dados.multiplosRDOs ? `<span class="badge bg-warning text-dark ms-2"><i class="fas fa-layer-group me-1"></i>${dados.qtdRDOs} RDOs neste dia</span>` : ''}
                                     </h6>
                                 </div>
                             </div>
@@ -585,6 +620,7 @@ class CalendarioTP {
                                         <table class="table table-sm table-hover">
                                             <thead class="table-light">
                                                 <tr>
+                                                    ${dados.multiplosRDOs ? '<th>O.S</th>' : ''}
                                                     <th>Descrição</th>
                                                     <th class="text-center">Quantidade</th>
                                                     <th class="text-center">Unidade</th>
@@ -594,6 +630,7 @@ class CalendarioTP {
                                             <tbody>
                                                 ${dados.servicos.map(s => `
                                                     <tr>
+                                                        ${dados.multiplosRDOs ? `<td><span class="badge bg-secondary">${s.numeroOS || '-'}</span></td>` : ''}
                                                         <td>${s.descricao}</td>
                                                         <td class="text-center">${s.quantidade}</td>
                                                         <td class="text-center">${s.unidade}</td>
