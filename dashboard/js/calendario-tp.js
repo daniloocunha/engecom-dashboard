@@ -165,6 +165,7 @@ class CalendarioTP {
         const numeroRDOs        = [];
         const encarregados      = new Set();
         const observacoesLista  = [];
+        const hhPorOS           = []; // HH por O.S para exibição nas células do calendário
 
         rdosDia.forEach(rdoDia => {
             const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '-';
@@ -179,8 +180,18 @@ class CalendarioTP {
             if (obs) observacoesLista.push(obs);
 
             // HH produtivas e improdutivas deste RDO
-            hhProdutivas   += this.calcularHHDia(numeroRDO, dataFormatada);
-            hhImprodutivas += this.calcularHIDia(numeroRDO, dataFormatada);
+            const hhProdRDO  = this.calcularHHDia(numeroRDO, dataFormatada);
+            const hhImprRDO  = this.calcularHIDia(numeroRDO, dataFormatada);
+            hhProdutivas   += hhProdRDO;
+            hhImprodutivas += hhImprRDO;
+
+            // Normaliza a O.S para exibição: usa o campo ou extrai do prefixo do Número RDO
+            const osDisplay = (() => {
+                const os = numeroOS.trim();
+                if (os && os.toLowerCase() !== 'sem o numero da os ainda' && os !== '0') return os;
+                return numeroRDO.split('-')[0] || 'S/O.S';
+            })();
+            hhPorOS.push({ numeroOS: osDisplay, hhProdutivas: hhProdRDO, hhImprodutivas: hhImprRDO, totalHH: hhProdRDO + hhImprRDO });
 
             // Efetivo — soma os totais de cada RDO
             const ef = this.obterEfetivoDia(numeroRDO, dataFormatada);
@@ -229,6 +240,7 @@ class CalendarioTP {
             hhProdutivas,
             hhImprodutivas,
             totalHH:      hhProdutivas + hhImprodutivas,
+            hhPorOS,
             efetivo,
             observacoes:  observacoesLista.join(' | '),
             servicos,
@@ -386,17 +398,24 @@ class CalendarioTP {
                          style="border-left: 4px solid ${corStatus}; cursor: pointer;"
                          onclick="calendarioTP.mostrarDetalhesDia('${turma}', ${dia}, ${this.mesAtual}, ${this.anoAtual})">
                         <div class="dia-numero">${dia}</div>
-                        <div class="dia-hh">
-                            <strong>${hhTotal.toFixed(1)}</strong> HH
-                        </div>
+                        ${dadosDia.hhPorOS.map(item => `
+                            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
+                                <span style="font-size:0.7em; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${item.numeroOS}</span>
+                                <strong class="dia-hh" style="margin:0; font-size:0.95em;">${item.totalHH.toFixed(1)} HH</strong>
+                            </div>
+                        `).join('')}
                         <div class="dia-meta">
                             ${(percentualMeta * 100).toFixed(0)}% da meta
                         </div>
-                        <div class="dia-detalhes">
-                            📊 ${hhProdutivas.toFixed(0)} prod + ${hhImprodutivas.toFixed(0)} impr
-                        </div>
-                        <div class="dia-efetivo" style="color: #666;">
-                            👷 ${dadosDia.efetivo.total} pessoas
+                        <div class="dia-efetivo">
+                            ${[
+                                dadosDia.efetivo.encarregado      ? `Enc:${dadosDia.efetivo.encarregado}`      : '',
+                                dadosDia.efetivo.operadores       ? `Op:${dadosDia.efetivo.operadores}`         : '',
+                                dadosDia.efetivo.motoristas       ? `Mot:${dadosDia.efetivo.motoristas}`        : '',
+                                dadosDia.efetivo.soldador         ? `Sold:${dadosDia.efetivo.soldador}`         : '',
+                                dadosDia.efetivo.operadorEGP      ? `EGP:${dadosDia.efetivo.operadorEGP}`       : '',
+                                dadosDia.efetivo.tecnicoSeguranca ? `Tec:${dadosDia.efetivo.tecnicoSeguranca}`  : ''
+                            ].filter(Boolean).join(' · ')}
                         </div>
                         ${dadosDia.observacoes ? `
                             <div class="dia-obs" style="color: #ff9800;">
