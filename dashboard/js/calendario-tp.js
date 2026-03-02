@@ -176,7 +176,8 @@ class CalendarioTP {
             const enc = rdoDia.Encarregado || rdoDia.encarregado || '';
             if (enc) encarregados.add(enc);
 
-            const obs = rdoDia.Observações || rdoDia.observacoes || '';
+            // Cobrir todas as variações possíveis de normalização do campo Observações
+            const obs = (rdoDia.Observações || rdoDia.observações || rdoDia.observacoes || rdoDia.Observacoes || '').trim();
             if (obs) observacoesLista.push(obs);
 
             // HH produtivas e improdutivas deste RDO
@@ -221,12 +222,15 @@ class CalendarioTP {
             const hiRDO = this.dados.horasImprodutivas
                 .filter(hi => (hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '') === numeroRDO)
                 .map(hi => ({
+                    numeroRDO:  multiplosRDOs ? numeroRDO : null,
+                    numeroOS:   multiplosRDOs ? osDisplay : null,
                     tipo:       hi.Tipo || hi.tipo || '-',
                     descricao:  hi['Descrição'] || hi.descricao || '-',
                     horaInicio: hi['Hora Início'] || hi.horaInicio || '-',
                     horaFim:    hi['Hora Fim']    || hi.horaFim   || '-',
                     hh: parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0).toFixed(2)
                 }));
+            debugLog(`[CalendarioTP] HI para RDO=${numeroRDO} (OS ${osDisplay}): ${hiRDO.length} registro(s), ${hhImprRDO.toFixed(2)} HH improdutivas`);
             horasImprodutivas.push(...hiRDO);
         });
 
@@ -400,8 +404,8 @@ class CalendarioTP {
                         <div class="dia-numero">${dia}</div>
                         ${dadosDia.hhPorOS.map(item => `
                             <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
-                                <span style="font-size:0.9em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${item.numeroOS}</span>
-                                <strong class="dia-hh" style="margin:0; font-size:0.9em;">${item.totalHH.toFixed(1)} HH</strong>
+                                <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${item.numeroOS}</span>
+                                <strong class="dia-hh" style="margin:0; font-size:1.05em;">${item.totalHH.toFixed(1)} HH</strong>
                             </div>
                         `).join('')}
                         <div class="dia-meta">
@@ -672,6 +676,7 @@ class CalendarioTP {
                                         <table class="table table-sm table-hover">
                                             <thead class="table-light">
                                                 <tr>
+                                                    ${dados.multiplosRDOs ? '<th>O.S</th>' : ''}
                                                     <th>Tipo</th>
                                                     <th>Descrição</th>
                                                     <th class="text-center">Hora Início</th>
@@ -682,6 +687,7 @@ class CalendarioTP {
                                             <tbody>
                                                 ${dados.horasImprodutivas.map(hi => `
                                                     <tr>
+                                                        ${dados.multiplosRDOs ? `<td><span class="badge bg-secondary">${hi.numeroOS || '-'}</span></td>` : ''}
                                                         <td><span class="badge bg-warning">${hi.tipo}</span></td>
                                                         <td>${hi.descricao}</td>
                                                         <td class="text-center">${hi.horaInicio}</td>
