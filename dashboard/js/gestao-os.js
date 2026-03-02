@@ -481,7 +481,8 @@ class GestaoOS {
             if (deletado === 'sim') return;
 
             const numeroOS = (rdo['Número OS'] || rdo.numeroOS || '').trim();
-            if (!numeroOS || numeroOS.toLowerCase() === 'sem os' || numeroOS === '0') return;
+            // Usar a flag _osInvalida do sheets-api.js (cobre 'Sem O.S', vazio, SEM O NUMERO DA OS AINDA, etc.)
+            if (!numeroOS || rdo._osInvalida || numeroOS === '0') return;
 
             const turma = (rdo['Código Turma'] || rdo.codigoTurma || 'Sem Turma').trim();
             if (_isTMC(turma)) return;
@@ -535,15 +536,18 @@ class GestaoOS {
                 go.dataUltimoRDO = go.datas[go.datas.length - 1] || '-';
 
                 if (this.filtroMes && this.filtroAno) {
-                    const ultimo = go.dataUltimoRDO;
-                    if (ultimo && ultimo !== '-') {
-                        const [, m, y] = ultimo.split('/');
-                        if (+m !== this.filtroMes || +y !== this.filtroAno) {
-                            gt.ordens.delete(numeroOS);
-                            return;
-                        }
-                    } else {
+                    // Mostrar O.S se teve QUALQUER RDO no mês selecionado.
+                    // (antes filtrava só por dataUltimoRDO, o que excluía O.S cujo
+                    //  último RDO foi em outro mês mesmo tendo atividade no mês atual)
+                    const hasRDOInMonth = go.datas.some(d => {
+                        const parts = d.split('/');
+                        return parts.length >= 3 &&
+                               +parts[1] === this.filtroMes &&
+                               +parts[2] === this.filtroAno;
+                    });
+                    if (!hasRDOInMonth) {
                         gt.ordens.delete(numeroOS);
+                        return;
                     }
                 }
             });
