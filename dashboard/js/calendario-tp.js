@@ -321,8 +321,30 @@ class CalendarioTP {
                     descricao:  hi['Descrição'] || hi.descricao || '-',
                     horaInicio: hi['Hora Início'] || hi.horaInicio || '-',
                     horaFim:    hi['Hora Fim']    || hi.horaFim   || '-',
-                    hh: parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0).toFixed(2)
+                    hh:         parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0).toFixed(2),
+                    overlap:    false  // preenchido abaixo
                 }));
+
+            // Detectar HIs com intervalos sobrepostos para sinalização no modal
+            if (hiRDO.length > 1) {
+                const pm = (t) => {
+                    if (!t || t === '-') return -1;
+                    const parts = t.split(':').map(Number);
+                    return (parts[0] || 0) * 60 + (parts[1] || 0);
+                };
+                const ivals = hiRDO.map(h => {
+                    const s = pm(h.horaInicio);
+                    let e = pm(h.horaFim);
+                    if (s >= 0 && e >= 0 && e <= s) e += 1440; // overnight
+                    return { s, e };
+                });
+                hiRDO.forEach((h, i) => {
+                    h.overlap = ivals[i].s >= 0 && ivals.some((iv, j) =>
+                        j !== i && iv.s >= 0 && ivals[i].s < iv.e && iv.s < ivals[i].e
+                    );
+                });
+            }
+
             debugLog(`[CalendarioTP] HI para RDO=${numeroRDO} (OS ${osDisplay}): ${hiRDO.length} registro(s), ${hhImprRDO.toFixed(2)} HH improdutivas`);
             horasImprodutivas.push(...hiRDO);
         });
@@ -779,9 +801,12 @@ class CalendarioTP {
                                             </thead>
                                             <tbody>
                                                 ${dados.horasImprodutivas.map(hi => `
-                                                    <tr>
+                                                    <tr${hi.overlap ? ' class="table-warning"' : ''}>
                                                         ${dados.multiplosRDOs ? `<td><span class="badge bg-secondary">${hi.numeroOS || '-'}</span></td>` : ''}
-                                                        <td><span class="badge bg-warning">${hi.tipo}</span></td>
+                                                        <td>
+                                                            <span class="badge bg-warning">${hi.tipo}</span>
+                                                            ${hi.overlap ? '<span class="badge bg-danger ms-1" title="Intervalo se sobrepõe com outra HI deste RDO — período já contabilizado na janela mesclada">⚠️ sobreposição</span>' : ''}
+                                                        </td>
                                                         <td>${hi.descricao}</td>
                                                         <td class="text-center">${hi.horaInicio}</td>
                                                         <td class="text-center">${hi.horaFim}</td>
