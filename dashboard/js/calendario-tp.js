@@ -400,8 +400,8 @@ class CalendarioTP {
                         <div class="dia-numero">${dia}</div>
                         ${dadosDia.hhPorOS.map(item => `
                             <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
-                                <span style="font-size:0.7em; font-weight:600; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${item.numeroOS}</span>
-                                <strong class="dia-hh" style="margin:0; font-size:0.95em;">${item.totalHH.toFixed(1)} HH</strong>
+                                <span style="font-size:0.9em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${item.numeroOS}</span>
+                                <strong class="dia-hh" style="margin:0; font-size:0.9em;">${item.totalHH.toFixed(1)} HH</strong>
                             </div>
                         `).join('')}
                         <div class="dia-meta">
