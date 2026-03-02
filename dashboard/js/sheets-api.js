@@ -7,11 +7,19 @@
  * Valida se um número de O.S segue o padrão aceito:
  *   - 6 dígitos começando com 98 ou 99  (ex: 987654, 998070)
  *   - 7 dígitos começando com 100 a 199 (ex: 1001234, 1020999)
+ *   - Múltiplas O.S separadas por "/"   (ex: 1017755/1018836)
  * Qualquer outro valor é considerado inválido → "Sem O.S"
  */
 function validarNumeroOS(os) {
     if (!os) return false;
     const s = String(os).trim();
+
+    // Suporte a múltiplas O.S combinadas separadas por "/" (ex: "1017755/1018836")
+    // Usuário pode registrar dois serviços de O.S diferentes em um único RDO
+    if (s.includes('/')) {
+        return s.split('/').every(parte => validarNumeroOS(parte.trim()));
+    }
+
     if (/^9[89]\d{4}$/.test(s)) return true;   // 98xxxx ou 99xxxx (6 dígitos)
     if (/^1\d{6}$/.test(s)) return true;         // 100xxxx … 199xxxx (7 dígitos)
     return false;
