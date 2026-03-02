@@ -579,8 +579,97 @@ class CalculadoraMedicao {
     }
 
     /**
+     * Mescla intervalos de HI sobrepostos e retorna HH corrigidas.
+     * Evita dupla-contagem de eventos simultâneos no mesmo RDO.
+     * Ex: trem 08:00–12:00 + trem 09:00–09:30 → [08:00–12:00] = 4h (não 4,5h)
+     * Ex: HI 10:00–10:20 + HI 10:15–10:35 → [10:00–10:35] = 35min (não 40min)
+     * @param {Array}  hisRDO           - registros de HI de um único RDO
+     * @param {number} operadoresDefault - fallback quando campo Operadores está ausente
+     * @returns {number}
+     */
+    _mergeHIIntervals(hisRDO, operadoresDefault = 12) {
+        if (!hisRDO || hisRDO.length === 0) return 0;
+
+        const parseMin = (t) => {
+            const parts = (t || '').split(':').map(Number);
+            return (parts[0] || 0) * 60 + (parts[1] || 0);
+        };
+
+        // 1. Construir lista de intervalos com hora bruta
+        const intervals = [];
+        hisRDO.forEach(hi => {
+            const horaInicio = hi['Hora Início'] || hi.horaInicio || '';
+            const horaFim    = hi['Hora Fim']    || hi.horaFim    || '';
+            if (!horaInicio || !horaFim) return;
+
+            let startMin = parseMin(horaInicio);
+            let endMin   = parseMin(horaFim);
+            if (endMin <= startMin) endMin += 1440; // overnight
+
+            const tipo = (hi.Tipo || hi.tipo || '').toLowerCase();
+            let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
+            if (operadores <= 0) operadores = operadoresDefault;
+
+            intervals.push({ startMin, endMin, tipo, operadores });
+        });
+
+        if (intervals.length === 0) return 0;
+
+        // 2. Ordenar por startMin
+        intervals.sort((a, b) => a.startMin - b.startMin);
+
+        // 3. Mesclar sobrepostos — só desconta o trecho em comum, não o evento inteiro
+        const merged = [{
+            startMin:   intervals[0].startMin,
+            endMin:     intervals[0].endMin,
+            tipos:      [intervals[0].tipo],
+            operadores: intervals[0].operadores
+        }];
+
+        for (let i = 1; i < intervals.length; i++) {
+            const cur  = intervals[i];
+            const last = merged[merged.length - 1];
+            if (cur.startMin <= last.endMin) {
+                last.endMin     = Math.max(last.endMin, cur.endMin);
+                last.tipos.push(cur.tipo);
+                last.operadores = Math.max(last.operadores, cur.operadores);
+            } else {
+                merged.push({
+                    startMin:   cur.startMin,
+                    endMin:     cur.endMin,
+                    tipos:      [cur.tipo],
+                    operadores: cur.operadores
+                });
+            }
+        }
+
+        // 4. Calcular HH por segmento mesclado com regras de tipo
+        let totalHH = 0;
+        merged.forEach(seg => {
+            const duracaoHoras = (seg.endMin - seg.startMin) / 60;
+            const soTrens  = seg.tipos.every(t => t.includes('trem'));
+            const hasChuva = seg.tipos.some(t  => t.includes('chuva'));
+
+            let hh;
+            if (soTrens && duracaoHoras < (METAS.MINUTOS_MINIMOS_TREM / 60)) {
+                hh = 0;
+            } else if (hasChuva) {
+                hh = (duracaoHoras * seg.operadores) / METAS.DIVISOR_CHUVA;
+            } else {
+                hh = duracaoHoras * seg.operadores;
+            }
+            totalHH += hh;
+            if (hh > 0) {
+                debugLog(`  [HI merged] tipos=[${seg.tipos}] ${seg.endMin - seg.startMin}min × ${seg.operadores}op = ${hh.toFixed(2)} HH`);
+            }
+        });
+
+        return totalHH;
+    }
+
+    /**
      * Calcula HH de horas improdutivas
-     * Regras: Chuva ÷ 2, Trens > 15min
+     * Regras: Chuva ÷ 2, Trens > 15min; sobreposições são mescladas antes do cálculo
      */
     calcularHHImprodutivas(rdos) {
         let totalHH = 0;
@@ -591,43 +680,17 @@ class CalculadoraMedicao {
             // ⚡ Lookup O(1) via índice Map (Sprint 3)
             const hisRDO = this.indices.hiPorRDO.get(numeroRDO) || [];
 
-            hisRDO.forEach(hi => {
-                const horaInicio = hi['Hora Início'] || hi.horaInicio || '';
-                const horaFim = hi['Hora Fim'] || hi.horaFim || '';
-
-                const horasImprodutivas = this.calcularDiferencaHoras(horaInicio, horaFim);
-
-                // v3.0.0: Ler operadores da linha HI primeiro, fallback para Efetivo
-                let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
-                if (operadores <= 0) {
-                    const efetivo = this.efetivos.find(e => {
-                        const eNumeroRDO = e['Número RDO'] || e.numeroRDO || '';
-                        return eNumeroRDO === numeroRDO;
-                    });
-                    operadores = efetivo ? parseInt(efetivo.Operadores || efetivo.operadores || 12) : 12;
-                }
-
-                let hhImprodutiva = horasImprodutivas * operadores;
-
-                // Se for chuva, divide por 2
-                const tipo = hi.Tipo || hi.tipo || '';
-                if (tipo && tipo.toLowerCase().includes('chuva')) {
-                    hhImprodutiva = hhImprodutiva / METAS.DIVISOR_CHUVA;
-                }
-
-                // Se for trem, só conta se >= 15 min
-                if (tipo && tipo.toLowerCase().includes('trem')) {
-                    if (horasImprodutivas < (METAS.MINUTOS_MINIMOS_TREM / 60)) {
-                        hhImprodutiva = 0;  // Ignora trens < 15 min
-                    }
-                }
-
-                if (hhImprodutiva > 0) {
-                    debugLog(`  [HH Improdutiva] ${numeroRDO}: ${tipo} = ${horasImprodutivas.toFixed(2)}h × ${operadores} op = ${hhImprodutiva.toFixed(2)} HH`);
-                }
-
-                totalHH += hhImprodutiva;
+            // Obter operadores do efetivo como fallback
+            const efetivo = this.efetivos.find(e => {
+                const eNumeroRDO = e['Número RDO'] || e.numeroRDO || '';
+                return eNumeroRDO === numeroRDO;
             });
+            const opDefault = efetivo
+                ? parseInt(efetivo.Operadores || efetivo.operadores || 12)
+                : 12;
+
+            // Mescla sobreposições antes de somar (evita dupla-contagem)
+            totalHH += this._mergeHIIntervals(hisRDO, opDefault);
         });
 
         debugLog(`[calcularHHImprodutivas] Total HH calculado: ${totalHH.toFixed(2)}`);
@@ -677,35 +740,17 @@ class CalculadoraMedicao {
             // ⚡ Lookup O(1) via índice Map (Sprint 3)
             const hisDia = this.indices.hiPorRDO.get(numeroRDO) || [];
 
-            hisDia.forEach(hi => {
-                const horaInicio = hi['Hora Início'] || hi.horaInicio || '';
-                const horaFim = hi['Hora Fim'] || hi.horaFim || '';
-                const horasImprodutivas = this.calcularDiferencaHoras(horaInicio, horaFim);
-
-                // v3.0.0: Ler operadores da linha HI primeiro, fallback para Efetivo
-                let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
-                if (operadores <= 0) {
-                    const efetivo = this.efetivos.find(e => {
-                        const eNumeroRDO = e['Número RDO'] || e.numeroRDO || '';
-                        return eNumeroRDO === numeroRDO;
-                    });
-                    operadores = efetivo ? parseInt(efetivo.Operadores || efetivo.operadores || 12) : 12;
-                }
-                let hhImprodutiva = horasImprodutivas * operadores;
-
-                const tipo = hi.Tipo || hi.tipo || '';
-                if (tipo && tipo.toLowerCase().includes('chuva')) {
-                    hhImprodutiva = hhImprodutiva / METAS.DIVISOR_CHUVA;
-                }
-
-                if (tipo && tipo.toLowerCase().includes('trem')) {
-                    if (horasImprodutivas < (METAS.MINUTOS_MINIMOS_TREM / 60)) {
-                        hhImprodutiva = 0;
-                    }
-                }
-
-                hhPorDia[data].hhImprodutivas += hhImprodutiva;
+            // Obter operadores do efetivo como fallback
+            const efetivoDia = this.efetivos.find(e => {
+                const eNumeroRDO = e['Número RDO'] || e.numeroRDO || '';
+                return eNumeroRDO === numeroRDO;
             });
+            const opDefaultDia = efetivoDia
+                ? parseInt(efetivoDia.Operadores || efetivoDia.operadores || 12)
+                : 12;
+
+            // Mescla sobreposições antes de somar (evita dupla-contagem)
+            hhPorDia[data].hhImprodutivas += this._mergeHIIntervals(hisDia, opDefaultDia);
 
             // Calcular total e percentual
             hhPorDia[data].hhTotal = hhPorDia[data].hhServicos + hhPorDia[data].hhImprodutivas;

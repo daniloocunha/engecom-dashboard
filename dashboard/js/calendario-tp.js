@@ -77,8 +77,6 @@ class CalendarioTP {
      * Usa Número RDO como chave de join (mais confiável que Número OS)
      */
     calcularHIDia(numeroRDO, data) {
-        let hiTotal = 0;
-
         const hisDoDia = this.dados.horasImprodutivas.filter(hi => {
             const numRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
             return numRDO === numeroRDO;
@@ -86,14 +84,109 @@ class CalendarioTP {
 
         debugLog(`[CalendarioTP] HIs encontradas para RDO=${numeroRDO}: ${hisDoDia.length}`);
 
-        hisDoDia.forEach(hi => {
-            const hhImprodutivas = parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0);
-            debugLog(`[CalendarioTP] ${hi.tipo || hi.Tipo}: ${hhImprodutivas} HH`);
-            hiTotal += hhImprodutivas;
+        // Usar efetivo do RDO como fallback de operadores
+        const efetivoDia = this.dados.efetivos.find(ef => {
+            const numRDO = ef['Número RDO'] || ef.numeroRDO || ef.numeroRdo || '';
+            return numRDO === numeroRDO;
+        });
+        const opDefault = efetivoDia
+            ? parseInt(efetivoDia['Operadores'] || efetivoDia.operadores || 12)
+            : 12;
+
+        const hiTotal = this._calcularHHMerged(hisDoDia, opDefault);
+        debugLog(`[CalendarioTP] ✅ HH Improdutivas Total (merged): ${hiTotal.toFixed(2)}`);
+        return hiTotal;
+    }
+
+    /**
+     * Mescla intervalos de HI sobrepostos antes de calcular HH.
+     * Evita dupla-contagem quando dois eventos cobrem o mesmo período.
+     * Ex: trem 08:00–12:00 + trem 09:00–09:30 → merged [08:00–12:00] = 4h (não 4,5h)
+     * Ex: HI 10:00–10:20 + HI 10:15–10:35 → merged [10:00–10:35] = 35min (não 40min)
+     * @param {Array}  hisArray          - registros de HI do mesmo RDO
+     * @param {number} operadoresDefault - fallback quando campo Operadores está ausente
+     * @returns {number} HH improdutivas corrigidas
+     */
+    _calcularHHMerged(hisArray, operadoresDefault = 12) {
+        if (!hisArray || hisArray.length === 0) return 0;
+
+        const parseMin = (t) => {
+            const parts = (t || '').split(':').map(Number);
+            return (parts[0] || 0) * 60 + (parts[1] || 0);
+        };
+
+        // 1. Construir lista de intervalos com hora bruta
+        const intervals = [];
+        hisArray.forEach(hi => {
+            const horaInicio = hi['Hora Início'] || hi.horaInicio || '';
+            const horaFim    = hi['Hora Fim']    || hi.horaFim    || '';
+            if (!horaInicio || !horaFim) return;
+
+            let startMin = parseMin(horaInicio);
+            let endMin   = parseMin(horaFim);
+            if (endMin <= startMin) endMin += 1440; // overnight
+
+            const tipo = (hi.Tipo || hi.tipo || '').toLowerCase();
+            let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
+            if (operadores <= 0) operadores = operadoresDefault;
+
+            intervals.push({ startMin, endMin, tipo, operadores });
         });
 
-        debugLog(`[CalendarioTP] ✅ HH Improdutivas Total: ${hiTotal.toFixed(2)}`);
-        return hiTotal;
+        if (intervals.length === 0) return 0;
+
+        // 2. Ordenar por startMin
+        intervals.sort((a, b) => a.startMin - b.startMin);
+
+        // 3. Mesclar sobrepostos — só desconta o trecho em comum, não o evento inteiro
+        const merged = [{
+            startMin:   intervals[0].startMin,
+            endMin:     intervals[0].endMin,
+            tipos:      [intervals[0].tipo],
+            operadores: intervals[0].operadores
+        }];
+
+        for (let i = 1; i < intervals.length; i++) {
+            const cur  = intervals[i];
+            const last = merged[merged.length - 1];
+            if (cur.startMin <= last.endMin) {
+                // Sobreposição: estende o fim e une os tipos
+                last.endMin     = Math.max(last.endMin, cur.endMin);
+                last.tipos.push(cur.tipo);
+                last.operadores = Math.max(last.operadores, cur.operadores);
+            } else {
+                // Sem sobreposição: novo segmento independente
+                merged.push({
+                    startMin:   cur.startMin,
+                    endMin:     cur.endMin,
+                    tipos:      [cur.tipo],
+                    operadores: cur.operadores
+                });
+            }
+        }
+
+        // 4. Calcular HH por segmento mesclado aplicando regras de tipo
+        let totalHH = 0;
+        merged.forEach(seg => {
+            const duracaoHoras = (seg.endMin - seg.startMin) / 60;
+            const soTrens  = seg.tipos.every(t => t.includes('trem'));
+            const hasChuva = seg.tipos.some(t  => t.includes('chuva'));
+
+            let hh;
+            if (soTrens && duracaoHoras < (METAS.MINUTOS_MINIMOS_TREM / 60)) {
+                hh = 0; // Trem < 15 min não conta
+            } else if (hasChuva) {
+                hh = (duracaoHoras * seg.operadores) / METAS.DIVISOR_CHUVA;
+            } else {
+                hh = duracaoHoras * seg.operadores;
+            }
+            totalHH += hh;
+            if (hh > 0) {
+                debugLog(`  [HI merged] tipos=[${seg.tipos}] ${seg.endMin - seg.startMin}min × ${seg.operadores}op = ${hh.toFixed(2)} HH`);
+            }
+        });
+
+        return totalHH;
     }
 
     /**
