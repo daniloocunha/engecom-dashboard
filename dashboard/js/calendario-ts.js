@@ -48,16 +48,14 @@ class CalendarioTS {
     }
 
     /**
-     * Calcula HH do soldador de um dia (serviços executados)
+     * Calcula HH do soldador de um dia — busca por Número RDO (chave única)
      */
-    calcularHHSoldadorDia(numeroOS, data) {
+    calcularHHSoldadorDia(numeroRDO) {
         let hhTotal = 0;
 
-        const servicosDoDia = this.dados.servicos.filter(s => {
-            const numOS = s['Número OS'] || s.numeroOs || s.numeroOS || '';
-            const dataServico = s['Data RDO'] || s.dataRdo || s.data || '';
-            return numOS === numeroOS && dataServico === data;
-        });
+        const servicosDoDia = this.dados.servicos.filter(s =>
+            (s['Número RDO'] || s.numeroRDO || '') === numeroRDO
+        );
 
         servicosDoDia.forEach(servico => {
             const quantidade = parseFloat(servico.Quantidade || servico.quantidade || 0);
@@ -69,14 +67,12 @@ class CalendarioTS {
     }
 
     /**
-     * Obtém efetivo de um dia
+     * Obtém efetivo de um dia — busca por Número RDO (chave única)
      */
-    obterEfetivoDia(numeroOS, data) {
-        const efetivoDia = this.dados.efetivos.find(ef => {
-            const numOS = ef['Número OS'] || ef.numeroOs || ef.numeroOS || '';
-            const dataEfetivo = ef['Data RDO'] || ef.dataRdo || ef.data || '';
-            return numOS === numeroOS && dataEfetivo === data;
-        });
+    obterEfetivoDia(numeroRDO) {
+        const efetivoDia = this.dados.efetivos.find(ef =>
+            (ef['Número RDO'] || ef.numeroRDO || '') === numeroRDO
+        );
 
         if (!efetivoDia) {
             return { total: 0, soldador: 0, operadores: 0, encarregado: 0, motorista: 0 };
@@ -92,14 +88,27 @@ class CalendarioTS {
     }
 
     /**
+     * Normaliza data para DD/MM/YYYY — suporta ISO 8601 (YYYY-MM-DD) e formato local
+     */
+    _normalizarData(data) {
+        if (!data) return '';
+        if (/^\d{4}-\d{2}-\d{2}/.test(data)) {
+            const [ano, mes, dia] = data.split('T')[0].split('-');
+            return `${dia}/${mes}/${ano}`;
+        }
+        return data;
+    }
+
+    /**
      * Obtém dados completos de um dia
      */
     obterDadosDia(turma, dia, mes, ano) {
         const dataFormatada = `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`;
 
+        // Normaliza data para suportar ISO 8601, exclui deletados
         const rdoDia = this.dados.rdos.find(rdo => {
             const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
-            const data = rdo.Data || rdo.data || '';
+            const data = this._normalizarData(rdo.Data || rdo.data || '');
             const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
             return codigoTurma === turma && data === dataFormatada && deletado !== 'sim';
         });
@@ -107,9 +116,13 @@ class CalendarioTS {
         if (!rdoDia) return null;
 
         const numeroOS = rdoDia['Número OS'] || rdoDia.numeroOS || '';
-        const hhSoldador = this.calcularHHSoldadorDia(numeroOS, dataFormatada);
-        const efetivo = this.obterEfetivoDia(numeroOS, dataFormatada);
+        const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '';
+        // Busca por Número RDO (chave única, imune a formato de data)
+        const hhSoldador = this.calcularHHSoldadorDia(numeroRDO);
+        const efetivo = this.obterEfetivoDia(numeroRDO);
         const observacoes = rdoDia['Observações'] || rdoDia.Observacoes || rdoDia.observacoes || '';
+        const houveServico = (rdoDia['Houve Serviço'] || rdoDia.houveServico || '').toLowerCase() === 'sim';
+        const causaNaoServico = (rdoDia['Causa Não Serviço'] || rdoDia.causaNaoServico || '').toUpperCase().trim();
 
         const metaDiaria = METAS.META_DIARIA_TS;
         const percentualMeta = metaDiaria > 0 ? hhSoldador / metaDiaria : 0;
@@ -130,6 +143,8 @@ class CalendarioTS {
             status,
             efetivo,
             observacoes,
+            houveServico,
+            causaNaoServico,
             rdo: rdoDia
         };
     }
@@ -142,20 +157,20 @@ class CalendarioTS {
             const turmaBanco = rdo['Código Turma'] || rdo.codigoTurma || '';
             const dataBanco = rdo['Data'] || rdo.data || '';
             const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
-            if (!dataBanco) return false;
-            const [, mes, ano] = dataBanco.split('/');
+            const dataNorm = this._normalizarData(dataBanco);
+            if (!dataNorm) return false;
+            const [, mes, ano] = dataNorm.split('/');
             return turmaBanco === turma
                 && parseInt(mes) === this.mesAtual
                 && parseInt(ano) === this.anoAtual
                 && deletado !== 'sim';
         });
 
-        // HH Soldador total
+        // HH Soldador total — por Número RDO (chave única)
         let hhSoldadorTotal = 0;
         rdosTurma.forEach(rdo => {
-            const numeroOS = rdo['Número OS'] || rdo.numeroOS || '';
-            const dataBanco = rdo['Data'] || rdo.data || '';
-            hhSoldadorTotal += this.calcularHHSoldadorDia(numeroOS, dataBanco);
+            const numRDO = rdo['Número RDO'] || rdo.numeroRDO || '';
+            hhSoldadorTotal += this.calcularHHSoldadorDia(numRDO);
         });
 
         // Dias trabalhados
@@ -254,6 +269,13 @@ class CalendarioTS {
                         <div class="dia-efetivo" style="color: #666;">
                             👷 ${dadosDia.efetivo.total} pessoas
                         </div>
+                        ${!dadosDia.houveServico && dadosDia.causaNaoServico ? `
+                            <div class="dia-causa" style="margin-top: 4px;">
+                                <span class="badge" style="background-color: ${dadosDia.causaNaoServico === 'RUMO' ? '#FF9800' : '#F44336'}; font-size: 0.65em;">
+                                    ${dadosDia.causaNaoServico}
+                                </span>
+                            </div>
+                        ` : ''}
                         ${dadosDia.observacoes ? `
                             <div class="dia-obs" style="margin-top: 4px; color: #ff9800;">
                                 📝 ${dadosDia.observacoes.substring(0, 30)}${dadosDia.observacoes.length > 30 ? '...' : ''}
@@ -280,6 +302,8 @@ class CalendarioTS {
                             <div><span class="badge" style="background-color: #4CAF50">Verde</span> ≥ 100% da meta (≥ ${META_DIARIA} HH)</div>
                             <div><span class="badge" style="background-color: #FFC107">Amarelo</span> 80-99% da meta</div>
                             <div><span class="badge" style="background-color: #F44336">Vermelho</span> < 80% da meta</div>
+                            <div><span class="badge" style="background-color: #FF9800">RUMO</span> Sem serviço — motivo do cliente</div>
+                            <div><span class="badge" style="background-color: #F44336">ENGECOM</span> Sem serviço — motivo interno</div>
                         </div>
                     </div>
                 </div>
@@ -323,9 +347,10 @@ class CalendarioTS {
 
             if (!isTS) return;
 
-            // Verificar se é do mês/ano filtrado
+            // Verificar se é do mês/ano filtrado — normaliza ISO 8601
             if (dataBanco) {
-                const partes = dataBanco.split('/');
+                const dataNorm = this._normalizarData(dataBanco);
+                const partes = dataNorm ? dataNorm.split('/') : [];
                 if (partes.length === 3) {
                     const mes = parseInt(partes[1]);
                     const ano = parseInt(partes[2]);
@@ -379,14 +404,12 @@ class CalendarioTS {
         const dados = this.obterDadosDia(turma, dia, mes, ano);
         if (!dados) return;
 
-        const numeroOS = dados.numeroOS;
-        const dataFormatada = dados.data;
+        const numeroRDO_modal = dados.rdo?.['Número RDO'] || dados.rdo?.numeroRDO || '';
 
-        const servicosDoDia = this.dados.servicos.filter(s => {
-            const numOS = s['Número OS'] || s.numeroOs || s.numeroOS || '';
-            const dataServico = s['Data RDO'] || s.dataRdo || s.data || '';
-            return numOS === numeroOS && dataServico === dataFormatada;
-        });
+        // Busca por Número RDO (chave única, imune a formato de data)
+        const servicosDoDia = this.dados.servicos.filter(s =>
+            (s['Número RDO'] || s.numeroRDO || '') === numeroRDO_modal
+        );
 
         const servicosFormatados = servicosDoDia.map(s => ({
             descricao: s['Descrição'] || s.descricao || '-',

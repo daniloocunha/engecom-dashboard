@@ -91,10 +91,17 @@ class DashboardMain {
             this.dados.efetivos
         );
 
+        // Alertas de qualidade de dados: serviços customizados sem HH Manual preenchido
+        const customizadosSemHH = sheetsAPI._customizadosSemHH || [];
+        if (customizadosSemHH.length > 0 && typeof alertsSystem !== 'undefined') {
+            alertsSystem.adicionarAlertasDados(customizadosSemHH);
+        }
+
         debugLog('[Dashboard] Dados carregados:', {
             rdos: this.dados.rdos.length,
             servicos: this.dados.servicos.length,
-            hi: this.dados.horasImprodutivas.length
+            hi: this.dados.horasImprodutivas.length,
+            customizadosSemHH: customizadosSemHH.length
         });
     }
 
@@ -351,6 +358,9 @@ class DashboardMain {
 
         // ✅ Empty state: mostrar aviso amigável quando não há dados no período
         this._atualizarAvisoPeriodoVazio(dadosFiltrados.rdos.length === 0);
+
+        // ℹ️ Período futuro: banner informativo
+        this._atualizarAvisoPeriodoFuturo(this._periodoEhFuturo === true);
 
         // 1. KPIs
         this.atualizarKPIs();
@@ -681,18 +691,8 @@ class DashboardMain {
         const dataInicial = new Date(ano, mes - 1, 1);
         const dataAtual = new Date();
 
-        if (dataInicial > dataAtual) {
-            const optionEl = document.querySelector(`#filtroMes option[value="${mes}"]`);
-            const mesNome = optionEl ? optionEl.text : mes;
-            const confirmacao = confirm(
-                `Atenção: Você selecionou ${mesNome}/${ano}, que é no futuro.\n\n` +
-                `Provavelmente não há dados disponíveis para este período.\n\n` +
-                `Deseja continuar mesmo assim?`
-            );
-            if (!confirmacao) {
-                return;
-            }
-        }
+        // Período futuro: apenas registra para exibir banner informativo (sem bloquear)
+        this._periodoEhFuturo = dataInicial > dataAtual;
 
         // Aplicar filtros validados
         this.filtros.mes = mes;
@@ -753,6 +753,37 @@ class DashboardMain {
             }
         } else {
             // Remover banner quando há dados
+            if (banner) banner.remove();
+        }
+    }
+
+    /**
+     * Exibe ou remove o banner informativo de "período futuro"
+     */
+    _atualizarAvisoPeriodoFuturo(ehFuturo) {
+        const bannerId = 'futurePeriodBanner';
+        let banner = document.getElementById(bannerId);
+
+        if (ehFuturo) {
+            if (!banner) {
+                const nomeMes = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho',
+                                 'Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][this.filtros.mes - 1];
+                banner = document.createElement('div');
+                banner.id = bannerId;
+                banner.className = 'alert alert-info alert-dismissible fade show mx-3 mt-3';
+                banner.setAttribute('role', 'alert');
+                banner.innerHTML = `
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Período futuro:</strong> O mês <strong>${nomeMes}/${this.filtros.ano}</strong>
+                    ainda não ocorreu. Os dados exibidos podem estar incompletos ou ausentes.
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Fechar"></button>
+                `;
+                const mainContainer = document.getElementById('mainContainer');
+                if (mainContainer) {
+                    mainContainer.insertBefore(banner, mainContainer.firstChild);
+                }
+            }
+        } else {
             if (banner) banner.remove();
         }
     }

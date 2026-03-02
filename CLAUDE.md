@@ -400,12 +400,12 @@ See `GERENCIAR_SERVICOS.md` for detailed instructions.
 - Update `RDOSyncWorker.kt` for background sync changes
 
 ## Version Information
-- **versionCode**: 11
-- **versionName**: "2.4.0"
+- **versionCode**: 12
+- **versionName**: "3.0.0"
 - **AGP Version**: 8.13.1
 - **Kotlin Version**: 2.0.21
 - **Gradle Version**: 8.13 (via wrapper)
-- **Database Version**: 9
+- **Database Version**: 10
 
 ## Release Information
 
@@ -443,6 +443,48 @@ mensagem_bloqueio      | Atualize para continuar usando
 ```
 
 ## Version History
+
+### Version 3.0.0 (versionCode 12) - 2026-02-27
+**Bug Fixes & Correções Críticas**
+
+1. **[CRÍTICO] RDOs deletados incluídos no faturamento**:
+   - `filtrarRDOsPorTurma()` agora exclui RDOs com `Deletado = "Sim"`
+   - `getTurmasPorTipo()` e `totalRDOs` (KPIs) também corrigidos
+   - Calendários TP/TS já filtravam corretamente; agora todos os módulos são consistentes
+   - **Arquivo**: `dashboard/js/calculations.js`
+
+2. **[CRÍTICO] `causaNaoServico` não sincronizava com Google Sheets**:
+   - Campo "Causa Não Serviço" (valores: "RUMO", "ENGECOM" ou "") adicionado aos headers da aba RDO (coluna P)
+   - `buildRDORow()` agora envia o campo para o Sheets
+   - Colunas Q–W renumeradas para acomodar a nova coluna
+   - Referências hardcoded às colunas U (Data Criação) e V (Versão App) atualizadas para V e W
+   - `HEADERS_VERSION` incrementado para 5
+   - **Arquivos**: `SheetsConstants.kt`, `SheetsRelatedDataManager.kt`, `GoogleSheetsService.kt`, `SheetsAuditService.kt`
+
+3. **[ALTO] Busca de Efetivo inconsistente entre módulos**:
+   - `calcularMediaEfetivo()` usava `.find()` O(n) com chave `numeroOS + data` (impreciso)
+   - Corrigido para usar índice `efetivosPorRDO` Map O(1) com chave `numeroRDO` (preciso)
+   - **Arquivo**: `dashboard/js/calculations.js`
+
+4. **[ALTO] Lógica de HI duplicada com risco de divergência**:
+   - Bloco de cálculo de HI estava repetido em `calcularHHImprodutivas()` e `calcularHHPorDia()`
+   - Extraído para método privado `_calcularHHDeUmaHI(hi, numeroRDO)` — fonte única de verdade
+   - Fallback de operadores também migrado para índice O(1)
+   - **Arquivo**: `dashboard/js/calculations.js`
+
+5. **[MÉDIO] Suporte a data ISO 8601 em `filtrarRDOsPorTurma`**:
+   - Adicionado método `_normalizarData()` que converte "2025-01-15" para "15/01/2025"
+   - Previne falha silenciosa quando dados vêm em formato ISO
+   - **Arquivo**: `dashboard/js/calculations.js`
+
+**Database Migration:**
+- Versão 10: Adicionada coluna `causa_nao_servico TEXT DEFAULT ''`
+
+**Google Sheets Structure:**
+- Aba RDO: 22 → 23 colunas (nova coluna P: "Causa Não Serviço")
+- Versão App movida de coluna V para W
+
+---
 
 ### Version 2.4.0 (versionCode 11) - 2025-12-05
 **🚀 Major Update - Sync Reliability & Data Integrity**

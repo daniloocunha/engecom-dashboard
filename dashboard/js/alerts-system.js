@@ -16,6 +16,31 @@ class AlertsSystem {
     }
 
     /**
+     * Adiciona alertas de qualidade de dados (ex: serviços customizados sem HH Manual).
+     * Deve ser chamado após carregarDados e antes de renderizarAlertas.
+     */
+    adicionarAlertasDados(customizadosSemHH = []) {
+        if (!customizadosSemHH || customizadosSemHH.length === 0) return;
+
+        // Agrupar por RDO para não poluir com uma entrada por serviço
+        const rdosAfetados = [...new Set(customizadosSemHH.map(s => s.numeroRDO))];
+        const descricoes = customizadosSemHH.map(s => `"${s.descricao}" (${s.numeroRDO})`).join(', ');
+
+        this.alerts.push({
+            id: 'dados-customizado-sem-hh',
+            severity: 'alerta',
+            type: 'DADOS',
+            turma: '',
+            tipoTurma: '',
+            message: `${customizadosSemHH.length} serviço(s) customizado(s) sem HH Manual`,
+            details: `Os seguintes serviços customizados têm HH Manual = 0 e não serão faturados: ${descricoes}. Preencha o campo "HH Manual" no app.`,
+            action: 'Abrir o RDO no app e preencher o campo HH Manual para cada serviço customizado',
+            icon: 'fa-exclamation-circle',
+            color: 'warning'
+        });
+    }
+
+    /**
      * Analisa estatísticas e gera alertas
      */
     analisarEstatisticas(estatisticas) {
