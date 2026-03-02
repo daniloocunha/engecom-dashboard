@@ -149,18 +149,18 @@ class AcompanhamentoDiario {
 
     /**
      * Calcula HH de uma turma
-     * Busca por Número OS + Data RDO (não pelo número RDO completo)
+     * Usa Número RDO como chave de join (mais confiável que Número OS,
+     * que pode ser placeholder como "SEM O NUMERO DA OS AINDA")
      */
-    calcularHHTurma(numeroOS, dataRDO) {
+    calcularHHTurma(numeroRDO, dataRDO) {
         let hhTotal = 0;
 
         const servicosDaTurma = this.dados.servicos.filter(s => {
-            const numOS = getCampoNormalizado(s, 'Número OS');
-            const data = getCampoNormalizado(s, 'Data RDO');
-            return numOS === numeroOS && data === dataRDO;
+            const numRDO = s['Número RDO'] || s.numeroRDO || s.numeroRdo || '';
+            return numRDO === numeroRDO;
         });
 
-        console.log(`[AcompanhamentoDiario] OS ${numeroOS} Data ${dataRDO}: ${servicosDaTurma.length} serviços encontrados`);
+        console.log(`[AcompanhamentoDiario] RDO ${numeroRDO}: ${servicosDaTurma.length} serviços encontrados`);
 
         servicosDaTurma.forEach(servico => {
             const quantidade = parseFloat(getCampoNormalizado(servico, 'Quantidade', 0));
@@ -170,24 +170,23 @@ class AcompanhamentoDiario {
             hhTotal += hh;
         });
 
-        console.log(`[AcompanhamentoDiario] Total HH para OS ${numeroOS} Data ${dataRDO}: ${hhTotal.toFixed(2)}`);
+        console.log(`[AcompanhamentoDiario] Total HH para RDO ${numeroRDO}: ${hhTotal.toFixed(2)}`);
         return hhTotal;
     }
 
     /**
      * Calcula HI de uma turma
-     * Busca por Número OS + Data RDO (não pelo número RDO completo)
+     * Usa Número RDO como chave de join (mais confiável que Número OS)
      */
-    calcularHITurma(numeroOS, dataRDO) {
+    calcularHITurma(numeroRDO, dataRDO) {
         let hiTotal = 0;
 
         const hisDaTurma = this.dados.horasImprodutivas.filter(hi => {
-            const numOS = getCampoNormalizado(hi, 'Número OS');
-            const data = getCampoNormalizado(hi, 'Data RDO');
-            return numOS === numeroOS && data === dataRDO;
+            const numRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
+            return numRDO === numeroRDO;
         });
 
-        console.log(`[AcompanhamentoDiario] OS ${numeroOS} Data ${dataRDO}: ${hisDaTurma.length} HIs encontradas`);
+        console.log(`[AcompanhamentoDiario] RDO ${numeroRDO}: ${hisDaTurma.length} HIs encontradas`);
 
         hisDaTurma.forEach(hi => {
             const hhImprodutivas = parseFloat(getCampoNormalizado(hi, 'HH Improdutivas', 0));
@@ -195,19 +194,17 @@ class AcompanhamentoDiario {
             hiTotal += hhImprodutivas;
         });
 
-        console.log(`[AcompanhamentoDiario] Total HI para OS ${numeroOS} Data ${dataRDO}: ${hiTotal.toFixed(2)}`);
+        console.log(`[AcompanhamentoDiario] Total HI para RDO ${numeroRDO}: ${hiTotal.toFixed(2)}`);
         return hiTotal;
     }
 
     /**
-     * Busca serviços de um RDO
-     * Busca por Número OS + Data RDO
+     * Busca serviços de um RDO pelo Número RDO (join confiável)
      */
-    buscarServicos(numeroOS, dataRDO) {
+    buscarServicos(numeroRDO) {
         return this.dados.servicos.filter(s => {
-            const numOS = getCampoNormalizado(s, 'Número OS');
-            const data = getCampoNormalizado(s, 'Data RDO');
-            return numOS === numeroOS && data === dataRDO;
+            const numRDO = s['Número RDO'] || s.numeroRDO || s.numeroRdo || '';
+            return numRDO === numeroRDO;
         }).map(s => ({
             descricao: s['Descrição'] || s.descricao || '-',
             quantidade: parseFloat(s.Quantidade || s.quantidade || 0),
@@ -255,13 +252,12 @@ class AcompanhamentoDiario {
     }
 
     /**
-     * ✅ Busca HIs de um RDO
+     * ✅ Busca HIs de um RDO pelo Número RDO (join confiável)
      */
-    buscarHIs(numeroOS, dataRDO) {
+    buscarHIs(numeroRDO) {
         return this.dados.horasImprodutivas.filter(hi => {
-            const numOS = hi['Número OS'] || hi.numeroOS || '';
-            const data = hi['Data RDO'] || hi.data || '';
-            return numOS === numeroOS && data === dataRDO;
+            const numRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
+            return numRDO === numeroRDO;
         }).map(hi => {
             const tipo = hi.tipo || '-';
             const horaInicio = hi.horaInicio || hi['Hora Início'] || '';
@@ -371,12 +367,12 @@ class AcompanhamentoDiario {
                 const numeroOS = rdo['Número OS'] || rdo.numeroOS || rdo.numeroOs || '';
                 const dataRDO = rdo.Data || rdo.data || '';
 
-                const hhTotal = this.calcularHHTurma(numeroOS, dataRDO);
-                const hiTotal = this.calcularHITurma(numeroOS, dataRDO);
+                const hhTotal = this.calcularHHTurma(numeroRDO, dataRDO);
+                const hiTotal = this.calcularHITurma(numeroRDO, dataRDO);
                 const observacoes = escapeHtml(rdo.Observações || rdo.observacoes || '');
-                const servicos = this.buscarServicos(numeroOS, dataRDO);
+                const servicos = this.buscarServicos(numeroRDO);
                 const operadores = this.buscarOperadores(numeroRDO);  // ✅ Buscar operadores
-                const his = this.buscarHIs(numeroOS, dataRDO);  // ✅ Buscar HIs
+                const his = this.buscarHIs(numeroRDO);  // ✅ Buscar HIs
 
                 // Buscar dados adicionais do RDO (escapados contra XSS)
                 const local = escapeHtml(rdo.Local || rdo.local || '-');
@@ -564,7 +560,7 @@ class AcompanhamentoDiario {
      * ✅ Mostra modal com detalhes das HI
      */
     mostrarDetalhesHI(numeroRDO, numeroOS, dataRDO) {
-        const his = this.buscarHIs(numeroOS, dataRDO);
+        const his = this.buscarHIs(numeroRDO);
 
         if (his.length === 0) {
             alert('Nenhuma hora improdutiva registrada para este RDO.');
@@ -796,7 +792,7 @@ class AcompanhamentoDiario {
      * ✅ Mostra modal com detalhes dos Serviços
      */
     mostrarDetalhesServicos(numeroRDO, numeroOS, dataRDO) {
-        const servicos = this.buscarServicos(numeroOS, dataRDO);
+        const servicos = this.buscarServicos(numeroRDO);
 
         if (servicos.length === 0) {
             alert('Nenhum serviço registrado para este RDO.');

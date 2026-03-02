@@ -48,17 +48,17 @@ class CalendarioTP {
 
     /**
      * Calcula HH produtivas de um dia
+     * Usa Número RDO como chave de join (mais confiável que Número OS, que pode ser placeholder)
      */
-    calcularHHDia(numeroOS, data) {
+    calcularHHDia(numeroRDO, data) {
         let hhTotal = 0;
 
         const servicosDoDia = this.dados.servicos.filter(s => {
-            const numOS = s['Número OS'] || s.numeroOs || s.numeroOS || '';
-            const dataServico = s['Data RDO'] || s.dataRdo || s.data || '';
-            return numOS === numeroOS && dataServico === data;
+            const numRDO = s['Número RDO'] || s.numeroRDO || s.numeroRdo || '';
+            return numRDO === numeroRDO;
         });
 
-        debugLog(`[CalendarioTP] Serviços encontrados para OS=${numeroOS}, Data=${data}: ${servicosDoDia.length}`);
+        debugLog(`[CalendarioTP] Serviços encontrados para RDO=${numeroRDO}: ${servicosDoDia.length}`);
 
         servicosDoDia.forEach(servico => {
             const quantidade = parseFloat(servico.Quantidade || servico.quantidade || 0);
@@ -74,17 +74,17 @@ class CalendarioTP {
 
     /**
      * Calcula HH improdutivas de um dia
+     * Usa Número RDO como chave de join (mais confiável que Número OS)
      */
-    calcularHIDia(numeroOS, data) {
+    calcularHIDia(numeroRDO, data) {
         let hiTotal = 0;
 
         const hisDoDia = this.dados.horasImprodutivas.filter(hi => {
-            const numOS = hi['Número OS'] || hi.numeroOs || hi.numeroOS || '';
-            const dataHI = hi['Data RDO'] || hi.dataRdo || hi.data || '';
-            return numOS === numeroOS && dataHI === data;
+            const numRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
+            return numRDO === numeroRDO;
         });
 
-        debugLog(`[CalendarioTP] HIs encontradas para OS=${numeroOS}, Data=${data}: ${hisDoDia.length}`);
+        debugLog(`[CalendarioTP] HIs encontradas para RDO=${numeroRDO}: ${hisDoDia.length}`);
 
         hisDoDia.forEach(hi => {
             const hhImprodutivas = parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0);
@@ -98,18 +98,18 @@ class CalendarioTP {
 
     /**
      * Obtém efetivo de um dia
+     * Usa Número RDO como chave de join (mais confiável que Número OS)
      */
-    obterEfetivoDia(numeroOS, data) {
-        debugLog(`[CalendarioTP] Buscando efetivo para OS=${numeroOS}, Data=${data}`);
+    obterEfetivoDia(numeroRDO, data) {
+        debugLog(`[CalendarioTP] Buscando efetivo para RDO=${numeroRDO}`);
 
         const efetivoDia = this.dados.efetivos.find(ef => {
-            const numOS = ef['Número OS'] || ef.numeroOs || ef.numeroOS || '';
-            const dataEfetivo = ef['Data RDO'] || ef.dataRdo || ef.data || '';
-            return numOS === numeroOS && dataEfetivo === data;
+            const numRDO = ef['Número RDO'] || ef.numeroRDO || ef.numeroRdo || '';
+            return numRDO === numeroRDO;
         });
 
         if (!efetivoDia) {
-            debugLog(`[CalendarioTP] ⚠️ Efetivo NÃO encontrado para OS=${numeroOS}, Data=${data}`);
+            debugLog(`[CalendarioTP] ⚠️ Efetivo NÃO encontrado para RDO=${numeroRDO}`);
             return { total: 0, operadores: 0, motoristas: 0, encarregado: 0, operadorEGP: 0, tecnicoSeguranca: 0, soldador: 0 };
         }
 
@@ -157,16 +157,16 @@ class CalendarioTP {
         const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '-';
         const observacoes = rdoDia.Observações || rdoDia.observacoes || '';
 
-        // Calcular métricas
-        const hhProdutivas = this.calcularHHDia(numeroOS, dataFormatada);
-        const hhImprodutivas = this.calcularHIDia(numeroOS, dataFormatada);
-        const efetivo = this.obterEfetivoDia(numeroOS, dataFormatada);
+        // Calcular métricas — usa Número RDO (confiável) em vez de Número OS
+        // (Número OS pode ser placeholder como "SEM O NUMERO DA OS AINDA")
+        const hhProdutivas = this.calcularHHDia(numeroRDO, dataFormatada);
+        const hhImprodutivas = this.calcularHIDia(numeroRDO, dataFormatada);
+        const efetivo = this.obterEfetivoDia(numeroRDO, dataFormatada);
 
-        // Buscar serviços
+        // Buscar serviços pelo Número RDO (join confiável)
         const servicos = this.dados.servicos.filter(s => {
-            const numOS = s['Número OS'] || s.numeroOs || s.numeroOS || '';
-            const dataServico = s['Data RDO'] || s.dataRdo || s.data || '';
-            return numOS === numeroOS && dataServico === dataFormatada;
+            const numRDO = s['Número RDO'] || s.numeroRDO || s.numeroRdo || '';
+            return numRDO === numeroRDO;
         }).map(s => ({
             descricao: s['Descrição'] || s.descricao || '-',
             quantidade: parseFloat(s.Quantidade || s.quantidade || 0),
@@ -174,11 +174,10 @@ class CalendarioTP {
             hh: (parseFloat(s.Quantidade || s.quantidade || 0) * parseFloat(s.Coeficiente || s.coeficiente || 0)).toFixed(2)
         }));
 
-        // Buscar HIs
+        // Buscar HIs pelo Número RDO (join confiável)
         const horasImprodutivas = this.dados.horasImprodutivas.filter(hi => {
-            const numOS = hi['Número OS'] || hi.numeroOs || hi.numeroOS || '';
-            const dataHI = hi['Data RDO'] || hi.dataRdo || hi.data || '';
-            return numOS === numeroOS && dataHI === dataFormatada;
+            const numRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
+            return numRDO === numeroRDO;
         }).map(hi => ({
             tipo: hi.Tipo || hi.tipo || '-',
             descricao: hi['Descrição'] || hi.descricao || '-',
