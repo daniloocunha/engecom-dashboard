@@ -537,7 +537,7 @@ class GestaoOS {
      * Executa o fetch para o servidor (chamado pelo debounce).
      * Usa o valor mais atual de _dadosServidor (já atualizado antes daqui).
      */
-    _enviarParaServidor(numeroOS) {
+    _enviarParaServidor(numeroOS, tentativa = 1) {
         const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
         if (!url) return;
 
@@ -562,8 +562,16 @@ class GestaoOS {
         })
         .then(r => r.json())
         .then(j => {
-            if (j.sucesso) console.log('[GestaoOS] ✅ Salvo:', numeroOS, j.acao);
-            else           console.warn('[GestaoOS] ⚠️ Erro ao salvar:', j.erro);
+            if (j.sucesso) {
+                console.log('[GestaoOS] ✅ Salvo:', numeroOS, j.acao);
+            } else if (j.erro && j.erro.includes('ocupado') && tentativa <= 3) {
+                // Servidor ocupado (LockService) → retry com back-off
+                const delay = tentativa * 3000;
+                console.warn(`[GestaoOS] ⏳ Servidor ocupado (${numeroOS}), tentativa ${tentativa}/3 — retentando em ${delay/1000}s`);
+                setTimeout(() => this._enviarParaServidor(numeroOS, tentativa + 1), delay);
+            } else {
+                console.warn('[GestaoOS] ⚠️ Erro ao salvar:', j.erro);
+            }
         })
         .catch(e => console.warn('[GestaoOS] Falha ao salvar no servidor:', e.message));
     }
@@ -586,9 +594,9 @@ class GestaoOS {
         if (paraEnviar.length === 0) return;
 
         console.log('[GestaoOS] 📤 Migrando', paraEnviar.length, 'O.S do localStorage → servidor (escalonado)...');
-        // Escalonar: 1 request a cada 300ms para não criar duplicidades por concorrência
+        // Escalonar: 1 request a cada 1500ms (Apps Script precisa de ~1s por execução)
         paraEnviar.forEach((numeroOS, idx) => {
-            setTimeout(() => this._enviarParaServidor(numeroOS), idx * 300);
+            setTimeout(() => this._enviarParaServidor(numeroOS), idx * 1500);
         });
     }
 
