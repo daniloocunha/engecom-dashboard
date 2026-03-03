@@ -120,6 +120,8 @@ function listarGestaoOS() {
     const colGV  = _findCol(header, 'GE/Via');
     const colNt  = _findCol(header, 'Nota');
 
+    const colAt  = _findCol(header, 'Atualizado Em');
+
     const resultado = {};
     for (let i = 1; i < dados.length; i++) {
         const row = dados[i];
@@ -130,7 +132,7 @@ function listarGestaoOS() {
             status:       (row[colSt] || '').toString().trim() || null,
             gevia:        (row[colGV] || '').toString().trim() || null,
             nota:         (row[colNt] || '').toString(),
-            atualizadoEm: row[4] ? row[4].toString() : ''
+            atualizadoEm: (row[colAt] || '').toString()
         };
     }
 
@@ -155,7 +157,7 @@ function salvarGestaoOS(numeroOS, status, gevia, nota) {
     const dados  = sheet.getDataRange().getValues();
     const header = dados[0].map(h => h.toString().trim());
     const colOS  = _findCol(header, 'Número OS');
-    const agora  = new Date().toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' });
+    const agora  = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
 
     // Procurar linha existente com esse Número OS
     for (let i = 1; i < dados.length; i++) {
@@ -215,11 +217,13 @@ function _obterOuCriarAbaGestaoOS(ss) {
 }
 
 /**
- * Retorna o índice de uma coluna pelo nome (case-insensitive), ou 0 como fallback.
+ * Retorna o índice de uma coluna pelo nome (case-insensitive).
+ * Lança erro se não encontrar, para evitar leituras/escritas silenciosas na coluna errada.
  */
 function _findCol(header, nome) {
     const idx = header.findIndex(h => h.toLowerCase() === nome.toLowerCase());
-    return idx >= 0 ? idx : 0;
+    if (idx < 0) throw new Error('Coluna "' + nome + '" não encontrada. Cabeçalho: ' + header.join(', '));
+    return idx;
 }
 
 /**
