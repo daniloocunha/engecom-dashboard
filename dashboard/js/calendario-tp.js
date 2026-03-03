@@ -514,6 +514,12 @@ class CalendarioTP {
                     corStatus = '#FF9800';
                 }
 
+                // KM agregado de todos os RDOs do dia para exibir ao lado da meta
+                const kmTexto = dadosDia.hhPorOS
+                    .filter(item => item.kmInicio || item.kmFim)
+                    .map(item => `${item.kmInicio || '-'} – ${item.kmFim || '-'}`)
+                    .join(' | ');
+
                 html += `
                     <div class="calendario-dia trabalhado ${status}"
                          style="border-left: 4px solid ${corStatus}; cursor: pointer;"
@@ -524,14 +530,10 @@ class CalendarioTP {
                                 <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${item.numeroOS}</span>
                                 <strong class="dia-hh" style="margin:0; font-size:1.05em;">${item.totalHH.toFixed(1)} HH</strong>
                             </div>
-                            ${(item.kmInicio || item.kmFim) ? `
-                                <div style="font-size:0.72em; color:#555; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                    📍 ${item.kmInicio || '-'} – ${item.kmFim || '-'}
-                                </div>
-                            ` : ''}
                         `).join('')}
-                        <div class="dia-meta">
-                            ${(percentualMeta * 100).toFixed(0)}% da meta
+                        <div class="dia-meta" style="display:flex; justify-content:space-between; align-items:center; gap:4px; flex-wrap:wrap;">
+                            <span>${(percentualMeta * 100).toFixed(0)}% da meta</span>
+                            ${kmTexto ? `<span style="font-size:0.80em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">📍 ${kmTexto}</span>` : ''}
                         </div>
                         <div class="dia-efetivo">
                             ${[

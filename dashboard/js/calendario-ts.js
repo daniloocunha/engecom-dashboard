@@ -286,13 +286,9 @@ class CalendarioTS {
                         <div class="dia-hh">
                             <strong>${(dadosDia.hhSoldador + dadosDia.hhImprodutivas).toFixed(1)}</strong> HH
                         </div>
-                        ${(dadosDia.kmInicio || dadosDia.kmFim) ? `
-                            <div style="font-size:0.72em; color:#555; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
-                                📍 ${dadosDia.kmInicio || '-'} – ${dadosDia.kmFim || '-'}
-                            </div>
-                        ` : ''}
-                        <div class="dia-meta">
-                            ${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta
+                        <div class="dia-meta" style="display:flex; justify-content:space-between; align-items:center; gap:4px; flex-wrap:wrap;">
+                            <span>${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta</span>
+                            ${(dadosDia.kmInicio || dadosDia.kmFim) ? `<span style="font-size:0.80em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">📍 ${dadosDia.kmInicio || '-'} – ${dadosDia.kmFim || '-'}</span>` : ''}
                         </div>
                         <div class="dia-efetivo" style="color: #666;">
                             👷 ${dadosDia.efetivo.total} pessoas
