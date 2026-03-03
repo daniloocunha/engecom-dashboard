@@ -35,18 +35,22 @@ function _isTMC(turma) {
 
 /** Cores de fundo de linha/célula por status (fonte única) */
 const STATUS_ROW_COLORS = {
-    'Aprovada':     '#e8f4ff',  // azul claro
-    'Finalizada':   '#d4edda',  // verde claro
-    'Em Progresso': '#fff9e6',  // amarelo muito claro
-    'Reprovada':    '#fde8e8'   // vermelho claro
+    'Aprovada':              '#e8f4ff',  // azul claro
+    'Finalizada':            '#d4edda',  // verde claro
+    'Em Progresso':          '#fff9e6',  // amarelo muito claro
+    'Reprovada':             '#fde8e8',  // vermelho claro
+    'Aguardando Auditoria':  '#fff0e0',  // laranja claro
+    'Erro de preenchimento': '#f5e8ff'   // roxo claro
 };
 
 /** Opções do select de status com ícones (fonte única) */
 const STATUS_OPTS = [
-    { val: 'Em Progresso', icon: '🟡' },
-    { val: 'Aprovada',     icon: '🔵' },
-    { val: 'Finalizada',   icon: '🟢' },
-    { val: 'Reprovada',    icon: '🔴' }
+    { val: 'Em Progresso',          icon: '🟡' },
+    { val: 'Aprovada',              icon: '🔵' },
+    { val: 'Finalizada',            icon: '🟢' },
+    { val: 'Reprovada',             icon: '🔴' },
+    { val: 'Aguardando Auditoria',  icon: '🟠' },
+    { val: 'Erro de preenchimento', icon: '🟣' }
 ];
 
 /**
@@ -83,6 +87,9 @@ class GestaoOS {
         this.filtroMes = null;
         this.filtroAno = null;
         this._grupos = null; // cache para uso no modal
+        this._dadosServidor    = {}; // { [numeroOS]: { status, gevia, nota } }
+        this._servidorCarregado  = false;
+        this._carregandoServidor = false;
     }
 
     // ── Dados ─────────────────────────────────────────────────────────────
@@ -98,6 +105,11 @@ class GestaoOS {
             servicos: this.dados.servicos.length,
             hi: this.dados.horasImprodutivas.length
         });
+        // Carregar dados persistidos do servidor (async, re-renderiza quando completo)
+        if (!this._servidorCarregado && !this._carregandoServidor) {
+            this._carregandoServidor = true;
+            this._carregarDoServidor();
+        }
     }
 
     setFiltros(mes, ano) {
@@ -105,24 +117,30 @@ class GestaoOS {
         this.filtroAno = ano;
     }
 
-    // ── Status (localStorage) — 4 estados ─────────────────────────────────
+    // ── Status (servidor → localStorage → planilha) ────────────────────────
 
     /**
-     * Retorna o status salvo no localStorage.
-     * Se não houver, usa o status da planilha (normalizado para 4 estados).
+     * Retorna o status: prioridade servidor > localStorage > planilha.
      */
     getStatus(grupo) {
+        const sv = this._dadosServidor[grupo.numeroOS];
+        if (sv && sv.status) return sv.status;
         const salvo = localStorage.getItem('gestaoOS_status_' + grupo.numeroOS);
         return salvo || grupo.statusPlanilha;
     }
 
-    /** Salva status e atualiza a linha inteira da tabela (cor de fundo) */
+    /** Salva status localmente, no cache e no servidor; atualiza a UI */
     setStatus(numeroOS, valor) {
+        if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
         if (!valor) {
             localStorage.removeItem('gestaoOS_status_' + numeroOS);
+            delete this._dadosServidor[numeroOS].status;
         } else {
             try { localStorage.setItem('gestaoOS_status_' + numeroOS, valor); } catch (e) { /* quota/privado */ }
+            this._dadosServidor[numeroOS].status = valor;
         }
+        // Persistir no servidor em background
+        this._salvarNoServidor(numeroOS);
 
         // Atualiza cor da linha inteira
         this._atualizarCorLinha(numeroOS, valor);
@@ -140,7 +158,9 @@ class GestaoOS {
         const badge = document.getElementById(`statusBadge_${modalOsId}`);
         if (badge) {
             const cfg = this._statusConfig(valor);
-            badge.className = `badge bg-${cfg.cls} ms-2`;
+            badge.className = 'badge ms-2';
+            badge.style.backgroundColor = cfg.badge;
+            badge.style.color = cfg.badgeText;
             badge.textContent = valor;
         }
         this._atualizarStatusModal(numeroOS, modalOsId);
@@ -158,10 +178,12 @@ class GestaoOS {
 
     _statusConfig(status) {
         switch ((status || '').trim()) {
-            case 'Aprovada':    return { cls: 'primary', label: 'Aprovada'    };
-            case 'Finalizada':  return { cls: 'success', label: 'Finalizada'  };
-            case 'Reprovada':   return { cls: 'danger',  label: 'Reprovada'   };
-            default:            return { cls: 'warning', label: 'Em Progresso' };
+            case 'Aprovada':              return { cls: 'primary', bg: '#cfe2ff', badge: '#0d6efd', badgeText: '#fff' };
+            case 'Finalizada':            return { cls: 'success', bg: '#d1e7dd', badge: '#198754', badgeText: '#fff' };
+            case 'Reprovada':             return { cls: 'danger',  bg: '#f8d7da', badge: '#dc3545', badgeText: '#fff' };
+            case 'Aguardando Auditoria':  return { cls: '',        bg: '#ffe8cc', badge: '#fd7e14', badgeText: '#fff' };
+            case 'Erro de preenchimento': return { cls: '',        bg: '#f0d9ff', badge: '#7c3aed', badgeText: '#fff' };
+            default:                      return { cls: 'warning', bg: '#fff3cd', badge: '#cc9900', badgeText: '#000' };
         }
     }
 
@@ -173,12 +195,12 @@ class GestaoOS {
             `<option value="${o.val}" ${status === o.val ? 'selected' : ''}>${o.icon} ${o.val}</option>`
         ).join('');
 
-        const cfg      = this._statusConfig(status);
-        const colorMap = { primary: '#cfe2ff', success: '#d1e7dd', warning: '#fff3cd', danger: '#f8d7da' };
-        const bg       = colorMap[cfg.cls] || '#fff3cd';
+        const cfg        = this._statusConfig(status);
+        const borderStyle = cfg.cls ? `border-${cfg.cls}` : '';
+        const extraStyle  = cfg.cls ? '' : `border-color:${cfg.badge};`;
 
-        return `<select class="form-select form-select-sm fw-bold border-${cfg.cls}"
-                         style="font-size:0.75rem;min-width:125px;background-color:${bg};cursor:pointer;"
+        return `<select class="form-select form-select-sm fw-bold ${borderStyle}"
+                         style="font-size:0.75rem;min-width:155px;background-color:${cfg.bg};cursor:pointer;${extraStyle}"
                          onchange="event.stopPropagation();gestaoOS.setStatus('${osEsc}', this.value)"
                          onclick="event.stopPropagation()">
                   ${optionsHTML}
@@ -192,13 +214,13 @@ class GestaoOS {
         const optionsHTML = STATUS_OPTS.map(o =>
             `<option value="${o.val}" ${status === o.val ? 'selected' : ''}>${o.icon} ${o.val}</option>`
         ).join('');
-        const cfg      = this._statusConfig(status);
-        const colorMap = { primary: '#cfe2ff', success: '#d1e7dd', warning: '#fff3cd', danger: '#f8d7da' };
-        const bg       = colorMap[cfg.cls] || '#fff3cd';
+        const cfg         = this._statusConfig(status);
+        const borderClass = cfg.cls ? `border-${cfg.cls}` : '';
+        const extraStyle  = cfg.cls ? '' : `border-color:${cfg.badge};`;
 
         return `<select id="statusModal_${modalOsId}"
-                         class="form-select form-select-sm fw-bold border-${cfg.cls} w-100"
-                         style="background-color:${bg};font-size:0.85rem;"
+                         class="form-select form-select-sm fw-bold ${borderClass} w-100"
+                         style="background-color:${cfg.bg};font-size:0.85rem;${extraStyle}"
                          onchange="gestaoOS.setStatus('${osEsc}', this.value);gestaoOS._atualizarStatusModal('${osEsc}','${modalOsId}')">
                   ${optionsHTML}
                 </select>
@@ -213,20 +235,22 @@ class GestaoOS {
         this._grupos?.forEach(gt => { if (gt.ordens.has(numeroOS)) grupo = gt.ordens.get(numeroOS); });
         if (!grupo) return;
 
-        const status   = this.getStatus(grupo);
-        const cfg      = this._statusConfig(status);
-        const colorMap = { primary: '#cfe2ff', success: '#d1e7dd', warning: '#fff3cd', danger: '#f8d7da' };
-        const bg       = colorMap[cfg.cls] || '#fff3cd';
+        const status      = this.getStatus(grupo);
+        const cfg         = this._statusConfig(status);
+        const borderClass = cfg.cls ? `border-${cfg.cls}` : '';
 
         const sel = document.getElementById(`statusModal_${modalOsId}`);
         if (sel) {
-            sel.className = `form-select form-select-sm fw-bold border-${cfg.cls} w-100`;
-            sel.style.backgroundColor = bg;
+            sel.className = `form-select form-select-sm fw-bold ${borderClass} w-100`;
+            sel.style.backgroundColor = cfg.bg;
+            sel.style.borderColor = cfg.cls ? '' : cfg.badge;
         }
         // Atualiza badge no header do modal
         const badge = document.getElementById(`statusBadge_${modalOsId}`);
         if (badge) {
-            badge.className = `badge bg-${cfg.cls} ms-2`;
+            badge.className = 'badge ms-2';
+            badge.style.backgroundColor = cfg.badge;
+            badge.style.color = cfg.badgeText;
             badge.textContent = status;
         }
     }
@@ -248,18 +272,24 @@ class GestaoOS {
         el('resumoOS_gevia',      gevia);
     }
 
-    // ── GeVia (localStorage) ──────────────────────────────────────────────
+    // ── GeVia (servidor → localStorage) ──────────────────────────────────
 
     getGeVia(numeroOS) {
+        const sv = this._dadosServidor[numeroOS];
+        if (sv && sv.gevia) return sv.gevia;
         return localStorage.getItem('gestaoOS_gevia_' + numeroOS) || 'Pendente';
     }
 
     setGeVia(numeroOS, valor) {
+        if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
         if (!valor || valor === 'Pendente') {
             localStorage.removeItem('gestaoOS_gevia_' + numeroOS);
+            this._dadosServidor[numeroOS].gevia = 'Pendente';
         } else {
             try { localStorage.setItem('gestaoOS_gevia_' + numeroOS, valor); } catch (e) { /* quota/privado */ }
+            this._dadosServidor[numeroOS].gevia = valor;
         }
+        this._salvarNoServidor(numeroOS);
         const cel = document.getElementById(`gevia-cel-${CSS.escape(numeroOS)}`);
         if (cel) cel.innerHTML = this._geviaHTML(numeroOS);
         const badge = document.getElementById(`geviaBadge_${numeroOS.replace(/[^a-zA-Z0-9]/g, '_')}`);
@@ -293,9 +323,11 @@ class GestaoOS {
                 </select>`;
     }
 
-    // ── Notas (localStorage) — editor textarea inline ──────────────────────
+    // ── Notas (servidor → localStorage) — editor textarea inline ──────────
 
     getNota(numeroOS) {
+        const sv = this._dadosServidor[numeroOS];
+        if (sv && sv.nota !== undefined) return sv.nota;
         return localStorage.getItem('gestaoOS_nota_' + numeroOS) || '';
     }
 
@@ -352,11 +384,15 @@ class GestaoOS {
         const ta = document.getElementById(`notaTA_${CSS.escape(numeroOS)}`);
         if (!ta) return;
         const texto = ta.value.trim();
+        if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
         if (texto === '') {
             localStorage.removeItem('gestaoOS_nota_' + numeroOS);
+            this._dadosServidor[numeroOS].nota = '';
         } else {
             try { localStorage.setItem('gestaoOS_nota_' + numeroOS, texto); } catch (e) { /* quota/privado */ }
+            this._dadosServidor[numeroOS].nota = texto;
         }
+        this._salvarNoServidor(numeroOS);
 
         const cel = document.getElementById(`nota-cel-${CSS.escape(numeroOS)}`);
         if (cel) cel.innerHTML = this._notaHTML(numeroOS);
@@ -420,11 +456,15 @@ class GestaoOS {
         const ta = document.getElementById(`notaTAModal_${modalOsId}`);
         if (!ta) return;
         const texto = ta.value.trim();
+        if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
         if (texto === '') {
             localStorage.removeItem('gestaoOS_nota_' + numeroOS);
+            this._dadosServidor[numeroOS].nota = '';
         } else {
             try { localStorage.setItem('gestaoOS_nota_' + numeroOS, texto); } catch (e) { /* quota/privado */ }
+            this._dadosServidor[numeroOS].nota = texto;
         }
+        this._salvarNoServidor(numeroOS);
 
         const display = document.getElementById(`notaDisplay_${modalOsId}`);
         if (display) {
@@ -443,6 +483,67 @@ class GestaoOS {
         return `<button class="btn btn-sm btn-outline-secondary py-0 px-1"
                     onclick="event.stopPropagation();gestaoOS.editarNota('${_esc(numeroOS)}')"
                     title="${title}" style="font-size:0.8rem;">${icon}</button>`;
+    }
+
+    // ── Persistência no servidor (Google Sheets via Apps Script) ───────────
+
+    /**
+     * Busca dados de status/gevia/nota de todas as O.S salvos no servidor.
+     * Chamado uma vez ao carregar dados. Re-renderiza quando completo.
+     */
+    async _carregarDoServidor() {
+        const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
+        if (!url) { this._carregandoServidor = false; return; }
+
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                body: JSON.stringify({ acao: 'listarGestaoOS' })
+            });
+            const json = await resp.json();
+            if (json.sucesso && json.dados) {
+                this._dadosServidor    = json.dados;
+                this._servidorCarregado  = true;
+                debugLog('[GestaoOS] Servidor: carregados', Object.keys(json.dados).length, 'registros');
+                if (this.dados) this.renderizar(); // re-renderiza com dados do servidor
+            }
+        } catch (e) {
+            debugLog('[GestaoOS] Falha ao carregar servidor (usando localStorage):', e.message);
+        } finally {
+            this._carregandoServidor = false;
+        }
+    }
+
+    /**
+     * Salva o estado atual de uma O.S (status + gevia + nota) no servidor.
+     * Executa em background (não bloqueia a UI).
+     */
+    _salvarNoServidor(numeroOS) {
+        const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
+        if (!url) return;
+
+        // Recuperar valores mais atuais
+        let grupo = null;
+        this._grupos?.forEach(gt => { if (gt.ordens.has(numeroOS)) grupo = gt.ordens.get(numeroOS); });
+
+        const sv     = this._dadosServidor[numeroOS] || {};
+        const status = sv.status || (grupo ? this.getStatus(grupo) : null)
+                     || localStorage.getItem('gestaoOS_status_' + numeroOS) || 'Em Progresso';
+        const gevia  = sv.gevia  || localStorage.getItem('gestaoOS_gevia_' + numeroOS) || 'Pendente';
+        const nota   = sv.nota   !== undefined ? sv.nota
+                     : (localStorage.getItem('gestaoOS_nota_' + numeroOS) || '');
+
+        // Atualizar cache local antes de enviar
+        if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
+        Object.assign(this._dadosServidor[numeroOS], { status, gevia, nota });
+
+        fetch(url, {
+            method: 'POST',
+            body: JSON.stringify({ acao: 'salvarGestaoOS', numeroOS, status, gevia, nota })
+        })
+        .then(r => r.json())
+        .then(j => { if (j.sucesso) debugLog('[GestaoOS] Salvo no servidor:', numeroOS); })
+        .catch(e => console.warn('[GestaoOS] Falha ao salvar no servidor:', e.message));
     }
 
     // ── Leitura de HH de HI (múltiplos nomes de campo possíveis) ──────────
@@ -646,7 +747,7 @@ class GestaoOS {
                 <h5 class="modal-title">
                   <i class="fas fa-clipboard-list me-2 text-primary"></i>
                   O.S <strong>${_esc(numeroOS)}</strong>
-                  <span class="badge bg-${cfg.cls} ms-2" id="statusBadge_${modalOsId}">${_esc(statusAtual)}</span>
+                  <span class="badge ms-2" id="statusBadge_${modalOsId}" style="background-color:${cfg.badge};color:${cfg.badgeText};">${_esc(statusAtual)}</span>
                 </h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
               </div>
