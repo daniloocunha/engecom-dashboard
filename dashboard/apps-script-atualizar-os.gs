@@ -1,131 +1,125 @@
 /**
- * Google Apps Script — Endpoint para atualizar Número OS de um RDO
- *                     + Gestão de O.S (status, GE/Via, notas) persistente
+ * Google Apps Script - Endpoint para atualizar Numero OS de um RDO
+ *                    + Gestao de O.S (status, GE/Via, notas) persistente
  * Dashboard Engecom/Encogel
  *
  * COMO USAR:
- * 1. Abra a planilha Google Sheets → Extensões → Apps Script
- * 2. Cole este código no editor (substitua ou adicione ao código existente)
+ * 1. Abra a planilha Google Sheets -> Extensoes -> Apps Script
+ * 2. Cole este codigo no editor (substitua o codigo existente)
  * 3. Salve (Ctrl+S)
- * 4. Clique em "Implantar" → "Nova implantação" (ou "Gerenciar implantações" para atualizar)
- *    - Tipo: Aplicativo da Web
- *    - Executar como: EU (sua conta)
- *    - Quem tem acesso: Qualquer pessoa (para que o dashboard possa chamar sem login)
- * 5. Copie a URL gerada e cole em CONFIG.APPS_SCRIPT_URL no dashboard
+ * 4. Clique em "Implantar" -> "Gerenciar implantacoes"
+ *    Edite a implantacao existente e selecione "Nova versao" -> "Implantar"
  *
- * AÇÕES SUPORTADAS:
+ * ACOES SUPORTADAS:
  *   { "acao": "atualizarOS",     "numeroRDO": "...", "novaOS": "..." }
  *   { "acao": "listarGestaoOS" }
  *   { "acao": "salvarGestaoOS", "numeroOS": "...", "status": "...", "gevia": "...", "nota": "..." }
  */
 
-// ─── Handler principal ───────────────────────────────────────────────────────
+// === Handler principal ===
 
 function doPost(e) {
-    const headers = {
+    var headers = {
         'Access-Control-Allow-Origin': '*',
         'Content-Type': 'application/json'
     };
 
     try {
-        const dados = JSON.parse(e.postData.contents);
+        var dados = JSON.parse(e.postData.contents);
 
         if (dados.acao === 'atualizarOS') {
-            return _resposta(atualizarNumerOS(dados.numeroRDO, dados.novaOS), headers);
+            return _resposta(atualizarNumerOS(dados.numeroRDO, dados.novaOS));
         }
 
         if (dados.acao === 'listarGestaoOS') {
-            return _resposta(listarGestaoOS(), headers);
+            return _resposta(listarGestaoOS());
         }
 
         if (dados.acao === 'salvarGestaoOS') {
-            return _resposta(salvarGestaoOS(dados.numeroOS, dados.status, dados.gevia, dados.nota), headers);
+            return _resposta(salvarGestaoOS(dados.numeroOS, dados.status, dados.gevia, dados.nota));
         }
 
-        return _resposta({ sucesso: false, erro: 'Ação desconhecida: ' + dados.acao }, headers);
+        return _resposta({ sucesso: false, erro: 'Acao desconhecida: ' + dados.acao });
 
     } catch (err) {
-        return _resposta({ sucesso: false, erro: err.message }, headers);
+        return _resposta({ sucesso: false, erro: err.message });
     }
 }
 
-// Necessário para permitir preflight CORS
+// Responde ao preflight CORS (OPTIONS)
 function doGet(e) {
     return ContentService
-        .createTextOutput(JSON.stringify({ status: 'ok', descricao: 'Endpoint Engecom — use POST' }))
+        .createTextOutput(JSON.stringify({ status: 'ok', descricao: 'Endpoint Engecom - use POST' }))
         .setMimeType(ContentService.MimeType.JSON);
 }
 
-// ─── Ação: atualizarOS ───────────────────────────────────────────────────────
+// === Acao: atualizarOS ===
 
 /**
- * Localiza a linha com o Número RDO informado na aba RDO
- * e atualiza a coluna "Número OS" com o novo valor.
+ * Localiza a linha com o Numero RDO informado na aba RDO
+ * e atualiza a coluna "Numero OS" com o novo valor.
  */
 function atualizarNumerOS(numeroRDO, novaOS) {
     if (!numeroRDO || !novaOS) {
-        return { sucesso: false, erro: 'Parâmetros obrigatórios: numeroRDO e novaOS' };
+        return { sucesso: false, erro: 'Parametros obrigatorios: numeroRDO e novaOS' };
     }
 
-    const ss    = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('RDO');
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = ss.getSheetByName('RDO');
 
     if (!sheet) {
-        return { sucesso: false, erro: 'Aba "RDO" não encontrada na planilha' };
+        return { sucesso: false, erro: 'Aba "RDO" nao encontrada na planilha' };
     }
 
-    const dados  = sheet.getDataRange().getValues();
-    const header = dados[0];
+    var dados  = sheet.getDataRange().getValues();
+    var header = dados[0];
 
-    const colRDO = header.findIndex(h => h.toString().trim() === 'Número RDO');
-    const colOS  = header.findIndex(h => h.toString().trim() === 'Número OS');
+    var colRDO = header.findIndex(function(h) { return h.toString().trim() === 'N\u00famero RDO'; });
+    var colOS  = header.findIndex(function(h) { return h.toString().trim() === 'N\u00famero OS'; });
 
-    if (colRDO === -1) return { sucesso: false, erro: 'Coluna "Número RDO" não encontrada na aba RDO' };
-    if (colOS  === -1) return { sucesso: false, erro: 'Coluna "Número OS" não encontrada na aba RDO' };
+    if (colRDO === -1) return { sucesso: false, erro: 'Coluna "Numero RDO" nao encontrada na aba RDO' };
+    if (colOS  === -1) return { sucesso: false, erro: 'Coluna "Numero OS" nao encontrada na aba RDO' };
 
-    for (let i = 1; i < dados.length; i++) {
-        const rdoNaLinha = (dados[i][colRDO] || '').toString().trim();
+    for (var i = 1; i < dados.length; i++) {
+        var rdoNaLinha = (dados[i][colRDO] || '').toString().trim();
         if (rdoNaLinha === numeroRDO.trim()) {
             sheet.getRange(i + 1, colOS + 1).setValue(novaOS);
             SpreadsheetApp.flush();
-            Logger.log('✅ Atualizado: RDO ' + numeroRDO + ' → OS ' + novaOS + ' (linha ' + (i + 1) + ')');
+            Logger.log('Atualizado: RDO ' + numeroRDO + ' -> OS ' + novaOS + ' (linha ' + (i + 1) + ')');
             return { sucesso: true, linhaAtualizada: i + 1 };
         }
     }
 
-    return { sucesso: false, erro: 'Número RDO "' + numeroRDO + '" não encontrado na aba RDO' };
+    return { sucesso: false, erro: 'Numero RDO "' + numeroRDO + '" nao encontrado na aba RDO' };
 }
 
-// ─── Ação: listarGestaoOS ────────────────────────────────────────────────────
+// === Acao: listarGestaoOS ===
 
 /**
- * Lê todos os registros da aba "GestaoOS" e retorna um objeto indexado
- * por Número OS: { "998070": { status, gevia, nota, atualizadoEm }, ... }
- *
- * Cria a aba automaticamente se não existir.
+ * Le todos os registros da aba "GestaoOS" e retorna objeto indexado
+ * por Numero OS: { "998070": { status, gevia, nota, atualizadoEm }, ... }
+ * Cria a aba automaticamente se nao existir.
  */
 function listarGestaoOS() {
-    const ss    = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = _obterOuCriarAbaGestaoOS(ss);
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = _obterOuCriarAbaGestaoOS(ss);
 
-    const dados = sheet.getDataRange().getValues();
+    var dados = sheet.getDataRange().getValues();
     if (dados.length <= 1) {
-        // Só cabeçalho ou vazia
         return { sucesso: true, dados: {} };
     }
 
-    const header = dados[0].map(h => h.toString().trim());
-    const colOS  = _findCol(header, 'Número OS');
-    const colSt  = _findCol(header, 'Status');
-    const colGV  = _findCol(header, 'GE/Via');
-    const colNt  = _findCol(header, 'Nota');
+    var header = dados[0].map(function(h) { return h.toString().trim(); });
+    var colOS  = _findCol(header, 'N\u00famero OS');
+    var colSt  = _findCol(header, 'Status');
+    var colGV  = _findCol(header, 'GE/Via');
+    var colNt  = _findCol(header, 'Nota');
+    var colAt  = _findCol(header, 'Atualizado Em');
 
-    const colAt  = _findCol(header, 'Atualizado Em');
-
-    const resultado = {};
-    for (let i = 1; i < dados.length; i++) {
-        const row = dados[i];
-        const numeroOS = (row[colOS] || '').toString().trim();
+    var resultado = {};
+    for (var i = 1; i < dados.length; i++) {
+        var row = dados[i];
+        var numeroOS = (row[colOS] || '').toString().trim();
         if (!numeroOS) continue;
 
         resultado[numeroOS] = {
@@ -140,21 +134,22 @@ function listarGestaoOS() {
     return { sucesso: true, dados: resultado };
 }
 
-// ─── Ação: salvarGestaoOS ────────────────────────────────────────────────────
+// === Acao: salvarGestaoOS ===
 
 /**
  * Insere ou atualiza o registro de uma O.S na aba "GestaoOS".
- * Colunas: Número OS | Status | GE/Via | Nota | Atualizado Em
+ * Colunas: Numero OS | Status | GE/Via | Nota | Atualizado Em
+ * Usa LockService para evitar linhas duplicadas quando dois PCs salvam simultaneamente.
  */
 function salvarGestaoOS(numeroOS, status, gevia, nota) {
     if (!numeroOS) {
-        return { sucesso: false, erro: 'Parâmetro obrigatório: numeroOS' };
+        return { sucesso: false, erro: 'Parametro obrigatorio: numeroOS' };
     }
 
-    // Lock global: evita que dois PCs insiram linha duplicada para o mesmo OS
-    const lock = LockService.getScriptLock();
+    // Lock global: garante que apenas 1 processo por vez escreve na aba
+    var lock = LockService.getScriptLock();
     try {
-        lock.waitLock(8000); // aguarda até 8s para obter o lock
+        lock.waitLock(8000);
     } catch (e) {
         return { sucesso: false, erro: 'Servidor ocupado. Tente novamente em instantes.' };
     }
@@ -167,23 +162,22 @@ function salvarGestaoOS(numeroOS, status, gevia, nota) {
 }
 
 function _salvarGestaoOSInterno(numeroOS, status, gevia, nota) {
-    const ss    = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = _obterOuCriarAbaGestaoOS(ss);
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = _obterOuCriarAbaGestaoOS(ss);
 
-    const dados  = sheet.getDataRange().getValues();
-    const header = dados[0].map(h => h.toString().trim());
-    const colOS  = _findCol(header, 'Número OS');
-    const agora  = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
+    var dados  = sheet.getDataRange().getValues();
+    var header = dados[0].map(function(h) { return h.toString().trim(); });
+    var colOS  = _findCol(header, 'N\u00famero OS');
+    var agora  = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
 
-    // Procurar linha existente com esse Número OS
-    for (let i = 1; i < dados.length; i++) {
-        const osNaLinha = (dados[i][colOS] || '').toString().trim();
+    // Procurar linha existente com esse Numero OS
+    for (var i = 1; i < dados.length; i++) {
+        var osNaLinha = (dados[i][colOS] || '').toString().trim();
         if (osNaLinha === numeroOS.trim()) {
-            // Atualizar linha existente (base 1 no Sheets)
-            const row = i + 1;
-            sheet.getRange(row, 2).setValue(status  || '');
-            sheet.getRange(row, 3).setValue(gevia   || '');
-            sheet.getRange(row, 4).setValue(nota    !== undefined ? nota : '');
+            var row = i + 1;
+            sheet.getRange(row, 2).setValue(status || '');
+            sheet.getRange(row, 3).setValue(gevia  || '');
+            sheet.getRange(row, 4).setValue(nota !== undefined ? nota : '');
             sheet.getRange(row, 5).setValue(agora);
             SpreadsheetApp.flush();
             Logger.log('[GestaoOS] Atualizado: OS ' + numeroOS + ' (linha ' + row + ')');
@@ -191,12 +185,12 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota) {
         }
     }
 
-    // Não encontrou → inserir nova linha
+    // Nao encontrou -> inserir nova linha
     sheet.appendRow([
         numeroOS.trim(),
-        status  || '',
-        gevia   || '',
-        nota    !== undefined ? nota : '',
+        status || '',
+        gevia  || '',
+        nota !== undefined ? nota : '',
         agora
     ]);
     SpreadsheetApp.flush();
@@ -204,28 +198,26 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota) {
     return { sucesso: true, acao: 'inserido' };
 }
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// === Helpers ===
 
 /**
- * Retorna a aba "GestaoOS", criando-a com cabeçalho se não existir.
+ * Retorna a aba "GestaoOS", criando-a com cabecalho se nao existir.
  */
 function _obterOuCriarAbaGestaoOS(ss) {
-    let sheet = ss.getSheetByName('GestaoOS');
+    var sheet = ss.getSheetByName('GestaoOS');
     if (!sheet) {
         sheet = ss.insertSheet('GestaoOS');
-        sheet.appendRow(['Número OS', 'Status', 'GE/Via', 'Nota', 'Atualizado Em']);
+        sheet.appendRow(['N\u00famero OS', 'Status', 'GE/Via', 'Nota', 'Atualizado Em']);
 
-        // Formatar cabeçalho
-        const headerRange = sheet.getRange(1, 1, 1, 5);
+        var headerRange = sheet.getRange(1, 1, 1, 5);
         headerRange.setFontWeight('bold');
         headerRange.setBackground('#f3f3f3');
 
-        // Ajustar larguras de coluna
-        sheet.setColumnWidth(1, 130); // Número OS
-        sheet.setColumnWidth(2, 180); // Status
-        sheet.setColumnWidth(3, 120); // GE/Via
-        sheet.setColumnWidth(4, 350); // Nota
-        sheet.setColumnWidth(5, 160); // Atualizado Em
+        sheet.setColumnWidth(1, 130);
+        sheet.setColumnWidth(2, 180);
+        sheet.setColumnWidth(3, 120);
+        sheet.setColumnWidth(4, 350);
+        sheet.setColumnWidth(5, 160);
 
         Logger.log('[GestaoOS] Aba "GestaoOS" criada automaticamente');
     }
@@ -233,19 +225,19 @@ function _obterOuCriarAbaGestaoOS(ss) {
 }
 
 /**
- * Retorna o índice de uma coluna pelo nome (case-insensitive).
- * Lança erro se não encontrar, para evitar leituras/escritas silenciosas na coluna errada.
+ * Retorna o indice de uma coluna pelo nome (case-insensitive).
+ * Lanca erro se nao encontrar.
  */
 function _findCol(header, nome) {
-    const idx = header.findIndex(h => h.toLowerCase() === nome.toLowerCase());
-    if (idx < 0) throw new Error('Coluna "' + nome + '" não encontrada. Cabeçalho: ' + header.join(', '));
+    var idx = header.findIndex(function(h) { return h.toLowerCase() === nome.toLowerCase(); });
+    if (idx < 0) throw new Error('Coluna "' + nome + '" nao encontrada. Cabecalho: ' + header.join(', '));
     return idx;
 }
 
 /**
  * Serializa a resposta como JSON para o ContentService.
  */
-function _resposta(obj, headers) {
+function _resposta(obj) {
     return ContentService
         .createTextOutput(JSON.stringify(obj))
         .setMimeType(ContentService.MimeType.JSON);
