@@ -283,8 +283,9 @@ class CalendarioTS {
                          style="border-left: 4px solid ${corStatus}; cursor: pointer;"
                          onclick="calendarioTS.mostrarDetalhesDia('${turma}', ${dia}, ${this.mesAtual}, ${this.anoAtual})">
                         <div class="dia-numero">${dia}</div>
-                        <div class="dia-hh">
-                            <strong>${(dadosDia.hhSoldador + dadosDia.hhImprodutivas).toFixed(1)}</strong> HH
+                        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
+                            <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${dadosDia.numeroOS}</span>
+                            <strong class="dia-hh" style="margin:0; font-size:1.05em;">${(dadosDia.hhSoldador + dadosDia.hhImprodutivas).toFixed(1)} HH</strong>
                         </div>
                         <div class="dia-meta" style="display:flex; justify-content:space-between; align-items:center; gap:4px; flex-wrap:wrap;">
                             <span>${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta</span>
