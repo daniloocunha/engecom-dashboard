@@ -279,10 +279,10 @@ class CalendarioTS {
                          onclick="calendarioTS.mostrarDetalhesDia('${turma}', ${dia}, ${this.mesAtual}, ${this.anoAtual})">
                         <div class="dia-numero">${dia}</div>
                         <div class="dia-hh">
-                            <strong>${dadosDia.hhSoldador.toFixed(1)}</strong> HH
+                            <strong>${(dadosDia.hhSoldador + dadosDia.hhImprodutivas).toFixed(1)}</strong> HH
                         </div>
                         <div class="dia-meta">
-                            ${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta
+                            ${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta (sold.)
                         </div>
                         <div class="dia-efetivo" style="color: #666;">
                             👷 ${dadosDia.efetivo.total} pessoas
