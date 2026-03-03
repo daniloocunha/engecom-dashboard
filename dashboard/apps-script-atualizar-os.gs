@@ -151,6 +151,22 @@ function salvarGestaoOS(numeroOS, status, gevia, nota) {
         return { sucesso: false, erro: 'Parâmetro obrigatório: numeroOS' };
     }
 
+    // Lock global: evita que dois PCs insiram linha duplicada para o mesmo OS
+    const lock = LockService.getScriptLock();
+    try {
+        lock.waitLock(8000); // aguarda até 8s para obter o lock
+    } catch (e) {
+        return { sucesso: false, erro: 'Servidor ocupado. Tente novamente em instantes.' };
+    }
+
+    try {
+        return _salvarGestaoOSInterno(numeroOS, status, gevia, nota);
+    } finally {
+        lock.releaseLock();
+    }
+}
+
+function _salvarGestaoOSInterno(numeroOS, status, gevia, nota) {
     const ss    = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = _obterOuCriarAbaGestaoOS(ss);
 

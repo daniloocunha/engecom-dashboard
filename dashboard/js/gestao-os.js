@@ -87,9 +87,10 @@ class GestaoOS {
         this.filtroMes = null;
         this.filtroAno = null;
         this._grupos = null; // cache para uso no modal
-        this._dadosServidor    = {}; // { [numeroOS]: { status, gevia, nota } }
+        this._dadosServidor      = {}; // { [numeroOS]: { status, gevia, nota } }
         this._servidorCarregado  = false;
         this._carregandoServidor = false;
+        this._debounceTimers     = {}; // { [numeroOS]: timeoutId } — evita burst de requests
     }
 
     // ── Dados ─────────────────────────────────────────────────────────────
@@ -521,14 +522,26 @@ class GestaoOS {
     }
 
     /**
-     * Salva o estado atual de uma O.S (status + gevia + nota) no servidor.
-     * Executa em background (não bloqueia a UI).
+     * Salva o estado atual de uma O.S no servidor com DEBOUNCE de 600ms.
+     * Múltiplas chamadas rápidas (ex: digitação na nota) geram apenas 1 request.
      */
     _salvarNoServidor(numeroOS) {
+        // Cancelar envio pendente para este OS e agendar novo
+        clearTimeout(this._debounceTimers[numeroOS]);
+        this._debounceTimers[numeroOS] = setTimeout(() => {
+            this._enviarParaServidor(numeroOS);
+        }, 600);
+    }
+
+    /**
+     * Executa o fetch para o servidor (chamado pelo debounce).
+     * Usa o valor mais atual de _dadosServidor (já atualizado antes daqui).
+     */
+    _enviarParaServidor(numeroOS) {
         const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
         if (!url) return;
 
-        // Recuperar valores mais atuais
+        // Recuperar valores mais atuais do cache servidor → fallback localStorage
         let grupo = null;
         this._grupos?.forEach(gt => { if (gt.ordens.has(numeroOS)) grupo = gt.ordens.get(numeroOS); });
 
@@ -539,7 +552,7 @@ class GestaoOS {
         const nota   = sv.nota   !== undefined ? sv.nota
                      : (localStorage.getItem('gestaoOS_nota_' + numeroOS) || '');
 
-        // Atualizar cache local antes de enviar
+        // Atualizar cache com valores definitivos antes de enviar
         if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
         Object.assign(this._dadosServidor[numeroOS], { status, gevia, nota });
 
@@ -549,8 +562,8 @@ class GestaoOS {
         })
         .then(r => r.json())
         .then(j => {
-            if (j.sucesso) console.log('[GestaoOS] Salvo no servidor:', numeroOS, j.acao);
-            else           console.warn('[GestaoOS] Erro ao salvar:', j.erro);
+            if (j.sucesso) console.log('[GestaoOS] ✅ Salvo:', numeroOS, j.acao);
+            else           console.warn('[GestaoOS] ⚠️ Erro ao salvar:', j.erro);
         })
         .catch(e => console.warn('[GestaoOS] Falha ao salvar no servidor:', e.message));
     }
@@ -558,6 +571,7 @@ class GestaoOS {
     /**
      * Varre o localStorage e envia para o servidor qualquer O.S que ainda
      * não esteja lá. Executado uma vez após carregar dados do servidor.
+     * Requests escalonados (300ms entre cada) para evitar burst simultâneo.
      */
     _migrarLocalStorageParaServidor() {
         const osNums = new Set();
@@ -567,12 +581,15 @@ class GestaoOS {
             if (match) osNums.add(match[2]);
         }
 
-        // Apenas O.S que ainda não existem no servidor
+        // Apenas O.S que ainda não existem no servidor (servidor tem prioridade)
         const paraEnviar = [...osNums].filter(os => !this._dadosServidor[os]);
         if (paraEnviar.length === 0) return;
 
-        console.log('[GestaoOS] 📤 Migrando', paraEnviar.length, 'O.S do localStorage para o servidor...');
-        paraEnviar.forEach(numeroOS => this._salvarNoServidor(numeroOS));
+        console.log('[GestaoOS] 📤 Migrando', paraEnviar.length, 'O.S do localStorage → servidor (escalonado)...');
+        // Escalonar: 1 request a cada 300ms para não criar duplicidades por concorrência
+        paraEnviar.forEach((numeroOS, idx) => {
+            setTimeout(() => this._enviarParaServidor(numeroOS), idx * 300);
+        });
     }
 
 
