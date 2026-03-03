@@ -504,11 +504,13 @@ class GestaoOS {
             if (json.sucesso && json.dados) {
                 this._dadosServidor    = json.dados;
                 this._servidorCarregado  = true;
-                debugLog('[GestaoOS] Servidor: carregados', Object.keys(json.dados).length, 'registros');
+                console.log('[GestaoOS] Servidor: carregados', Object.keys(json.dados).length, 'registros');
                 if (this.dados) this.renderizar(); // re-renderiza com dados do servidor
+            } else {
+                console.warn('[GestaoOS] Resposta inesperada do servidor:', json);
             }
         } catch (e) {
-            debugLog('[GestaoOS] Falha ao carregar servidor (usando localStorage):', e.message);
+            console.warn('[GestaoOS] Falha ao carregar servidor (usando localStorage):', e.message);
         } finally {
             this._carregandoServidor = false;
         }
@@ -542,7 +544,10 @@ class GestaoOS {
             body: JSON.stringify({ acao: 'salvarGestaoOS', numeroOS, status, gevia, nota })
         })
         .then(r => r.json())
-        .then(j => { if (j.sucesso) debugLog('[GestaoOS] Salvo no servidor:', numeroOS); })
+        .then(j => {
+            if (j.sucesso) console.log('[GestaoOS] Salvo no servidor:', numeroOS, j.acao);
+            else           console.warn('[GestaoOS] Erro ao salvar:', j.erro);
+        })
         .catch(e => console.warn('[GestaoOS] Falha ao salvar no servidor:', e.message));
     }
 
