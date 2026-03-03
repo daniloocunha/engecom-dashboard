@@ -534,10 +534,20 @@ class GestaoOS {
     }
 
     /**
-     * Executa o fetch para o servidor (chamado pelo debounce).
-     * Usa o valor mais atual de _dadosServidor (já atualizado antes daqui).
+     * Executa o fetch para o servidor (chamado pelo debounce — fire-and-forget).
+     * Para fluxo de migração, use _enviarParaServidorAsync (aguarda resposta).
      */
-    _enviarParaServidor(numeroOS, tentativa = 1) {
+    _enviarParaServidor(numeroOS) {
+        this._enviarParaServidorAsync(numeroOS).catch(() => {});
+    }
+
+    /**
+     * Versão assíncrona: retorna Promise que resolve após sucesso ou falha final.
+     * Usada pela migração sequencial para garantir que um item termine antes do próximo.
+     * @param {string} numeroOS
+     * @param {number} tentativa - 1 a 3
+     */
+    async _enviarParaServidorAsync(numeroOS, tentativa = 1) {
         const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
         if (!url) return;
 
@@ -556,32 +566,36 @@ class GestaoOS {
         if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
         Object.assign(this._dadosServidor[numeroOS], { status, gevia, nota });
 
-        fetch(url, {
-            method: 'POST',
-            body: JSON.stringify({ acao: 'salvarGestaoOS', numeroOS, status, gevia, nota })
-        })
-        .then(r => r.json())
-        .then(j => {
+        try {
+            const resp = await fetch(url, {
+                method: 'POST',
+                body: JSON.stringify({ acao: 'salvarGestaoOS', numeroOS, status, gevia, nota })
+            });
+            const j = await resp.json();
+
             if (j.sucesso) {
                 console.log('[GestaoOS] ✅ Salvo:', numeroOS, j.acao);
             } else if (j.erro && j.erro.includes('ocupado') && tentativa <= 3) {
-                // Servidor ocupado (LockService) → retry com back-off
+                // Servidor ocupado (LockService) → aguardar e retentar
                 const delay = tentativa * 3000;
-                console.warn(`[GestaoOS] ⏳ Servidor ocupado (${numeroOS}), tentativa ${tentativa}/3 — retentando em ${delay/1000}s`);
-                setTimeout(() => this._enviarParaServidor(numeroOS, tentativa + 1), delay);
+                console.warn(`[GestaoOS] ⏳ Ocupado (${numeroOS}) tentativa ${tentativa}/3, aguardando ${delay/1000}s...`);
+                await new Promise(r => setTimeout(r, delay));
+                await this._enviarParaServidorAsync(numeroOS, tentativa + 1);
             } else {
                 console.warn('[GestaoOS] ⚠️ Erro ao salvar:', j.erro);
             }
-        })
-        .catch(e => console.warn('[GestaoOS] Falha ao salvar no servidor:', e.message));
+        } catch (e) {
+            console.warn('[GestaoOS] Falha ao salvar no servidor:', e.message);
+        }
     }
 
     /**
      * Varre o localStorage e envia para o servidor qualquer O.S que ainda
      * não esteja lá. Executado uma vez após carregar dados do servidor.
-     * Requests escalonados (300ms entre cada) para evitar burst simultâneo.
+     * Migração SEQUENCIAL: aguarda cada resposta antes de enviar o próximo,
+     * eliminando concorrência no LockService do Apps Script.
      */
-    _migrarLocalStorageParaServidor() {
+    async _migrarLocalStorageParaServidor() {
         const osNums = new Set();
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
@@ -593,11 +607,12 @@ class GestaoOS {
         const paraEnviar = [...osNums].filter(os => !this._dadosServidor[os]);
         if (paraEnviar.length === 0) return;
 
-        console.log('[GestaoOS] 📤 Migrando', paraEnviar.length, 'O.S do localStorage → servidor (escalonado)...');
-        // Escalonar: 1 request a cada 1500ms (Apps Script precisa de ~1s por execução)
-        paraEnviar.forEach((numeroOS, idx) => {
-            setTimeout(() => this._enviarParaServidor(numeroOS), idx * 1500);
-        });
+        console.log('[GestaoOS] 📤 Migrando', paraEnviar.length, 'O.S do localStorage → servidor (sequencial, 1 por vez)...');
+        // Sequencial: cada item só inicia após o anterior terminar (sem concorrência no lock)
+        for (const numeroOS of paraEnviar) {
+            await this._enviarParaServidorAsync(numeroOS);
+        }
+        console.log('[GestaoOS] ✅ Migração concluída.');
     }
 
 
