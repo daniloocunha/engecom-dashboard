@@ -488,6 +488,7 @@ class GestaoOS {
             if (_isTMC(turma)) return;
 
             const encarregado = (rdo.Encarregado || rdo.encarregado || '-').trim();
+            const local       = (rdo.Local        || rdo.local       || '').trim();
             const numeroRDO   = (rdo['Número RDO'] || rdo.numeroRDO || rdo.numeroRdo || '').trim();
             const statusRDO   = (rdo['Status OS']  || rdo.statusOS  || '').trim();
             const kmIni       = (rdo['KM Início']  || rdo.kmInicio  || '').toString().trim();
@@ -495,8 +496,10 @@ class GestaoOS {
             const obs         = (rdo.Observações   || rdo.observacoes || rdo.observacao || '').trim();
             const dataStr     = (rdo.Data          || rdo.data       || '').trim();
 
-            if (!turmas.has(turma)) turmas.set(turma, { encarregado, ordens: new Map() });
+            // Usar Set para acumular todos os encarregados únicos da turma
+            if (!turmas.has(turma)) turmas.set(turma, { encarregados: new Set(), ordens: new Map() });
             const gt = turmas.get(turma);
+            if (encarregado && encarregado !== '-') gt.encarregados.add(encarregado);
 
             if (!gt.ordens.has(numeroOS)) {
                 gt.ordens.set(numeroOS, {
@@ -505,6 +508,7 @@ class GestaoOS {
                     statusPlanilha: 'Em Progresso',
                     datas: [], rdoIds: [],
                     kmInicio: '', kmFim: '',
+                    locais: new Set(),
                     observacoesRDO: new Set()
                 });
             }
@@ -513,6 +517,7 @@ class GestaoOS {
             if (dataStr)   go.datas.push(dataStr);
             if (numeroRDO) go.rdoIds.push(numeroRDO);
             if (obs)       go.observacoesRDO.add(obs);
+            if (local)     go.locais.add(local);
 
             // Mapeia status da planilha para o sistema de 4 estados
             // Uma OS é "Finalizada" se qualquer RDO indicar conclusão
@@ -534,6 +539,9 @@ class GestaoOS {
                 go.datas.sort((a, b) => (_parseData(a) || 0) - (_parseData(b) || 0));
                 go.dataInicio    = go.datas[0]                    || '-';
                 go.dataUltimoRDO = go.datas[go.datas.length - 1] || '-';
+                go.local = go.locais.size > 0
+                    ? Array.from(go.locais).join(' / ')
+                    : '-';
 
                 if (this.filtroMes && this.filtroAno) {
                     // Mostrar O.S se teve QUALQUER RDO no mês selecionado.
@@ -984,6 +992,7 @@ class GestaoOS {
                   <td>${_fmtData(o.dataUltimoRDO)}</td>
                   <td>${_esc(o.kmInicio) || '-'}</td>
                   <td>${_esc(o.kmFim)    || '-'}</td>
+                  <td class="text-muted small" title="${_esc(o.local)}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(o.local)}</td>
                   <td id="status-cel-${_esc(o.numeroOS)}" onclick="event.stopPropagation();">${this._statusSelectHTML(o)}</td>
                   <td id="gevia-cel-${_esc(o.numeroOS)}"  onclick="event.stopPropagation();">${this._geviaHTML(o.numeroOS)}</td>
                   <td id="nota-cel-${_esc(o.numeroOS)}"   onclick="event.stopPropagation();">${this._notaHTML(o.numeroOS)}</td>
@@ -994,7 +1003,7 @@ class GestaoOS {
             <div class="card mb-4 shadow-sm border-0">
               <div class="card-header fw-bold py-2" style="background:#f0f4f8;">
                 <i class="fas fa-hard-hat me-2 text-primary"></i>${_esc(turma)}
-                <span class="text-muted fw-normal ms-2">— Encarregado: ${_esc(gt.encarregado)}</span>
+                <span class="text-muted fw-normal ms-2">— Encarregado: ${_esc(Array.from(gt.encarregados).join(' / ') || '-')}</span>
                 <span class="badge bg-secondary ms-2">${ordens.length} O.S</span>
               </div>
               <div class="card-body p-0">
@@ -1008,6 +1017,7 @@ class GestaoOS {
                         <th>Último RDO</th>
                         <th>KM Início</th>
                         <th>KM Fim</th>
+                        <th>Local</th>
                         <th style="min-width:130px;">Status</th>
                         <th style="color:#0d6efd;min-width:110px;">GeVia</th>
                         <th>Nota</th>
