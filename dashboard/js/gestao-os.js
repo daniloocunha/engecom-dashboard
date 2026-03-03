@@ -504,10 +504,14 @@ class GestaoOS {
             if (json.sucesso && json.dados) {
                 this._dadosServidor    = json.dados;
                 this._servidorCarregado  = true;
-                console.log('[GestaoOS] Servidor: carregados', Object.keys(json.dados).length, 'registros');
-                if (this.dados) this.renderizar(); // re-renderiza com dados do servidor
+                console.log('[GestaoOS] ✅ Servidor: carregados', Object.keys(json.dados).length, 'registros');
+                if (this.dados) this.renderizar();
+                // Migrar dados do localStorage que ainda não estão no servidor
+                this._migrarLocalStorageParaServidor();
             } else {
-                console.warn('[GestaoOS] Resposta inesperada do servidor:', json);
+                const msg = json.erro || json.error || JSON.stringify(json);
+                console.warn('[GestaoOS] ⚠️ Apps Script desatualizado ou com erro:', msg);
+                console.warn('[GestaoOS] → Cole o código de apps-script-atualizar-os.gs no Apps Script e reimplante.');
             }
         } catch (e) {
             console.warn('[GestaoOS] Falha ao carregar servidor (usando localStorage):', e.message);
@@ -550,6 +554,27 @@ class GestaoOS {
         })
         .catch(e => console.warn('[GestaoOS] Falha ao salvar no servidor:', e.message));
     }
+
+    /**
+     * Varre o localStorage e envia para o servidor qualquer O.S que ainda
+     * não esteja lá. Executado uma vez após carregar dados do servidor.
+     */
+    _migrarLocalStorageParaServidor() {
+        const osNums = new Set();
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            const match = key && key.match(/^gestaoOS_(status|gevia|nota)_(.+)$/);
+            if (match) osNums.add(match[2]);
+        }
+
+        // Apenas O.S que ainda não existem no servidor
+        const paraEnviar = [...osNums].filter(os => !this._dadosServidor[os]);
+        if (paraEnviar.length === 0) return;
+
+        console.log('[GestaoOS] 📤 Migrando', paraEnviar.length, 'O.S do localStorage para o servidor...');
+        paraEnviar.forEach(numeroOS => this._salvarNoServidor(numeroOS));
+    }
+
 
     // ── Leitura de HH de HI (múltiplos nomes de campo possíveis) ──────────
 
