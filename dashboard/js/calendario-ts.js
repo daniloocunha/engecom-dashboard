@@ -79,16 +79,18 @@ class CalendarioTS {
         });
 
         if (!efetivoDia) {
-            return { total: 0, soldador: 0, operadores: 0, encarregado: 0, motorista: 0 };
+            return { total: 0, encarregado: 0, operadores: 0, motoristas: 0, soldador: 0, operadorEGP: 0, tecnicoSeguranca: 0 };
         }
 
-        const encarregado = parseInt(efetivoDia['Encarregado Qtd'] || efetivoDia.encarregadoQtd || 0);
-        const soldador = parseInt(efetivoDia['Soldador'] || efetivoDia.soldador || 0);
-        const operadores = parseInt(efetivoDia['Operadores'] || efetivoDia.operadores || 0);
-        const motorista = parseInt(efetivoDia['Motoristas'] || efetivoDia.motoristas || 0);
-        const total = encarregado + soldador + operadores + motorista;
+        const encarregado      = parseInt(efetivoDia['Encarregado Qtd']   || efetivoDia.encarregadoQtd    || 0);
+        const soldador         = parseInt(efetivoDia['Soldador']           || efetivoDia.soldador           || 0);
+        const operadores       = parseInt(efetivoDia['Operadores']         || efetivoDia.operadores         || 0);
+        const motoristas       = parseInt(efetivoDia['Motoristas']         || efetivoDia.motoristas         || 0);
+        const operadorEGP      = parseInt(efetivoDia['Operador EGP']       || efetivoDia.operadorEGP        || efetivoDia.operadorEgp || 0);
+        const tecnicoSeguranca = parseInt(efetivoDia['Técnico Segurança']  || efetivoDia.tecnicoSeguranca   || 0);
+        const total = encarregado + soldador + operadores + motoristas + operadorEGP + tecnicoSeguranca;
 
-        return { total, encarregado, soldador, operadores, motorista };
+        return { total, encarregado, soldador, operadores, motoristas, operadorEGP, tecnicoSeguranca };
     }
 
     /**
@@ -291,8 +293,15 @@ class CalendarioTS {
                             <span>${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta</span>
                             ${(dadosDia.kmInicio || dadosDia.kmFim) ? `<span style="font-size:0.80em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">📍 ${dadosDia.kmInicio || '-'} – ${dadosDia.kmFim || '-'}</span>` : ''}
                         </div>
-                        <div class="dia-efetivo" style="color: #666;">
-                            👷 ${dadosDia.efetivo.total} pessoas
+                        <div class="dia-efetivo">
+                            ${[
+                                dadosDia.efetivo.encarregado      ? `Enc:${dadosDia.efetivo.encarregado}`      : '',
+                                dadosDia.efetivo.operadores       ? `Op:${dadosDia.efetivo.operadores}`         : '',
+                                dadosDia.efetivo.motoristas       ? `Mot:${dadosDia.efetivo.motoristas}`        : '',
+                                dadosDia.efetivo.soldador         ? `Sold:${dadosDia.efetivo.soldador}`         : '',
+                                dadosDia.efetivo.operadorEGP      ? `EGP:${dadosDia.efetivo.operadorEGP}`       : '',
+                                dadosDia.efetivo.tecnicoSeguranca ? `Tec:${dadosDia.efetivo.tecnicoSeguranca}`  : ''
+                            ].filter(Boolean).join(' · ')}
                         </div>
                         ${dadosDia.observacoes ? `
                             <div class="dia-obs" style="margin-top: 4px; color: #ff9800;">
@@ -491,10 +500,14 @@ class CalendarioTS {
                                         <small class="text-muted">Efetivo Total</small>
                                         <div class="mt-1">
                                             <small class="text-muted">
-                                                Enc: ${dados.efetivo?.encarregado || 0} |
-                                                Sold: ${dados.efetivo?.soldador || 0} |
-                                                Op: ${dados.efetivo?.operadores || 0} |
-                                                Mot: ${dados.efetivo?.motorista || 0}
+                                                ${[
+                                                    dados.efetivo?.encarregado      ? `Enc: ${dados.efetivo.encarregado}`      : '',
+                                                    dados.efetivo?.soldador         ? `Sold: ${dados.efetivo.soldador}`         : '',
+                                                    dados.efetivo?.operadores       ? `Op: ${dados.efetivo.operadores}`         : '',
+                                                    dados.efetivo?.motoristas       ? `Mot: ${dados.efetivo.motoristas}`        : '',
+                                                    dados.efetivo?.operadorEGP      ? `EGP: ${dados.efetivo.operadorEGP}`       : '',
+                                                    dados.efetivo?.tecnicoSeguranca ? `Tec: ${dados.efetivo.tecnicoSeguranca}`  : ''
+                                                ].filter(Boolean).join(' | ')}
                                             </small>
                                         </div>
                                     </div>
