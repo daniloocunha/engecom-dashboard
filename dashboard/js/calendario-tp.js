@@ -285,7 +285,9 @@ class CalendarioTP {
                 if (os && os.toLowerCase() !== 'sem o numero da os ainda' && os !== '0') return os;
                 return numeroRDO.split('-')[0] || 'S/O.S';
             })();
-            hhPorOS.push({ numeroOS: osDisplay, hhProdutivas: hhProdRDO, hhImprodutivas: hhImprRDO, totalHH: hhProdRDO + hhImprRDO });
+            const kmInicio = (rdoDia['KM Início'] || rdoDia.kmInicio || rdoDia['Km Início'] || rdoDia['km_inicio'] || '').toString().trim();
+            const kmFim    = (rdoDia['KM Fim']    || rdoDia.kmFim    || rdoDia['Km Fim']    || rdoDia['km_fim']    || '').toString().trim();
+            hhPorOS.push({ numeroOS: osDisplay, hhProdutivas: hhProdRDO, hhImprodutivas: hhImprRDO, totalHH: hhProdRDO + hhImprRDO, kmInicio, kmFim });
 
             // Efetivo — soma os totais de cada RDO
             const ef = this.obterEfetivoDia(numeroRDO, dataFormatada);
@@ -522,6 +524,11 @@ class CalendarioTP {
                                 <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${item.numeroOS}</span>
                                 <strong class="dia-hh" style="margin:0; font-size:1.05em;">${item.totalHH.toFixed(1)} HH</strong>
                             </div>
+                            ${(item.kmInicio || item.kmFim) ? `
+                                <div style="font-size:0.72em; color:#555; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                    📍 ${item.kmInicio || '-'} – ${item.kmFim || '-'}
+                                </div>
+                            ` : ''}
                         `).join('')}
                         <div class="dia-meta">
                             ${(percentualMeta * 100).toFixed(0)}% da meta

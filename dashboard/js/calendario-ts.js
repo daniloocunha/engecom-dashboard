@@ -111,6 +111,8 @@ class CalendarioTS {
         const horaInicio = rdoDia['Horário Início'] || rdoDia.horarioInicio || '-';
         const horaFim    = rdoDia['Horário Fim']    || rdoDia.horarioFim    || '-';
         const local      = rdoDia.Local || rdoDia.local || '-';
+        const kmInicio   = (rdoDia['KM Início'] || rdoDia.kmInicio || rdoDia['Km Início'] || rdoDia['km_inicio'] || '').toString().trim();
+        const kmFim      = (rdoDia['KM Fim']    || rdoDia.kmFim    || rdoDia['Km Fim']    || rdoDia['km_fim']    || '').toString().trim();
 
         const hhSoldador = this.calcularHHSoldadorDia(numeroOS, dataFormatada);
         const efetivo = this.obterEfetivoDia(numeroOS, dataFormatada);
@@ -156,6 +158,8 @@ class CalendarioTS {
             horaInicio,
             horaFim,
             local,
+            kmInicio,
+            kmFim,
             hhSoldador,
             hhImprodutivas,
             metaDiaria,
@@ -282,6 +286,11 @@ class CalendarioTS {
                         <div class="dia-hh">
                             <strong>${(dadosDia.hhSoldador + dadosDia.hhImprodutivas).toFixed(1)}</strong> HH
                         </div>
+                        ${(dadosDia.kmInicio || dadosDia.kmFim) ? `
+                            <div style="font-size:0.72em; color:#555; margin-bottom:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                                📍 ${dadosDia.kmInicio || '-'} – ${dadosDia.kmFim || '-'}
+                            </div>
+                        ` : ''}
                         <div class="dia-meta">
                             ${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta
                         </div>
