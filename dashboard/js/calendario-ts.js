@@ -139,7 +139,8 @@ class CalendarioTS {
         const hhImprodutivas = hisDoDia.reduce((sum, h) => sum + parseFloat(h.hh), 0);
 
         const metaDiaria = METAS.META_DIARIA_TS;
-        const percentualMeta = metaDiaria > 0 ? hhSoldador / metaDiaria : 0;
+        const totalHHDia = hhSoldador + hhImprodutivas;
+        const percentualMeta = metaDiaria > 0 ? totalHHDia / metaDiaria : 0;
 
         let status = 'vermelho';
         if (percentualMeta >= 1.0) {
@@ -282,7 +283,7 @@ class CalendarioTS {
                             <strong>${(dadosDia.hhSoldador + dadosDia.hhImprodutivas).toFixed(1)}</strong> HH
                         </div>
                         <div class="dia-meta">
-                            ${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta (sold.)
+                            ${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta
                         </div>
                         <div class="dia-efetivo" style="color: #666;">
                             👷 ${dadosDia.efetivo.total} pessoas
