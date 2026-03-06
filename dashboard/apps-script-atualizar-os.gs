@@ -1,7 +1,5 @@
 /**
- * Google Apps Script - Endpoint para atualizar Numero OS de um RDO
- *                    + Gestao de O.S (status, GE/Via, notas) persistente
- * Dashboard Engecom/Encogel
+ * Google Apps Script - Endpoint para o Dashboard Engecom/Encogel
  *
  * COMO USAR:
  * 1. Abra a planilha Google Sheets -> Extensoes -> Apps Script
@@ -14,7 +12,16 @@
  *   { "acao": "atualizarOS",     "numeroRDO": "...", "novaOS": "..." }
  *   { "acao": "listarGestaoOS" }
  *   { "acao": "salvarGestaoOS", "numeroOS": "...", "status": "...", "gevia": "...", "nota": "..." }
+ *   { "acao": "uploadAnexo",    "numeroOS": "...", "nome": "...", "tipo": "...", "base64": "..." }
+ *   { "acao": "deletarAnexo",   "fileId": "..." }
+ *
+ * CONFIGURACAO OPCIONAL:
+ *   DRIVE_FOLDER_ID - ID da pasta do Google Drive onde os anexos serao salvos.
+ *   Deixe vazio ('') para usar o Drive raiz da conta.
  */
+
+// ID da pasta do Google Drive para os anexos (deixe '' para usar o Drive raiz)
+var DRIVE_FOLDER_ID = '';
 
 // === Handler principal ===
 
@@ -37,6 +44,14 @@ function doPost(e) {
 
         if (dados.acao === 'salvarGestaoOS') {
             return _resposta(salvarGestaoOS(dados.numeroOS, dados.status, dados.gevia, dados.nota));
+        }
+
+        if (dados.acao === 'uploadAnexo') {
+            return _resposta(uploadAnexo(dados.numeroOS, dados.nome, dados.tipo, dados.base64));
+        }
+
+        if (dados.acao === 'deletarAnexo') {
+            return _resposta(deletarAnexo(dados.fileId));
         }
 
         return _resposta({ sucesso: false, erro: 'Acao desconhecida: ' + dados.acao });
@@ -196,6 +211,114 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota) {
     SpreadsheetApp.flush();
     Logger.log('[GestaoOS] Inserido: OS ' + numeroOS);
     return { sucesso: true, acao: 'inserido' };
+}
+
+// === Acao: uploadAnexo ===
+
+/**
+ * Recebe um arquivo em base64 e salva no Google Drive.
+ * Registra os metadados na aba "AnexosOS".
+ */
+function uploadAnexo(numeroOS, nome, tipo, base64) {
+    if (!base64) return { sucesso: false, erro: 'Conteudo base64 vazio' };
+    if (!nome)   return { sucesso: false, erro: 'Nome do arquivo obrigatorio' };
+
+    try {
+        var bytes = Utilities.base64Decode(base64);
+        var blob  = Utilities.newBlob(bytes, tipo || 'application/octet-stream', nome);
+
+        var folder;
+        if (DRIVE_FOLDER_ID && DRIVE_FOLDER_ID.trim()) {
+            try {
+                folder = DriveApp.getFolderById(DRIVE_FOLDER_ID.trim());
+            } catch (e) {
+                return { sucesso: false, erro: 'Pasta Drive "' + DRIVE_FOLDER_ID + '" nao encontrada.' };
+            }
+        } else {
+            folder = DriveApp.getRootFolder();
+        }
+
+        var file = folder.createFile(blob);
+        file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+
+        var fileId  = file.getId();
+        var fileUrl = 'https://drive.google.com/uc?export=view&id=' + fileId;
+
+        _registrarAnexoNaAba(numeroOS, nome, fileUrl, fileId, tipo || '');
+
+        Logger.log('uploadAnexo: ' + nome + ' -> ' + fileUrl);
+        return { sucesso: true, url: fileUrl, fileId: fileId, nome: nome };
+
+    } catch (err) {
+        Logger.log('uploadAnexo erro: ' + err.message);
+        return { sucesso: false, erro: err.message };
+    }
+}
+
+function _registrarAnexoNaAba(numeroOS, nome, url, fileId, tipo) {
+    try {
+        var ss    = SpreadsheetApp.getActiveSpreadsheet();
+        var sheet = ss.getSheetByName('AnexosOS');
+
+        if (!sheet) {
+            sheet = ss.insertSheet('AnexosOS');
+            sheet.appendRow(['N\u00famero OS', 'Nome', 'URL', 'FileId', 'Tipo', 'Data Upload']);
+            sheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#e8f0fe');
+            sheet.setFrozenRows(1);
+        }
+
+        var dataUpload = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm');
+        sheet.appendRow([numeroOS, nome, url, fileId, tipo, dataUpload]);
+
+    } catch (err) {
+        Logger.log('_registrarAnexoNaAba erro: ' + err.message);
+    }
+}
+
+// === Acao: deletarAnexo ===
+
+/**
+ * Move um arquivo do Google Drive para a lixeira pelo fileId.
+ * Remove tambem a linha correspondente da aba "AnexosOS".
+ */
+function deletarAnexo(fileId) {
+    if (!fileId) return { sucesso: false, erro: 'fileId obrigatorio' };
+
+    try {
+        var file = DriveApp.getFileById(fileId);
+        file.setTrashed(true);
+
+        _removerLinhaAnexo(fileId);
+
+        Logger.log('deletarAnexo: ' + fileId + ' movido para lixeira');
+        return { sucesso: true };
+
+    } catch (err) {
+        Logger.log('deletarAnexo erro: ' + err.message);
+        return { sucesso: false, erro: err.message };
+    }
+}
+
+function _removerLinhaAnexo(fileId) {
+    try {
+        var ss    = SpreadsheetApp.getActiveSpreadsheet();
+        var sheet = ss.getSheetByName('AnexosOS');
+        if (!sheet) return;
+
+        var dados  = sheet.getDataRange().getValues();
+        var header = dados[0];
+        var colFid = header.findIndex(function(h) { return h.toString().trim() === 'FileId'; });
+        if (colFid < 0) return;
+
+        for (var i = dados.length - 1; i >= 1; i--) {
+            if ((dados[i][colFid] || '').toString().trim() === fileId.trim()) {
+                sheet.deleteRow(i + 1);
+                break;
+            }
+        }
+    } catch (err) {
+        Logger.log('_removerLinhaAnexo erro: ' + err.message);
+    }
 }
 
 // === Helpers ===

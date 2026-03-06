@@ -1,7 +1,20 @@
 /**
- * Gestão de O.S Trabalhadas — v3.0.7
+ * Gestão de O.S Trabalhadas — v3.0.14
  * Lista compacta por turma (somente TPs/TSs — TMCs excluídas)
- * Status (4 estados), GeVia e Notas salvos em localStorage
+ * Status, GeVia, Notas múltiplas, Já Mediu e Anexos salvos em localStorage + servidor
+ *
+ * Changelog v3.0.14 (merge epic-fermat + feat/melhorias-revisao-codigo):
+ * - Feature 1: Coluna "Já Mediu" com toggle visual (○ Não / ✅ Sim) por O.S
+ * - Feature 2: Notas múltiplas — lista de anotações por O.S (add/edit/delete)
+ *   - Migração automática do formato antigo (string única → array JSON)
+ *   - Array serializado como JSON na sincronização com servidor
+ * - Feature 3: Anexos de PDF e fotos via Google Drive (Apps Script)
+ *   - Upload base64 → Apps Script → Drive; URLs salvas em localStorage
+ *   - Requer APPS_SCRIPT_URL e (opcionalmente) DRIVE_FOLDER_ID em config.js
+ * - Feature 4: HI com sobreposição de horários — parciais (ops < 12) têm suas
+ *   horas sobrepostas com completos (ops >= 12) descontadas do cálculo
+ * - Fix CORS: removido header Content-Type de salvarOS() (evita preflight)
+ * - Mantidos: server sync cross-device, 6 status, LocalStorage ↔ servidor
  */
 
 'use strict';
@@ -13,6 +26,34 @@ function _esc(text) {
     const d = document.createElement('div');
     d.textContent = String(text);
     return d.innerHTML;
+}
+
+/** Escapa para uso dentro de atributos HTML (garante que " não quebre o atributo) */
+function _escAttr(text) {
+    return _esc(text).replace(/"/g, '&quot;');
+}
+
+/** Exibe uma mensagem de erro temporária via Toast Bootstrap (sem bloquear a UI) */
+function _mostrarToastErro(msg) {
+    const id = 'toast-gestao-os-' + Date.now();
+    const toastHTML = `
+    <div id="${id}" class="toast align-items-center text-bg-danger border-0 position-fixed bottom-0 end-0 m-3"
+         role="alert" style="z-index:9999;max-width:380px;" data-bs-delay="6000">
+      <div class="d-flex">
+        <div class="toast-body"><i class="fas fa-exclamation-circle me-2"></i>${_esc(msg)}</div>
+        <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+      </div>
+    </div>`;
+    document.body.insertAdjacentHTML('beforeend', toastHTML);
+    const el = document.getElementById(id);
+    if (el && typeof bootstrap !== 'undefined') {
+        const t = new bootstrap.Toast(el);
+        t.show();
+        el.addEventListener('hidden.bs.toast', () => el.remove(), { once: true });
+    } else {
+        console.error('[GestaoOS]', msg);
+        alert(msg);
+    }
 }
 
 function _parseData(str) {
@@ -258,19 +299,26 @@ class GestaoOS {
 
     _atualizarResumo() {
         if (!this._grupos) return;
-        let total = 0, concluidas = 0, gevia = 0;
+        let total = 0, concluidas = 0, reprovadas = 0, gevia = 0, mediu = 0;
         this._grupos.forEach(gt => {
             gt.ordens.forEach(go => {
+                if (this.filtroStatus && this.filtroStatus !== 'todas') {
+                    if (this.getStatus(go) !== this.filtroStatus) return;
+                }
                 total++;
                 const s = this.getStatus(go);
                 if (s === 'Finalizada' || s === 'Aprovada') concluidas++;
+                if (s === 'Reprovada') reprovadas++;
                 if (this.getGeVia(go.numeroOS) === 'Lançado') gevia++;
+                if (this.getMediu(go.numeroOS)) mediu++;
             });
         });
         const el = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
         el('resumoOS_concluidas', concluidas);
-        el('resumoOS_andamento',  total - concluidas);
+        el('resumoOS_andamento',  total - concluidas - reprovadas);
+        el('resumoOS_reprovadas', reprovadas);
         el('resumoOS_gevia',      gevia);
+        el('resumoOS_mediu',      mediu);
     }
 
     // ── GeVia (servidor → localStorage) ──────────────────────────────────
@@ -324,9 +372,393 @@ class GestaoOS {
                 </select>`;
     }
 
-    // ── Notas (servidor → localStorage) — editor textarea inline ──────────
+    // ── Já Mediu (Feature 1) — localStorage apenas ────────────────────────
 
-    getNota(numeroOS) {
+    getMediu(numeroOS) {
+        return localStorage.getItem('gestaoOS_mediu_' + numeroOS) === 'sim';
+    }
+
+    setMediu(numeroOS, valor) {
+        if (valor) {
+            try { localStorage.setItem('gestaoOS_mediu_' + numeroOS, 'sim'); } catch (e) { /* quota/privado */ }
+        } else {
+            localStorage.removeItem('gestaoOS_mediu_' + numeroOS);
+        }
+        const cel = document.getElementById(`mediu-cel-${CSS.escape(numeroOS)}`);
+        if (cel) cel.innerHTML = this._mediuHTML(numeroOS);
+        this._atualizarResumo();
+    }
+
+    _mediuHTML(numeroOS) {
+        const mediu = this.getMediu(numeroOS);
+        const osEsc = _escAttr(numeroOS);
+        if (mediu) {
+            return `<button class="btn btn-sm btn-success py-0 px-1"
+                        onclick="event.stopPropagation();gestaoOS.setMediu('${osEsc}', false)"
+                        title="Clique para desmarcar" style="font-size:0.78rem;white-space:nowrap;">
+                      ✅ Sim
+                    </button>`;
+        }
+        return `<button class="btn btn-sm btn-outline-secondary py-0 px-1"
+                    onclick="event.stopPropagation();gestaoOS.setMediu('${osEsc}', true)"
+                    title="Clique para marcar como medido" style="font-size:0.78rem;white-space:nowrap;">
+                  ○ Não
+                </button>`;
+    }
+
+    // ── Notas múltiplas (Feature 2) — localStorage + servidor ─────────────
+
+    /**
+     * Retorna o array de notas. Prioridade: servidor > localStorage (notas) > localStorage (nota antiga).
+     * Migração automática de formato antigo (string → array).
+     */
+    getNotas(numeroOS) {
+        // 1. Verificar cache do servidor (pode ser JSON array como string)
+        const sv = this._dadosServidor[numeroOS];
+        if (sv && sv.nota !== undefined && sv.nota !== '') {
+            if (typeof sv.nota === 'string' && sv.nota.startsWith('[')) {
+                try { return JSON.parse(sv.nota); } catch { return [sv.nota]; }
+            }
+            return sv.nota ? [sv.nota] : [];
+        }
+        // 2. localStorage novo formato (array JSON)
+        const json = localStorage.getItem('gestaoOS_notas_' + numeroOS);
+        if (json !== null) {
+            try { return JSON.parse(json); } catch { return []; }
+        }
+        // 3. Migração: formato antigo (string única) → array
+        const old = localStorage.getItem('gestaoOS_nota_' + numeroOS);
+        if (old) {
+            const arr = [old];
+            this.setNotas(numeroOS, arr);
+            localStorage.removeItem('gestaoOS_nota_' + numeroOS);
+            return arr;
+        }
+        return [];
+    }
+
+    /** Salva o array de notas em localStorage e sincroniza com servidor */
+    setNotas(numeroOS, arr) {
+        if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
+        const notaStr = (arr && arr.length > 0) ? JSON.stringify(arr) : '';
+        this._dadosServidor[numeroOS].nota = notaStr;
+        if (!arr || arr.length === 0) {
+            localStorage.removeItem('gestaoOS_notas_' + numeroOS);
+        } else {
+            try { localStorage.setItem('gestaoOS_notas_' + numeroOS, notaStr); } catch (e) { /* quota/privado */ }
+        }
+        this._salvarNoServidor(numeroOS);
+    }
+
+    _notaHTML(numeroOS) {
+        const notas = this.getNotas(numeroOS);
+        const n = notas.length;
+        const title = n > 0 ? _escAttr(notas[0].slice(0, 80)) + (n > 1 ? ` (+${n - 1})` : '') : 'Adicionar anotação';
+        const label = n > 0 ? `📝 ${n}` : '➕';
+        return `<button class="btn btn-sm btn-outline-secondary py-0 px-1"
+                    onclick="event.stopPropagation();gestaoOS.abrirNotasPanel('${_escAttr(numeroOS)}')"
+                    title="${title}" style="font-size:0.8rem;">${label}</button>`;
+    }
+
+    /** Abre/fecha painel inline de múltiplas notas sob a linha da tabela */
+    abrirNotasPanel(numeroOS) {
+        const panelId  = `notaPanel_${CSS.escape(numeroOS)}`;
+        const existing = document.getElementById(panelId);
+        if (existing) { existing.remove(); return; }
+
+        const panelEl  = document.createElement('tr');
+        panelEl.id     = panelId;
+        panelEl.innerHTML = `
+          <td colspan="10" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
+            <div id="notaPanelInner_${CSS.escape(numeroOS)}">
+              ${this._notasPanelContent(numeroOS)}
+            </div>
+          </td>`;
+
+        const tr = document.getElementById(`nota-cel-${CSS.escape(numeroOS)}`)?.closest('tr');
+        if (tr?.nextSibling) tr.parentNode.insertBefore(panelEl, tr.nextSibling);
+        else if (tr) tr.parentNode.appendChild(panelEl);
+    }
+
+    _notasPanelContent(numeroOS) {
+        const notas  = this.getNotas(numeroOS);
+        const osEsc  = _escAttr(numeroOS);
+        const liItems = notas.map((nota, i) => `
+          <div class="d-flex align-items-start gap-1 mb-1" id="notaItem_${CSS.escape(numeroOS)}_${i}">
+            <div class="flex-grow-1 border rounded p-1 bg-white small" style="white-space:pre-wrap;">${_esc(nota)}</div>
+            <button class="btn btn-xs btn-outline-secondary py-0 px-1" style="font-size:0.7rem;"
+                    onclick="gestaoOS.editarNotaPanel('${osEsc}', ${i})" title="Editar">✏️</button>
+            <button class="btn btn-xs btn-outline-danger py-0 px-1" style="font-size:0.7rem;"
+                    onclick="gestaoOS.excluirNotaPanel('${osEsc}', ${i})" title="Excluir">🗑️</button>
+          </div>`).join('');
+
+        return `
+          ${liItems || '<div class="text-muted small mb-2">Nenhuma anotação ainda.</div>'}
+          <div class="d-flex gap-2 mt-1">
+            <button class="btn btn-sm btn-warning py-0 px-2"
+                    onclick="gestaoOS.iniciarNovaNotaPanel('${osEsc}')">
+              <i class="fas fa-plus me-1"></i>Nova anotação
+            </button>
+            <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                    onclick="gestaoOS.abrirNotasPanel('${osEsc}')">
+              <i class="fas fa-times"></i> Fechar
+            </button>
+          </div>
+          <div id="notaNovaArea_${CSS.escape(numeroOS)}"></div>`;
+    }
+
+    _atualizarPanelNotas(numeroOS) {
+        const inner = document.getElementById(`notaPanelInner_${CSS.escape(numeroOS)}`);
+        if (inner) inner.innerHTML = this._notasPanelContent(numeroOS);
+        const cel = document.getElementById(`nota-cel-${CSS.escape(numeroOS)}`);
+        if (cel) cel.innerHTML = this._notaHTML(numeroOS);
+    }
+
+    iniciarNovaNotaPanel(numeroOS) {
+        const areaEl = document.getElementById(`notaNovaArea_${CSS.escape(numeroOS)}`);
+        if (!areaEl || areaEl.querySelector('textarea')) return;
+        areaEl.innerHTML = `
+          <div class="mt-2 d-flex gap-2 align-items-start">
+            <textarea id="notaNovaTA_${CSS.escape(numeroOS)}"
+                      class="form-control form-control-sm flex-grow-1" rows="2"
+                      placeholder="Digite a nova anotação..." style="font-size:0.85rem;resize:vertical;"></textarea>
+            <div class="d-flex flex-column gap-1">
+              <button class="btn btn-sm btn-warning py-0 px-2"
+                      onclick="gestaoOS.salvarNovaNotaPanel('${_escAttr(numeroOS)}')">
+                <i class="fas fa-save"></i>
+              </button>
+              <button class="btn btn-sm btn-outline-secondary py-0 px-2"
+                      onclick="document.getElementById('notaNovaArea_${CSS.escape(numeroOS)}').innerHTML=''">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          </div>`;
+        setTimeout(() => document.getElementById(`notaNovaTA_${CSS.escape(numeroOS)}`)?.focus(), 50);
+    }
+
+    salvarNovaNotaPanel(numeroOS) {
+        const ta = document.getElementById(`notaNovaTA_${CSS.escape(numeroOS)}`);
+        if (!ta) return;
+        const texto = ta.value.trim();
+        if (!texto) return;
+        const notas = this.getNotas(numeroOS);
+        notas.push(texto);
+        this.setNotas(numeroOS, notas);
+        this._atualizarPanelNotas(numeroOS);
+        this._atualizarNotasModal(numeroOS);
+    }
+
+    editarNotaPanel(numeroOS, idx) {
+        const notas = this.getNotas(numeroOS);
+        if (idx < 0 || idx >= notas.length) return;
+        const itemEl = document.getElementById(`notaItem_${CSS.escape(numeroOS)}_${idx}`);
+        if (!itemEl) return;
+        const textoAtual = notas[idx];
+        itemEl.innerHTML = `
+          <textarea id="notaEditTA_${CSS.escape(numeroOS)}_${idx}"
+                    class="form-control form-control-sm flex-grow-1" rows="2"
+                    style="font-size:0.85rem;resize:vertical;">${_esc(textoAtual)}</textarea>
+          <button class="btn btn-sm btn-warning py-0 px-1"
+                  onclick="gestaoOS.salvarEdicaoNotaPanel('${_escAttr(numeroOS)}', ${idx})">
+            <i class="fas fa-save"></i>
+          </button>
+          <button class="btn btn-sm btn-outline-secondary py-0 px-1"
+                  onclick="gestaoOS._atualizarPanelNotas('${_escAttr(numeroOS)}')">
+            <i class="fas fa-times"></i>
+          </button>`;
+        setTimeout(() => document.getElementById(`notaEditTA_${CSS.escape(numeroOS)}_${idx}`)?.focus(), 50);
+    }
+
+    salvarEdicaoNotaPanel(numeroOS, idx) {
+        const ta = document.getElementById(`notaEditTA_${CSS.escape(numeroOS)}_${idx}`);
+        if (!ta) return;
+        const texto = ta.value.trim();
+        if (!texto) return;
+        const notas = this.getNotas(numeroOS);
+        if (idx < 0 || idx >= notas.length) return;
+        notas[idx] = texto;
+        this.setNotas(numeroOS, notas);
+        this._atualizarPanelNotas(numeroOS);
+        this._atualizarNotasModal(numeroOS);
+    }
+
+    excluirNotaPanel(numeroOS, idx) {
+        const notas = this.getNotas(numeroOS);
+        if (idx < 0 || idx >= notas.length) return;
+        notas.splice(idx, 1);
+        this.setNotas(numeroOS, notas);
+        this._atualizarPanelNotas(numeroOS);
+        this._atualizarNotasModal(numeroOS);
+    }
+
+    /** Atualiza a seção de notas no modal aberto (se houver) */
+    _atualizarNotasModal(numeroOS) {
+        const modalOsId  = numeroOS.replace(/[^a-zA-Z0-9]/g, '_');
+        const notaDisplay = document.getElementById(`notaDisplay_${modalOsId}`);
+        if (!notaDisplay) return;
+        const notas = this.getNotas(numeroOS);
+        notaDisplay.innerHTML = notas.length
+            ? notas.map((n, i) => `<div class="border rounded p-1 mb-1 bg-white small" style="white-space:pre-wrap;">${_esc(n)}</div>`).join('')
+            : '<em class="text-muted">Nenhuma anotação</em>';
+    }
+
+    /** Editor de nota dentro do modal (mantém compatibilidade com modal antigo) */
+    abrirEditorNotaModal(numeroOS, modalOsId) {
+        const editorId = `notaEditorModal_${modalOsId}`;
+        const existing = document.getElementById(editorId);
+        if (existing) { existing.remove(); return; }
+
+        const display = document.getElementById(`notaDisplay_${modalOsId}`);
+        if (!display) return;
+
+        const editor = document.createElement('div');
+        editor.id    = editorId;
+        editor.innerHTML = `
+          <div class="mt-2 d-flex gap-2 align-items-start">
+            <textarea id="notaTAModal_${modalOsId}"
+                      class="form-control flex-grow-1" rows="3"
+                      placeholder="Digite a nova anotação..."
+                      style="font-size:0.85rem;resize:vertical;"></textarea>
+            <div class="d-flex flex-column gap-1">
+              <button class="btn btn-sm btn-warning"
+                      onclick="gestaoOS.salvarNotaModal('${_escAttr(numeroOS)}','${modalOsId}')"
+                      title="Salvar">
+                <i class="fas fa-save"></i> Salvar
+              </button>
+              <button class="btn btn-sm btn-outline-secondary"
+                      onclick="document.getElementById('${editorId}').remove()"
+                      title="Cancelar">
+                <i class="fas fa-times"></i>
+              </button>
+            </div>
+          </div>`;
+        display.parentNode.insertBefore(editor, display.nextSibling);
+        setTimeout(() => document.getElementById(`notaTAModal_${modalOsId}`)?.focus(), 50);
+    }
+
+    salvarNotaModal(numeroOS, modalOsId) {
+        const ta = document.getElementById(`notaTAModal_${modalOsId}`);
+        if (!ta) return;
+        const texto = ta.value.trim();
+        if (!texto) return;
+        const notas = this.getNotas(numeroOS);
+        notas.push(texto);
+        this.setNotas(numeroOS, notas);
+        this._atualizarNotasModal(numeroOS);
+        const cel = document.getElementById(`nota-cel-${CSS.escape(numeroOS)}`);
+        if (cel) cel.innerHTML = this._notaHTML(numeroOS);
+        document.getElementById(`notaEditorModal_${modalOsId}`)?.remove();
+    }
+
+    // ── Anexos via Google Drive (Feature 3) ───────────────────────────────
+
+    getAnexos(numeroOS) {
+        const json = localStorage.getItem('gestaoOS_anexos_' + numeroOS);
+        if (!json) return [];
+        try { return JSON.parse(json); } catch { return []; }
+    }
+
+    setAnexos(numeroOS, arr) {
+        if (!arr || arr.length === 0) {
+            localStorage.removeItem('gestaoOS_anexos_' + numeroOS);
+        } else {
+            try { localStorage.setItem('gestaoOS_anexos_' + numeroOS, JSON.stringify(arr)); } catch (e) { /* quota */ }
+        }
+    }
+
+    _anexosHTML(numeroOS, modalOsId) {
+        const anexos = this.getAnexos(numeroOS);
+        const uploadDisponivel = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL);
+        const addBtn = uploadDisponivel
+            ? `<label class="btn btn-sm btn-outline-primary py-0 px-2 mb-2" style="cursor:pointer;font-size:0.8rem;">
+                 <i class="fas fa-paperclip me-1"></i>Adicionar
+                 <input type="file" accept="image/*,application/pdf" style="display:none;"
+                        onchange="gestaoOS._uploadAnexo('${_escAttr(numeroOS)}','${modalOsId}',this)">
+               </label>`
+            : `<span class="text-muted ms-2" style="font-size:0.75rem;" title="Configure APPS_SCRIPT_URL em js/config.js">
+                 <i class="fas fa-info-circle"></i> Configure APPS_SCRIPT_URL para habilitar anexos
+               </span>`;
+
+        const items = anexos.map((a, i) => {
+            const isImg = (a.tipo || '').startsWith('image/');
+            const thumb = isImg
+                ? `<img src="${_esc(a.url)}" style="height:48px;width:48px;object-fit:cover;border-radius:4px;" title="${_escAttr(a.nome)}">`
+                : `<span style="font-size:2rem;" title="${_escAttr(a.nome)}">📄</span>`;
+            return `<div class="d-inline-flex flex-column align-items-center me-2 mb-2" style="max-width:60px;">
+                      <a href="${_esc(a.url)}" target="_blank" title="${_escAttr(a.nome)}">${thumb}</a>
+                      <span class="text-muted" style="font-size:0.65rem;word-break:break-all;text-align:center;max-width:60px;">${_esc(a.nome.slice(0, 12))}</span>
+                      <button class="btn btn-xs btn-link text-danger p-0" style="font-size:0.65rem;"
+                              onclick="gestaoOS._deletarAnexo('${_escAttr(numeroOS)}','${modalOsId}',${i})"
+                              title="Remover">✕</button>
+                    </div>`;
+        }).join('');
+
+        return `${addBtn}<div class="d-flex flex-wrap">${items || '<span class="text-muted small">Nenhum anexo.</span>'}</div>`;
+    }
+
+    async _uploadAnexo(numeroOS, modalOsId, inputEl) {
+        const file = inputEl?.files?.[0];
+        if (!file) return;
+        if (file.size > 5 * 1024 * 1024) { _mostrarToastErro('Arquivo muito grande (máx 5 MB).'); return; }
+
+        const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
+        if (!url) { _mostrarToastErro('APPS_SCRIPT_URL não configurada.'); return; }
+
+        const addBtn = document.querySelector(`#modalDetalheOS_${numeroOS.replace(/[^a-zA-Z0-9]/g, '_')} label.btn-outline-primary`);
+        if (addBtn) { addBtn.style.opacity = '0.5'; addBtn.style.pointerEvents = 'none'; }
+
+        try {
+            const base64 = await new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload  = e => resolve(e.target.result.split(',')[1]);
+                reader.onerror = reject;
+                reader.readAsDataURL(file);
+            });
+
+            const ctrl = new AbortController();
+            const timer = setTimeout(() => ctrl.abort(), 60000);
+            const resp  = await fetch(url, {
+                method: 'POST',
+                body: JSON.stringify({ acao: 'uploadAnexo', numeroOS, nome: file.name, tipo: file.type, base64 }),
+                signal: ctrl.signal
+            });
+            clearTimeout(timer);
+            const j = await resp.json();
+            if (j.sucesso && j.url) {
+                const anexos = this.getAnexos(numeroOS);
+                anexos.push({ nome: file.name, url: j.url, fileId: j.fileId || '', tipo: file.type });
+                this.setAnexos(numeroOS, anexos);
+                const cont = document.getElementById(`anexosCont_${modalOsId}`);
+                if (cont) cont.innerHTML = this._anexosHTML(numeroOS, modalOsId);
+            } else {
+                _mostrarToastErro(j.erro || 'Erro ao fazer upload.');
+            }
+        } catch (e) {
+            _mostrarToastErro(`Falha no upload: ${e.message}`);
+        } finally {
+            if (addBtn) { addBtn.style.opacity = ''; addBtn.style.pointerEvents = ''; }
+            if (inputEl) inputEl.value = '';
+        }
+    }
+
+    async _deletarAnexo(numeroOS, modalOsId, idx) {
+        const anexos = this.getAnexos(numeroOS);
+        const a = anexos[idx];
+        if (!a) return;
+
+        const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
+        if (url && a.fileId) {
+            try {
+                await fetch(url, { method: 'POST', body: JSON.stringify({ acao: 'deletarAnexo', fileId: a.fileId }) });
+            } catch { /* silencioso */ }
+        }
+        anexos.splice(idx, 1);
+        this.setAnexos(numeroOS, anexos);
+        const cont = document.getElementById(`anexosCont_${modalOsId}`);
+        if (cont) cont.innerHTML = this._anexosHTML(numeroOS, modalOsId);
+    }
+
+    // ── Persistência no servidor (Google Sheets via Apps Script) ───────────
         const sv = this._dadosServidor[numeroOS];
         if (sv && sv.nota !== undefined) return sv.nota;
         return localStorage.getItem('gestaoOS_nota_' + numeroOS) || '';
@@ -559,8 +991,10 @@ class GestaoOS {
         const status = sv.status || (grupo ? this.getStatus(grupo) : null)
                      || localStorage.getItem('gestaoOS_status_' + numeroOS) || 'Em Progresso';
         const gevia  = sv.gevia  || localStorage.getItem('gestaoOS_gevia_' + numeroOS) || 'Pendente';
-        const nota   = sv.nota   !== undefined ? sv.nota
-                     : (localStorage.getItem('gestaoOS_nota_' + numeroOS) || '');
+        // nota: aceita JSON array (notas múltiplas) ou string (formato antigo)
+        const nota   = sv.nota !== undefined ? sv.nota
+                     : (localStorage.getItem('gestaoOS_notas_' + numeroOS)
+                     || localStorage.getItem('gestaoOS_nota_' + numeroOS) || '');
 
         // Atualizar cache com valores definitivos antes de enviar
         if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
@@ -599,7 +1033,7 @@ class GestaoOS {
         const osNums = new Set();
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            const match = key && key.match(/^gestaoOS_(status|gevia|nota)_(.+)$/);
+            const match = key && key.match(/^gestaoOS_(status|gevia|notas|nota)_(.+)$/);
             if (match) osNums.add(match[2]);
         }
 
@@ -615,6 +1049,119 @@ class GestaoOS {
         console.log('[GestaoOS] ✅ Migração concluída.');
     }
 
+
+    // ── Detecção de sobreposição de HI (Feature 4) ───────────────────────
+
+    /** Converte "HH:MM" → minutos desde meia-noite. Retorna null se inválido. */
+    _parseTime(hhmm) {
+        if (!hhmm) return null;
+        const parts = String(hhmm).trim().split(':');
+        if (parts.length < 2) return null;
+        const h = parseInt(parts[0], 10);
+        const m = parseInt(parts[1], 10);
+        if (isNaN(h) || isNaN(m)) return null;
+        return h * 60 + m;
+    }
+
+    /**
+     * Recalcula HH improdutivas descontando sobreposições:
+     * Entradas "completas" (ops >= 12) dominam; entradas "parciais" (ops < 12)
+     * têm sua duração clipada nos intervalos já cobertos pelas completas.
+     * @param {Array} hiEntries - [{ tipo, data, operadores, horaInicio, horaFim, hhOriginal }]
+     * @returns {{ resultado: Array, totalHH: number, totalMinutosDescontados: number }}
+     */
+    _resolverSobreposicaoHI(hiEntries) {
+        const resultado = hiEntries.map(hi => ({
+            ...hi, hhAjustado: hi.hhOriginal, ajustado: false, minutosDescontados: 0
+        }));
+
+        // Agrupar por dia
+        const porDia = new Map();
+        hiEntries.forEach((hi, idx) => {
+            const dia = hi.data || '__sem_data__';
+            if (!porDia.has(dia)) porDia.set(dia, []);
+            porDia.get(dia).push(idx);
+        });
+
+        let totalMinutosDescontados = 0;
+        porDia.forEach(indices => {
+            const completoIdxs = indices.filter(i => (hiEntries[i].operadores || 0) >= 12);
+            const parcialIdxs  = indices.filter(i => (hiEntries[i].operadores || 0) < 12);
+            if (completoIdxs.length === 0 || parcialIdxs.length === 0) return;
+
+            // Construir e mesclar intervalos das entradas completas
+            const rawIntervals = [];
+            completoIdxs.forEach(i => {
+                const hi = hiEntries[i];
+                const s  = this._parseTime(hi.horaInicio);
+                const e  = this._parseTime(hi.horaFim);
+                if (s === null || e === null) return;
+                const fim = (e < s) ? e + 24 * 60 : e;
+                rawIntervals.push([s, fim]);
+            });
+            rawIntervals.sort((a, b) => a[0] - b[0]);
+            const merged = [];
+            rawIntervals.forEach(([s, e]) => {
+                if (!merged.length || s > merged[merged.length - 1][1]) merged.push([s, e]);
+                else merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], e);
+            });
+
+            // Clipar cada entrada parcial
+            parcialIdxs.forEach(i => {
+                const hi = hiEntries[i];
+                const s  = this._parseTime(hi.horaInicio);
+                const e  = this._parseTime(hi.horaFim);
+                if (s === null || e === null) return;
+                const fim     = (e < s) ? e + 24 * 60 : e;
+                const duracao = fim - s;
+                let sobreposicao = 0;
+                merged.forEach(([ms, me]) => {
+                    const os = Math.max(s, ms);
+                    const oe = Math.min(fim, me);
+                    if (oe > os) sobreposicao += oe - os;
+                });
+                if (sobreposicao <= 0) return;
+                const minutosRestantes = Math.max(0, duracao - sobreposicao);
+                const ops        = hi.operadores || 0;
+                const fatorChuva = (hi.tipo || '').toLowerCase().includes('chuva') ? 0.5 : 1.0;
+                resultado[i].hhAjustado         = (minutosRestantes / 60) * ops * fatorChuva;
+                resultado[i].ajustado           = true;
+                resultado[i].minutosDescontados = sobreposicao;
+                totalMinutosDescontados        += sobreposicao;
+            });
+        });
+
+        const totalHH = resultado.reduce((sum, r) => sum + r.hhAjustado, 0);
+        return { resultado, totalHH, totalMinutosDescontados };
+    }
+
+    // ── Limpeza de localStorage órfão ─────────────────────────────────────
+
+    _limparLocalStorageOrfao() {
+        if (!this._grupos) return;
+        const osAtivas = new Set();
+        this._grupos.forEach(gt => gt.ordens.forEach((go, os) => osAtivas.add(os)));
+        const prefixos = [
+            'gestaoOS_status_', 'gestaoOS_gevia_',
+            'gestaoOS_nota_', 'gestaoOS_notas_',
+            'gestaoOS_mediu_', 'gestaoOS_anexos_'
+        ];
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key) continue;
+            for (const p of prefixos) {
+                if (key.startsWith(p)) {
+                    const os = key.slice(p.length);
+                    if (!osAtivas.has(os)) keysToRemove.push(key);
+                    break;
+                }
+            }
+        }
+        keysToRemove.forEach(k => localStorage.removeItem(k));
+        if (keysToRemove.length > 0)
+            console.log('[GestaoOS] 🧹 localStorage: removidas', keysToRemove.length, 'chaves órfãs');
+    }
 
     // ── Leitura de HH de HI (múltiplos nomes de campo possíveis) ──────────
 
@@ -705,7 +1252,9 @@ class GestaoOS {
         });
 
         // ── PASSO 2: Calcular datas e filtrar por ÚLTIMO RDO no mês/ano
+        const turmasParaDeletar = [];
         turmas.forEach((gt, turma) => {
+            const ordensParaDeletar = [];
             gt.ordens.forEach((go, numeroOS) => {
                 go.datas.sort((a, b) => (_parseData(a) || 0) - (_parseData(b) || 0));
                 go.dataInicio    = go.datas[0]                    || '-';
@@ -715,23 +1264,19 @@ class GestaoOS {
                     : '-';
 
                 if (this.filtroMes && this.filtroAno) {
-                    // Mostrar O.S se teve QUALQUER RDO no mês selecionado.
-                    // (antes filtrava só por dataUltimoRDO, o que excluía O.S cujo
-                    //  último RDO foi em outro mês mesmo tendo atividade no mês atual)
                     const hasRDOInMonth = go.datas.some(d => {
                         const parts = d.split('/');
                         return parts.length >= 3 &&
                                +parts[1] === this.filtroMes &&
                                +parts[2] === this.filtroAno;
                     });
-                    if (!hasRDOInMonth) {
-                        gt.ordens.delete(numeroOS);
-                        return;
-                    }
+                    if (!hasRDOInMonth) ordensParaDeletar.push(numeroOS);
                 }
             });
-            if (gt.ordens.size === 0) turmas.delete(turma);
+            ordensParaDeletar.forEach(os => gt.ordens.delete(os));
+            if (gt.ordens.size === 0) turmasParaDeletar.push(turma);
         });
+        turmasParaDeletar.forEach(t => turmas.delete(t));
 
         return turmas;
     }
@@ -777,26 +1322,40 @@ class GestaoOS {
         const totalHHProd = Object.values(servicosPorDesc).reduce((s, v) => s + v.hh, 0);
         const totalQtd    = Object.values(servicosPorDesc).reduce((s, v) => s + v.qtd, 0);
 
-        // ── HI: usa _getHHImprodutivas() para cobrir todos os nomes de campo
-        const hiRows = [];
-        let totalHHImprod = 0;
+        // ── HI: coleta entradas e aplica resolução de sobreposição (Feature 4)
+        const hiEntries = [];
         this.dados.horasImprodutivas.forEach(hi => {
             const hRDO = (hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '').trim();
             if (!rdoIds.has(hRDO)) return;
-            const tipo  = (hi.Tipo    || hi.tipo    || '-').trim();
-            const data  = (hi['Data RDO'] || hi.dataRDO || hi.data || '').trim();
-            const ops   = parseInt(hi.operadores || hi['Operadores'] || 0);
-            const horas = this._getHHImprodutivas(hi);
-            totalHHImprod += horas;
-            hiRows.push(`<tr>
-              <td>${_esc(tipo)}</td>
-              <td>${_esc(data)}</td>
-              <td class="text-end">${ops > 0 ? ops : '—'}</td>
-              <td class="text-end fw-bold text-warning">${horas.toFixed(2)}</td>
-            </tr>`);
+            const tipo       = (hi.Tipo    || hi.tipo    || '-').trim();
+            const data       = (hi['Data RDO'] || hi.dataRDO || hi.data || '').trim();
+            const operadores = parseInt(hi.operadores || hi['Operadores'] || 0) || 0;
+            const horaInicio = (hi.horaInicio || hi['Hora Início'] || hi['Hora Inicio'] || '').trim();
+            const horaFim    = (hi.horaFim    || hi['Hora Fim']    || '').trim();
+            const hhOriginal = this._getHHImprodutivas(hi);
+            hiEntries.push({ tipo, data, operadores, horaInicio, horaFim, hhOriginal });
+        });
+        const { resultado: hiResolvido, totalHH: totalHHImprod, totalMinutosDescontados } =
+            this._resolverSobreposicaoHI(hiEntries);
+        const hiRows = hiResolvido.map(r => {
+            const ajusteLabel = r.ajustado
+                ? `<span class="badge bg-warning text-dark ms-1" title="Sobreposição: −${r.minutosDescontados}min descontados">⚠ −${r.minutosDescontados}min</span>`
+                : '';
+            return `<tr>
+              <td>${_esc(r.tipo)}${ajusteLabel}</td>
+              <td>${_esc(r.data)}</td>
+              <td class="text-end">${r.horaInicio && r.horaFim ? _esc(r.horaInicio) + '–' + _esc(r.horaFim) : (r.operadores > 0 ? r.operadores + ' ops' : '—')}</td>
+              <td class="text-end fw-bold text-warning">${r.hhAjustado.toFixed(2)}</td>
+            </tr>`;
         });
         const hiHTML = hiRows.join('')
             || '<tr><td colspan="4" class="text-muted text-center">Nenhuma HI</td></tr>';
+        const hiDescontoNote = totalMinutosDescontados > 0
+            ? `<div class="alert alert-warning py-1 px-2 mt-1 mb-0 small">
+                 <i class="fas fa-info-circle me-1"></i>
+                 ${totalMinutosDescontados} minutos descontados por sobreposição com turnos completos (≥12 operadores)
+               </div>`
+            : '';
 
         // ── Observações dos RDOs
         const obsArr  = Array.from(grupo.observacoesRDO);
@@ -805,7 +1364,7 @@ class GestaoOS {
                 <i class="fas fa-exclamation-circle me-2"></i>${_esc(o)}</div>`).join('')
             : '<span class="text-muted small">Nenhuma observação registrada nos RDOs</span>';
 
-        const nota    = this.getNota(numeroOS);
+        const notas   = this.getNotas(numeroOS);
         const modalId = 'modalDetalheOS_' + modalOsId;
         document.getElementById(modalId)?.remove();
 
@@ -859,18 +1418,30 @@ class GestaoOS {
                 </h6>
                 <div class="mb-3">${obsHTML}</div>
 
-                <!-- Nota pessoal -->
+                <!-- Notas múltiplas (Feature 2) -->
                 <h6 class="border-bottom pb-1 mb-2">
-                  <i class="fas fa-sticky-note me-1 text-info"></i>Minha Anotação
+                  <i class="fas fa-sticky-note me-1 text-info"></i>Anotações
                   <button class="btn btn-sm btn-outline-info ms-2 py-0 px-2"
                           onclick="gestaoOS.abrirEditorNotaModal('${_esc(numeroOS)}','${modalOsId}')"
                           style="font-size:0.75rem;">
-                    <i class="fas fa-pen me-1"></i>Editar
+                    <i class="fas fa-plus me-1"></i>Nova nota
                   </button>
                 </h6>
                 <div class="mb-1 border rounded p-2 bg-light small"
                      id="notaDisplay_${modalOsId}"
-                     style="min-height:40px;white-space:pre-wrap;">${nota ? _esc(nota) : '<em class="text-muted">Nenhuma anotação</em>'}</div>
+                     style="min-height:40px;">
+                  ${notas.length
+                    ? notas.map(n => `<div class="border rounded p-1 mb-1 bg-white" style="white-space:pre-wrap;">${_esc(n)}</div>`).join('')
+                    : '<em class="text-muted">Nenhuma anotação</em>'}
+                </div>
+
+                <!-- Anexos (Feature 3) -->
+                <h6 class="border-bottom pb-1 mb-2 mt-3">
+                  <i class="fas fa-paperclip me-1 text-secondary"></i>Anexos
+                </h6>
+                <div id="anexosCont_${modalOsId}">
+                  ${this._anexosHTML(numeroOS, modalOsId)}
+                </div>
 
                 <!-- Serviços -->
                 <h6 class="border-bottom pb-1 mb-2 mt-3">
@@ -899,7 +1470,7 @@ class GestaoOS {
                 </div>
 
                 <!-- HI -->
-                <h6 class="border-bottom pb-1 mb-2">
+                <h6 class="border-bottom pb-1 mb-2 mt-3">
                   <i class="fas fa-pause-circle me-1 text-warning"></i>Horas Improdutivas
                 </h6>
                 <div class="table-responsive">
@@ -908,7 +1479,7 @@ class GestaoOS {
                       <tr>
                         <th>Tipo</th>
                         <th>Data</th>
-                        <th class="text-end">Operadores</th>
+                        <th class="text-end">Horário / Ops</th>
                         <th class="text-end">HH</th>
                       </tr>
                     </thead>
@@ -921,6 +1492,7 @@ class GestaoOS {
                     </tfoot>
                   </table>
                 </div>
+                ${hiDescontoNote}
 
               </div>
               <div class="modal-footer">
@@ -968,7 +1540,7 @@ class GestaoOS {
 
             const resp = await fetch(url, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                // Sem Content-Type: application/json para evitar preflight CORS
                 body: JSON.stringify({ acao: 'atualizarOS', numeroRDO, novaOS })
             });
 
@@ -1121,14 +1693,16 @@ class GestaoOS {
             return;
         }
 
-        let totalOS = 0, totalConcluidas = 0, totalGevia = 0;
+        this._limparLocalStorageOrfao();
+
+        let totalOS = 0, totalConcluidas = 0, totalReprovadas = 0, totalGevia = 0, totalMediu = 0;
         const blocos = [];
         const turmasOrdenadas = Array.from(turmas.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
         turmasOrdenadas.forEach(([turma, gt]) => {
             let ordens = Array.from(gt.ordens.values());
 
-            // Filtro de status (4 estados)
+            // Filtro de status
             if (this.filtroStatus && this.filtroStatus !== 'todas') {
                 ordens = ordens.filter(o => this.getStatus(o) === this.filtroStatus);
             }
@@ -1144,29 +1718,29 @@ class GestaoOS {
                 return da - db;
             });
 
-            totalOS         += ordens.length;
-            totalConcluidas += ordens.filter(o => {
-                const s = this.getStatus(o);
-                return s === 'Finalizada' || s === 'Aprovada';
-            }).length;
-            totalGevia += ordens.filter(o => this.getGeVia(o.numeroOS) === 'Lançado').length;
+            totalOS            += ordens.length;
+            totalConcluidas    += ordens.filter(o => { const s = this.getStatus(o); return s === 'Finalizada' || s === 'Aprovada'; }).length;
+            totalReprovadas    += ordens.filter(o => this.getStatus(o) === 'Reprovada').length;
+            totalGevia         += ordens.filter(o => this.getGeVia(o.numeroOS) === 'Lançado').length;
+            totalMediu         += ordens.filter(o => this.getMediu(o.numeroOS)).length;
 
             const rows = ordens.map(o => {
-                const status   = this.getStatus(o);
-                const rowBg = STATUS_ROW_COLORS[status] || '';
+                const status = this.getStatus(o);
+                const rowBg  = STATUS_ROW_COLORS[status] || '';
 
                 return `<tr style="cursor:pointer;background-color:${rowBg};transition:background-color 0.2s;"
-                            onclick="gestaoOS.abrirModal('${_esc(o.numeroOS)}')">
+                            onclick="gestaoOS.abrirModal('${_escAttr(o.numeroOS)}')">
                   <td class="fw-bold text-primary">${_esc(o.numeroOS)}</td>
-                  <td class="text-center"><span class="badge bg-secondary" title="${o.rdoIds.length} RDO(s) vinculado(s) a esta O.S">${o.rdoIds.length}</span></td>
+                  <td class="text-center"><span class="badge bg-secondary" title="${o.rdoIds.length} RDO(s)">${o.rdoIds.length}</span></td>
                   <td>${_fmtData(o.dataInicio)}</td>
                   <td>${_fmtData(o.dataUltimoRDO)}</td>
+                  <td id="mediu-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._mediuHTML(o.numeroOS)}</td>
                   <td>${_esc(o.kmInicio) || '-'}</td>
                   <td>${_esc(o.kmFim)    || '-'}</td>
-                  <td class="text-muted small" title="${_esc(o.local)}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(o.local)}</td>
-                  <td id="status-cel-${_esc(o.numeroOS)}" onclick="event.stopPropagation();">${this._statusSelectHTML(o)}</td>
-                  <td id="gevia-cel-${_esc(o.numeroOS)}"  onclick="event.stopPropagation();">${this._geviaHTML(o.numeroOS)}</td>
-                  <td id="nota-cel-${_esc(o.numeroOS)}"   onclick="event.stopPropagation();">${this._notaHTML(o.numeroOS)}</td>
+                  <td class="text-muted small" title="${_escAttr(o.local)}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(o.local)}</td>
+                  <td id="status-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._statusSelectHTML(o)}</td>
+                  <td id="gevia-cel-${CSS.escape(o.numeroOS)}"  onclick="event.stopPropagation();">${this._geviaHTML(o.numeroOS)}</td>
+                  <td id="nota-cel-${CSS.escape(o.numeroOS)}"   onclick="event.stopPropagation();">${this._notaHTML(o.numeroOS)}</td>
                 </tr>`;
             }).join('');
 
@@ -1186,12 +1760,13 @@ class GestaoOS {
                         <th class="text-center">RDOs</th>
                         <th>Início</th>
                         <th>Último RDO</th>
+                        <th style="color:#0dcaf0;min-width:80px;">Já Mediu</th>
                         <th>KM Início</th>
                         <th>KM Fim</th>
                         <th>Local</th>
                         <th style="min-width:130px;">Status</th>
                         <th style="color:#0d6efd;min-width:110px;">GeVia</th>
-                        <th>Nota</th>
+                        <th>Notas</th>
                       </tr>
                     </thead>
                     <tbody>${rows}</tbody>
@@ -1208,30 +1783,42 @@ class GestaoOS {
             return;
         }
 
-        // Resumo no topo
-        const resumo = `<div class="row g-3 mb-4">
-          <div class="col-6 col-md-3">
+        // Resumo no topo (6 cards)
+        const resumo = `<div class="row g-2 mb-4">
+          <div class="col-6 col-md">
             <div class="card text-center border-0 shadow-sm py-2">
               <div class="text-muted small">Total O.S</div>
               <h4 class="mb-0 text-primary">${totalOS}</h4>
             </div>
           </div>
-          <div class="col-6 col-md-3">
+          <div class="col-6 col-md">
             <div class="card text-center border-0 shadow-sm py-2">
-              <div class="text-muted small">Aprovadas / Finalizadas</div>
+              <div class="text-muted small">Aprovadas/Finalizadas</div>
               <h4 class="mb-0 text-success" id="resumoOS_concluidas">${totalConcluidas}</h4>
             </div>
           </div>
-          <div class="col-6 col-md-3">
+          <div class="col-6 col-md">
             <div class="card text-center border-0 shadow-sm py-2">
-              <div class="text-muted small">Em Progresso / Reprovadas</div>
-              <h4 class="mb-0 text-warning" id="resumoOS_andamento">${totalOS - totalConcluidas}</h4>
+              <div class="text-muted small">Em Progresso</div>
+              <h4 class="mb-0 text-warning" id="resumoOS_andamento">${totalOS - totalConcluidas - totalReprovadas}</h4>
             </div>
           </div>
-          <div class="col-6 col-md-3">
+          <div class="col-6 col-md">
             <div class="card text-center border-0 shadow-sm py-2">
-              <div class="text-muted small" style="color:#0d6efd;">Lançadas no GeVia</div>
+              <div class="text-muted small">Reprovadas</div>
+              <h4 class="mb-0 text-danger" id="resumoOS_reprovadas">${totalReprovadas}</h4>
+            </div>
+          </div>
+          <div class="col-6 col-md">
+            <div class="card text-center border-0 shadow-sm py-2">
+              <div class="text-muted small" style="color:#0d6efd;">Lançadas GeVia</div>
               <h4 class="mb-0" style="color:#0d6efd;" id="resumoOS_gevia">${totalGevia}</h4>
+            </div>
+          </div>
+          <div class="col-6 col-md">
+            <div class="card text-center border-0 shadow-sm py-2">
+              <div class="text-muted small" style="color:#0dcaf0;">Já Mediu</div>
+              <h4 class="mb-0" style="color:#0dcaf0;" id="resumoOS_mediu">${totalMediu}</h4>
             </div>
           </div>
         </div>`;
