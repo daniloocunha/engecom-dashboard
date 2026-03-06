@@ -1,5 +1,5 @@
 /**
- * Gestão de O.S Trabalhadas — v3.0.14
+ * Gestão de O.S Trabalhadas — v3.0.15
  * Lista compacta por turma (somente TPs/TSs — TMCs excluídas)
  * Status, GeVia, Notas múltiplas, Já Mediu e Anexos salvos em localStorage + servidor
  *
@@ -469,7 +469,7 @@ class GestaoOS {
         const panelEl  = document.createElement('tr');
         panelEl.id     = panelId;
         panelEl.innerHTML = `
-          <td colspan="11" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
+          <td colspan="10" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
             <div id="notaPanelInner_${CSS.escape(numeroOS)}">
               ${this._notasPanelContent(numeroOS)}
             </div>
@@ -781,7 +781,7 @@ class GestaoOS {
         const panelEl = document.createElement('tr');
         panelEl.id    = panelId;
         panelEl.innerHTML = `
-          <td colspan="11" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
+          <td colspan="10" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
             <div class="d-flex gap-2 align-items-start">
               <textarea id="notaTA_${CSS.escape(numeroOS)}"
                         class="form-control form-control-sm flex-grow-1"
@@ -1749,17 +1749,16 @@ class GestaoOS {
 
                 return `<tr style="cursor:pointer;background-color:${rowBg};transition:background-color 0.2s;"
                             onclick="gestaoOS.abrirModal('${_escAttr(o.numeroOS)}')">
-                  <td class="fw-bold text-primary">${_esc(o.numeroOS)}</td>
+                  <td class="fw-bold text-primary text-nowrap">${_esc(o.numeroOS)}</td>
                   <td class="text-center"><span class="badge bg-secondary" title="${o.rdoIds.length} RDO(s)">${o.rdoIds.length}</span></td>
-                  <td>${_fmtData(o.dataInicio)}</td>
-                  <td>${_fmtData(o.dataUltimoRDO)}</td>
-                  <td>${_esc(o.kmInicio) || '-'}</td>
-                  <td>${_esc(o.kmFim)    || '-'}</td>
-                  <td class="text-muted small" title="${_escAttr(o.local)}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(o.local)}</td>
-                  <td id="mediu-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._mediuHTML(o.numeroOS)}</td>
+                  <td class="text-nowrap">${_fmtData(o.dataInicio)}</td>
+                  <td class="text-nowrap">${_fmtData(o.dataUltimoRDO)}</td>
+                  <td class="text-center small text-nowrap text-muted">${_esc(o.kmInicio) || '—'} / ${_esc(o.kmFim) || '—'}</td>
+                  <td class="text-muted small" title="${_escAttr(o.local)}" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(o.local)}</td>
+                  <td class="text-center" id="mediu-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._mediuHTML(o.numeroOS)}</td>
                   <td id="status-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._statusSelectHTML(o)}</td>
                   <td id="gevia-cel-${CSS.escape(o.numeroOS)}"  onclick="event.stopPropagation();">${this._geviaHTML(o.numeroOS)}</td>
-                  <td id="nota-cel-${CSS.escape(o.numeroOS)}"   onclick="event.stopPropagation();">${this._notaHTML(o.numeroOS)}</td>
+                  <td class="text-center" id="nota-cel-${CSS.escape(o.numeroOS)}"   onclick="event.stopPropagation();">${this._notaHTML(o.numeroOS)}</td>
                 </tr>`;
             }).join('');
 
@@ -1775,17 +1774,16 @@ class GestaoOS {
                   <table class="table table-hover table-sm mb-0 align-middle">
                     <thead class="table-light">
                       <tr>
-                        <th>Nº O.S</th>
-                        <th class="text-center">RDOs</th>
-                        <th>Início</th>
-                        <th>Último RDO</th>
-                        <th>KM Início</th>
-                        <th>KM Fim</th>
-                        <th>Local</th>
-                        <th style="color:#0dcaf0;min-width:80px;">Já Medida</th>
-                        <th style="min-width:130px;">Status</th>
-                        <th style="color:#0d6efd;min-width:110px;">GeVia</th>
-                        <th>Notas</th>
+                        <th class="text-nowrap" style="min-width:90px;">Nº O.S</th>
+                        <th class="text-center text-nowrap" style="min-width:52px;">RDOs</th>
+                        <th class="text-nowrap" style="min-width:88px;">1º RDO</th>
+                        <th class="text-nowrap" style="min-width:100px;">Último RDO</th>
+                        <th class="text-center text-nowrap" style="min-width:120px;">KM Início / Fim</th>
+                        <th class="text-nowrap" style="min-width:110px;">Local</th>
+                        <th class="text-center text-nowrap" style="min-width:82px;">Já Medida</th>
+                        <th class="text-nowrap" style="min-width:130px;">Status</th>
+                        <th class="text-nowrap" style="min-width:100px;">GeVia</th>
+                        <th class="text-center text-nowrap" style="min-width:62px;">Notas</th>
                       </tr>
                     </thead>
                     <tbody>${rows}</tbody>
