@@ -758,11 +758,15 @@ class GestaoOS {
         if (cont) cont.innerHTML = this._anexosHTML(numeroOS, modalOsId);
     }
 
-    // ── Persistência no servidor (Google Sheets via Apps Script) ───────────
+    // ── Compatibilidade: nota única (usada pelos métodos editarNota/salvarNota) ──
+
+    getNota(numeroOS) {
         const sv = this._dadosServidor[numeroOS];
         if (sv && sv.nota !== undefined) return sv.nota;
         return localStorage.getItem('gestaoOS_nota_' + numeroOS) || '';
     }
+
+    // ── Persistência no servidor (Google Sheets via Apps Script) ───────────
 
     /** Abre/fecha o painel de edição inline embaixo da linha da tabela */
     editarNota(numeroOS) {
