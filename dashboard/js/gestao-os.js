@@ -469,7 +469,7 @@ class GestaoOS {
         const panelEl  = document.createElement('tr');
         panelEl.id     = panelId;
         panelEl.innerHTML = `
-          <td colspan="10" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
+          <td colspan="11" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
             <div id="notaPanelInner_${CSS.escape(numeroOS)}">
               ${this._notasPanelContent(numeroOS)}
             </div>
@@ -781,7 +781,7 @@ class GestaoOS {
         const panelEl = document.createElement('tr');
         panelEl.id    = panelId;
         panelEl.innerHTML = `
-          <td colspan="8" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
+          <td colspan="11" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
             <div class="d-flex gap-2 align-items-start">
               <textarea id="notaTA_${CSS.escape(numeroOS)}"
                         class="form-control form-control-sm flex-grow-1"
@@ -1231,14 +1231,17 @@ class GestaoOS {
                     datas: [], rdoIds: [],
                     kmInicio: '', kmFim: '',
                     locais: new Set(),
-                    observacoesRDO: new Set()
+                    observacoesRDO: new Map()  // chave: "data|obs" → {data, obs}
                 });
             }
             const go = gt.ordens.get(numeroOS);
 
             if (dataStr)   go.datas.push(dataStr);
             if (numeroRDO) go.rdoIds.push(numeroRDO);
-            if (obs)       go.observacoesRDO.add(obs);
+            if (obs) {
+                const key = `${dataStr}|${obs}`;
+                if (!go.observacoesRDO.has(key)) go.observacoesRDO.set(key, { data: dataStr, obs });
+            }
             if (local)     go.locais.add(local);
 
             // Mapeia status da planilha para o sistema de 4 estados
@@ -1362,10 +1365,22 @@ class GestaoOS {
             : '';
 
         // ── Observações dos RDOs
-        const obsArr  = Array.from(grupo.observacoesRDO);
+        const obsArr  = Array.from(grupo.observacoesRDO.values())
+            .sort((a, b) => {
+                const da = _parseData(a.data), db = _parseData(b.data);
+                if (!da && !db) return 0;
+                if (!da) return 1;
+                if (!db) return -1;
+                return da - db;
+            });
         const obsHTML = obsArr.length
-            ? obsArr.map(o => `<div class="alert alert-warning py-2 mb-2">
-                <i class="fas fa-exclamation-circle me-2"></i>${_esc(o)}</div>`).join('')
+            ? obsArr.map(item => `<div class="alert alert-warning py-1 mb-2 d-flex align-items-start gap-2">
+                <i class="fas fa-exclamation-circle mt-1 flex-shrink-0"></i>
+                <div>
+                  <span class="badge bg-secondary me-1" style="font-size:0.7rem;">${_esc(_fmtData(item.data))}</span>
+                  ${_esc(item.obs)}
+                </div>
+              </div>`).join('')
             : '<span class="text-muted small">Nenhuma observação registrada nos RDOs</span>';
 
         const notas   = this.getNotas(numeroOS);
@@ -1738,10 +1753,10 @@ class GestaoOS {
                   <td class="text-center"><span class="badge bg-secondary" title="${o.rdoIds.length} RDO(s)">${o.rdoIds.length}</span></td>
                   <td>${_fmtData(o.dataInicio)}</td>
                   <td>${_fmtData(o.dataUltimoRDO)}</td>
-                  <td id="mediu-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._mediuHTML(o.numeroOS)}</td>
                   <td>${_esc(o.kmInicio) || '-'}</td>
                   <td>${_esc(o.kmFim)    || '-'}</td>
                   <td class="text-muted small" title="${_escAttr(o.local)}" style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(o.local)}</td>
+                  <td id="mediu-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._mediuHTML(o.numeroOS)}</td>
                   <td id="status-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._statusSelectHTML(o)}</td>
                   <td id="gevia-cel-${CSS.escape(o.numeroOS)}"  onclick="event.stopPropagation();">${this._geviaHTML(o.numeroOS)}</td>
                   <td id="nota-cel-${CSS.escape(o.numeroOS)}"   onclick="event.stopPropagation();">${this._notaHTML(o.numeroOS)}</td>
@@ -1764,10 +1779,10 @@ class GestaoOS {
                         <th class="text-center">RDOs</th>
                         <th>Início</th>
                         <th>Último RDO</th>
-                        <th style="color:#0dcaf0;min-width:80px;">Já Mediu</th>
                         <th>KM Início</th>
                         <th>KM Fim</th>
                         <th>Local</th>
+                        <th style="color:#0dcaf0;min-width:80px;">Já Medida</th>
                         <th style="min-width:130px;">Status</th>
                         <th style="color:#0d6efd;min-width:110px;">GeVia</th>
                         <th>Notas</th>
