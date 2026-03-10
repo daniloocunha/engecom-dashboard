@@ -80,22 +80,35 @@ async function handleAppsScriptProxy(request, env) {
             redirect: 'follow'     // segue redirecionamentos do Apps Script automaticamente
         });
 
+        const httpStatus = proxyResponse.status;
+        const finalUrl   = proxyResponse.url || appsScriptUrl;
         const responseText = await proxyResponse.text();
 
-        // Verifica se a resposta é JSON válido; se não for (ex.: página HTML de erro
-        // de autorização do Google), encapsula como erro legível
+        // Verifica se a resposta é JSON válido
         let jsonText;
         try {
             JSON.parse(responseText);
             jsonText = responseText;
         } catch {
-            // Apps Script provavelmente retornou uma página HTML (erro de autorização,
-            // quota excedida, etc.) — embalar como mensagem de erro
-            const trecho = responseText.substring(0, 300).replace(/</g, '&lt;');
+            // Apps Script retornou HTML — quase sempre significa redirecionamento
+            // para página de login do Google (implantação exige conta Google) ou
+            // página de erro de autorização de escopo (DriveApp não autorizado).
+
+            // Detectar se é página de login do Google
+            const isLoginPage = responseText.includes('accounts.google.com') ||
+                                 responseText.includes('ServiceLogin') ||
+                                 responseText.includes('signin/oauth');
+
+            const dica = isLoginPage
+                ? 'A implantação do Apps Script exige login Google. Abra o editor do Apps Script → Implantar → Gerenciar implantações → Editar → "Quem tem acesso" → mude para "Qualquer pessoa" → Implantar nova versão.'
+                : 'Verifique as permissões do Apps Script (Drive pode não estar autorizado).';
+
             jsonText = JSON.stringify({
                 sucesso: false,
-                erro: 'Resposta inesperada do servidor (não-JSON). Verifique as permissões do Apps Script.',
-                detalhes: trecho
+                erro: `Resposta não-JSON do servidor (HTTP ${httpStatus}). ${dica}`,
+                _httpStatus: httpStatus,
+                _finalUrl: finalUrl,
+                _htmlTrecho: responseText.substring(0, 500)
             });
         }
 

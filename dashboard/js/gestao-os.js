@@ -1,5 +1,5 @@
 /**
- * Gestão de O.S Trabalhadas — v3.0.17
+ * Gestão de O.S Trabalhadas — v3.0.18
  * Lista compacta por turma (somente TPs/TSs — TMCs excluídas)
  * Status, GeVia, Notas múltiplas, Já Mediu e Anexos salvos em localStorage + servidor
  *
@@ -807,8 +807,11 @@ class GestaoOS {
                 this._migrarLocalStorageParaServidor();
             } else {
                 const msg = json.erro || json.error || JSON.stringify(json);
-                console.warn('[GestaoOS] ⚠️ Apps Script desatualizado ou com erro:', msg);
-                console.warn('[GestaoOS] → Cole o código de apps-script-atualizar-os.gs no Apps Script e reimplante.');
+                console.warn('[GestaoOS] ⚠️ Apps Script com erro:', msg);
+                if (json._htmlTrecho) {
+                    console.warn('[GestaoOS] 📄 Trecho da resposta HTML do Apps Script:\n', json._htmlTrecho);
+                }
+                console.warn('[GestaoOS] → Verifique o Apps Script: execute uma função manualmente para autorizar escopos (Drive, Sheets), depois reimplante.');
             }
         } catch (e) {
             console.warn('[GestaoOS] Falha ao carregar servidor (usando localStorage):', e.message);
