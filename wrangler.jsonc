@@ -1,9 +1,16 @@
 {
-  // Configuração para deploy estático via Cloudflare Pages
-  // O wrangler publica a pasta "dashboard" como assets estáticos
+  // Worker principal (proxy reverso para Apps Script + arquivos estáticos)
   "name": "engecom-dashboard",
+  "main": "src/worker.js",
   "compatibility_date": "2026-02-20",
   "assets": {
     "directory": "./dashboard"
+  },
+
+  // Variáveis de ambiente do Worker (não são segredos, podem ficar aqui)
+  "vars": {
+    // URL de implantação do Google Apps Script
+    // Atualizar aqui quando uma nova implantação for criada no Apps Script
+    "APPS_SCRIPT_URL": "https://script.google.com/macros/s/AKfycbwlTUoxus6jf7GeQJnz4I1qEeH2AIZj0sjBSzbUq2KNLoA4PMcplOsyoRRWunkC1x4caA/exec"
   }
 }

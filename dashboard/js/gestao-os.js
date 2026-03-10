@@ -1,7 +1,12 @@
 /**
- * Gestão de O.S Trabalhadas — v3.0.16
+ * Gestão de O.S Trabalhadas — v3.0.17
  * Lista compacta por turma (somente TPs/TSs — TMCs excluídas)
  * Status, GeVia, Notas múltiplas, Já Mediu e Anexos salvos em localStorage + servidor
+ *
+ * Changelog v3.0.17:
+ * - Fix CORS definitivo: todas as chamadas ao Apps Script passam pelo proxy
+ *   do Cloudflare Worker (/api/apps-script) — servidor→servidor, sem CORS.
+ *   Em desenvolvimento local continua usando CONFIG.APPS_SCRIPT_URL diretamente.
  *
  * Changelog v3.0.14 (merge epic-fermat + feat/melhorias-revisao-codigo):
  * - Feature 1: Coluna "Já Mediu" com toggle visual (○ Não / ✅ Sim) por O.S
@@ -13,7 +18,6 @@
  *   - Requer APPS_SCRIPT_URL e (opcionalmente) DRIVE_FOLDER_ID em config.js
  * - Feature 4: HI com sobreposição de horários — parciais (ops < 12) têm suas
  *   horas sobrepostas com completos (ops >= 12) descontadas do cálculo
- * - Fix CORS: removido header Content-Type de salvarOS() (evita preflight)
  * - Mantidos: server sync cross-device, 6 status, LocalStorage ↔ servidor
  */
 
@@ -117,6 +121,26 @@ function _normalizarStatusPlanilha(statusRDO) {
     const s = (statusRDO || '').toLowerCase().trim();
     if (s.includes('conclu') || s.includes('finaliz')) return 'Finalizada';
     return 'Em Progresso';
+}
+
+/**
+ * Retorna a URL de endpoint do Apps Script.
+ *
+ * Em produção (Cloudflare Workers), usa o proxy reverso local /api/apps-script
+ * para evitar erros de CORS — o Worker encaminha a requisição servidor→servidor.
+ *
+ * Em desenvolvimento local (localhost/127.0.0.1), usa CONFIG.APPS_SCRIPT_URL
+ * diretamente (adicione a URL real em js/config.js para testar localmente).
+ */
+function _appsScriptUrl() {
+    const isLocal = typeof location !== 'undefined' &&
+        (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+    if (!isLocal) {
+        return '/api/apps-script';  // proxy do Cloudflare Worker — sem CORS
+    }
+    return (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL)
+        ? CONFIG.APPS_SCRIPT_URL
+        : '';
 }
 
 // ─── Classe principal ────────────────────────────────────────────────────────
@@ -668,15 +692,15 @@ class GestaoOS {
 
     _anexosHTML(numeroOS, modalOsId) {
         const anexos = this.getAnexos(numeroOS);
-        const uploadDisponivel = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL);
+        const uploadDisponivel = Boolean(_appsScriptUrl());
         const addBtn = uploadDisponivel
             ? `<label class="btn btn-sm btn-outline-primary py-0 px-2 mb-2" style="cursor:pointer;font-size:0.8rem;">
                  <i class="fas fa-paperclip me-1"></i>Adicionar
                  <input type="file" accept="image/*,application/pdf" style="display:none;"
                         onchange="gestaoOS._uploadAnexo('${_escAttr(numeroOS)}','${modalOsId}',this)">
                </label>`
-            : `<span class="text-muted ms-2" style="font-size:0.75rem;" title="Configure APPS_SCRIPT_URL em js/config.js">
-                 <i class="fas fa-info-circle"></i> Configure APPS_SCRIPT_URL para habilitar anexos
+            : `<span class="text-muted ms-2" style="font-size:0.75rem;" title="Configure APPS_SCRIPT_URL no wrangler.jsonc (produção) ou js/config.js (local)">
+                 <i class="fas fa-info-circle"></i> Anexos indisponíveis (Apps Script não configurado)
                </span>`;
 
         const items = anexos.map((a, i) => {
@@ -701,7 +725,7 @@ class GestaoOS {
         if (!file) return;
         if (file.size > 5 * 1024 * 1024) { _mostrarToastErro('Arquivo muito grande (máx 5 MB).'); return; }
 
-        const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
+        const url = _appsScriptUrl();
         if (!url) { _mostrarToastErro('APPS_SCRIPT_URL não configurada.'); return; }
 
         const addBtn = document.querySelector(`#modalDetalheOS_${numeroOS.replace(/[^a-zA-Z0-9]/g, '_')} label.btn-outline-primary`);
@@ -746,7 +770,7 @@ class GestaoOS {
         const a = anexos[idx];
         if (!a) return;
 
-        const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
+        const url = _appsScriptUrl();
         if (url && a.fileId) {
             try {
                 await fetch(url, { method: 'POST', body: JSON.stringify({ acao: 'deletarAnexo', fileId: a.fileId }) });
@@ -765,7 +789,7 @@ class GestaoOS {
      * Chamado uma vez ao carregar dados. Re-renderiza quando completo.
      */
     async _carregarDoServidor() {
-        const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
+        const url = _appsScriptUrl();
         if (!url) { this._carregandoServidor = false; return; }
 
         try {
@@ -820,7 +844,7 @@ class GestaoOS {
      * @param {number} tentativa - 1 a 3
      */
     async _enviarParaServidorAsync(numeroOS, tentativa = 1) {
-        const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
+        const url = _appsScriptUrl();
         if (!url) return;
 
         // Recuperar valores mais atuais do cache servidor → fallback localStorage
@@ -1390,7 +1414,7 @@ class GestaoOS {
         if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
 
         try {
-            const url = (typeof CONFIG !== 'undefined' && CONFIG.APPS_SCRIPT_URL) ? CONFIG.APPS_SCRIPT_URL : '';
+            const url = _appsScriptUrl();
             if (!url) throw new Error('APPS_SCRIPT_URL não configurada');
 
             const resp = await fetch(url, {
