@@ -1,5 +1,5 @@
 /**
- * Gestão de O.S Trabalhadas — v3.0.18
+ * Gestão de O.S Trabalhadas — v3.0.19
  * Lista compacta por turma (somente TPs/TSs — TMCs excluídas)
  * Status, GeVia, Notas múltiplas, Já Mediu e Anexos salvos em localStorage + servidor
  *
@@ -690,6 +690,18 @@ class GestaoOS {
         }
     }
 
+    /**
+     * Retorna URL de thumbnail do Google Drive que funciona em <img>.
+     * A URL /uc?export=view redireciona e navegadores bloqueiam em img tags;
+     * /thumbnail?id=...&sz=w200 é servida diretamente sem redirecionamentos.
+     */
+    _driveThumbUrl(a) {
+        const id = a.fileId ||
+                   (a.url || '').match(/[?&]id=([^&]+)/)?.[1] || '';
+        if (!id) return a.url || '';
+        return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w200`;
+    }
+
     _anexosHTML(numeroOS, modalOsId) {
         const anexos = this.getAnexos(numeroOS);
         const uploadDisponivel = Boolean(_appsScriptUrl());
@@ -705,19 +717,37 @@ class GestaoOS {
 
         const items = anexos.map((a, i) => {
             const isImg = (a.tipo || '').startsWith('image/');
+            const isPdf = (a.tipo || '') === 'application/pdf';
+            const thumbUrl = this._driveThumbUrl(a);
+
+            // Miniatura: imagem real para fotos, ícone para PDF/outros
             const thumb = isImg
-                ? `<img src="${_esc(a.url)}" style="height:48px;width:48px;object-fit:cover;border-radius:4px;" title="${_escAttr(a.nome)}">`
-                : `<span style="font-size:2rem;" title="${_escAttr(a.nome)}">📄</span>`;
-            return `<div class="d-inline-flex flex-column align-items-center me-2 mb-2" style="max-width:60px;">
-                      <a href="${_esc(a.url)}" target="_blank" title="${_escAttr(a.nome)}">${thumb}</a>
-                      <span class="text-muted" style="font-size:0.65rem;word-break:break-all;text-align:center;max-width:60px;">${_esc(a.nome.slice(0, 12))}</span>
-                      <button class="btn btn-xs btn-link text-danger p-0" style="font-size:0.65rem;"
+                ? `<img src="${_esc(thumbUrl)}"
+                        style="width:72px;height:72px;object-fit:cover;border-radius:6px;display:block;background:#e9ecef;"
+                        title="${_escAttr(a.nome)}"
+                        onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
+                   <span style="display:none;width:72px;height:72px;border-radius:6px;background:#e9ecef;
+                                 align-items:center;justify-content:center;font-size:2rem;" title="${_escAttr(a.nome)}">🖼️</span>`
+                : `<span style="display:flex;width:72px;height:72px;border-radius:6px;background:#e9ecef;
+                                align-items:center;justify-content:center;font-size:2.2rem;"
+                          title="${_escAttr(a.nome)}">${isPdf ? '📄' : '📎'}</span>`;
+
+            const nomeExibido = a.nome.length > 14 ? a.nome.slice(0, 12) + '…' : a.nome;
+
+            return `<div class="d-inline-flex flex-column align-items-center me-2 mb-2" style="max-width:76px;">
+                      <a href="${_esc(a.url)}" target="_blank" title="${_escAttr(a.nome)}"
+                         style="border:1px solid #dee2e6;border-radius:6px;overflow:hidden;display:block;">
+                        ${thumb}
+                      </a>
+                      <span class="text-muted text-center" style="font-size:0.62rem;margin-top:3px;max-width:76px;
+                                   word-break:break-all;line-height:1.2;" title="${_escAttr(a.nome)}">${_esc(nomeExibido)}</span>
+                      <button class="btn btn-link text-danger p-0" style="font-size:0.7rem;line-height:1;"
                               onclick="gestaoOS._deletarAnexo('${_escAttr(numeroOS)}','${modalOsId}',${i})"
-                              title="Remover">✕</button>
+                              title="Remover anexo">✕</button>
                     </div>`;
         }).join('');
 
-        return `${addBtn}<div class="d-flex flex-wrap">${items || '<span class="text-muted small">Nenhum anexo.</span>'}</div>`;
+        return `${addBtn}<div class="d-flex flex-wrap mt-1">${items || '<span class="text-muted small">Nenhum anexo.</span>'}</div>`;
     }
 
     async _uploadAnexo(numeroOS, modalOsId, inputEl) {
