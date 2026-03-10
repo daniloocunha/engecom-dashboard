@@ -47,14 +47,16 @@ class CalendarioTP {
     }
 
     /**
-     * Calcula HH produtivas de um dia — busca por Número RDO (chave única)
+     * Calcula HH produtivas de um dia
+     * Usa Número RDO como chave de join (mais confiável que Número OS, que pode ser placeholder)
      */
-    calcularHHDia(numeroRDO) {
+    calcularHHDia(numeroRDO, data) {
         let hhTotal = 0;
 
-        const servicosDoDia = this.dados.servicos.filter(s =>
-            (s['Número RDO'] || s.numeroRDO || '') === numeroRDO
-        );
+        const servicosDoDia = this.dados.servicos.filter(s => {
+            const numRDO = s['Número RDO'] || s.numeroRDO || s.numeroRdo || '';
+            return numRDO === numeroRDO;
+        });
 
         debugLog(`[CalendarioTP] Serviços encontrados para RDO=${numeroRDO}: ${servicosDoDia.length}`);
 
@@ -71,36 +73,133 @@ class CalendarioTP {
     }
 
     /**
-     * Calcula HH improdutivas de um dia — busca por Número RDO (chave única)
+     * Calcula HH improdutivas de um dia
+     * Usa Número RDO como chave de join (mais confiável que Número OS)
      */
-    calcularHIDia(numeroRDO) {
-        let hiTotal = 0;
-
-        const hisDoDia = this.dados.horasImprodutivas.filter(hi =>
-            (hi['Número RDO'] || hi.numeroRDO || '') === numeroRDO
-        );
+    calcularHIDia(numeroRDO, data) {
+        const hisDoDia = this.dados.horasImprodutivas.filter(hi => {
+            const numRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
+            return numRDO === numeroRDO;
+        });
 
         debugLog(`[CalendarioTP] HIs encontradas para RDO=${numeroRDO}: ${hisDoDia.length}`);
 
-        hisDoDia.forEach(hi => {
-            const hhImprodutivas = parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0);
-            debugLog(`[CalendarioTP] ${hi.tipo || hi.Tipo}: ${hhImprodutivas} HH`);
-            hiTotal += hhImprodutivas;
+        // Usar efetivo do RDO como fallback de operadores
+        const efetivoDia = this.dados.efetivos.find(ef => {
+            const numRDO = ef['Número RDO'] || ef.numeroRDO || ef.numeroRdo || '';
+            return numRDO === numeroRDO;
         });
+        const opDefault = efetivoDia
+            ? parseInt(efetivoDia['Operadores'] || efetivoDia.operadores || 12)
+            : 12;
 
-        debugLog(`[CalendarioTP] ✅ HH Improdutivas Total: ${hiTotal.toFixed(2)}`);
+        const hiTotal = this._calcularHHMerged(hisDoDia, opDefault);
+        debugLog(`[CalendarioTP] ✅ HH Improdutivas Total (merged): ${hiTotal.toFixed(2)}`);
         return hiTotal;
     }
 
     /**
-     * Obtém efetivo de um dia — busca por Número RDO (chave única)
+     * Mescla intervalos de HI sobrepostos antes de calcular HH.
+     * Evita dupla-contagem quando dois eventos cobrem o mesmo período.
+     * Ex: trem 08:00–12:00 + trem 09:00–09:30 → merged [08:00–12:00] = 4h (não 4,5h)
+     * Ex: HI 10:00–10:20 + HI 10:15–10:35 → merged [10:00–10:35] = 35min (não 40min)
+     * @param {Array}  hisArray          - registros de HI do mesmo RDO
+     * @param {number} operadoresDefault - fallback quando campo Operadores está ausente
+     * @returns {number} HH improdutivas corrigidas
      */
-    obterEfetivoDia(numeroRDO) {
+    _calcularHHMerged(hisArray, operadoresDefault = 12) {
+        if (!hisArray || hisArray.length === 0) return 0;
+
+        const parseMin = (t) => {
+            const parts = (t || '').split(':').map(Number);
+            return (parts[0] || 0) * 60 + (parts[1] || 0);
+        };
+
+        // 1. Construir lista de intervalos com hora bruta
+        const intervals = [];
+        hisArray.forEach(hi => {
+            const horaInicio = hi['Hora Início'] || hi.horaInicio || '';
+            const horaFim    = hi['Hora Fim']    || hi.horaFim    || '';
+            if (!horaInicio || !horaFim) return;
+
+            let startMin = parseMin(horaInicio);
+            let endMin   = parseMin(horaFim);
+            if (endMin <= startMin) endMin += 1440; // overnight
+
+            const tipo = (hi.Tipo || hi.tipo || '').toLowerCase();
+            let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
+            if (operadores <= 0) operadores = operadoresDefault;
+
+            intervals.push({ startMin, endMin, tipo, operadores });
+        });
+
+        if (intervals.length === 0) return 0;
+
+        // 2. Ordenar por startMin
+        intervals.sort((a, b) => a.startMin - b.startMin);
+
+        // 3. Mesclar sobrepostos — só desconta o trecho em comum, não o evento inteiro
+        const merged = [{
+            startMin:   intervals[0].startMin,
+            endMin:     intervals[0].endMin,
+            tipos:      [intervals[0].tipo],
+            operadores: intervals[0].operadores
+        }];
+
+        for (let i = 1; i < intervals.length; i++) {
+            const cur  = intervals[i];
+            const last = merged[merged.length - 1];
+            if (cur.startMin <= last.endMin) {
+                // Sobreposição: estende o fim e une os tipos
+                last.endMin     = Math.max(last.endMin, cur.endMin);
+                last.tipos.push(cur.tipo);
+                last.operadores = Math.max(last.operadores, cur.operadores);
+            } else {
+                // Sem sobreposição: novo segmento independente
+                merged.push({
+                    startMin:   cur.startMin,
+                    endMin:     cur.endMin,
+                    tipos:      [cur.tipo],
+                    operadores: cur.operadores
+                });
+            }
+        }
+
+        // 4. Calcular HH por segmento mesclado aplicando regras de tipo
+        let totalHH = 0;
+        merged.forEach(seg => {
+            const duracaoHoras = (seg.endMin - seg.startMin) / 60;
+            const soTrens  = seg.tipos.every(t => t.includes('trem'));
+            const hasChuva = seg.tipos.some(t  => t.includes('chuva'));
+
+            let hh;
+            if (soTrens && duracaoHoras < (METAS.MINUTOS_MINIMOS_TREM / 60)) {
+                hh = 0; // Trem < 15 min não conta
+            } else if (hasChuva) {
+                hh = (duracaoHoras * seg.operadores) / METAS.DIVISOR_CHUVA;
+            } else {
+                hh = duracaoHoras * seg.operadores;
+            }
+            totalHH += hh;
+            if (hh > 0) {
+                debugLog(`  [HI merged] tipos=[${seg.tipos}] ${seg.endMin - seg.startMin}min × ${seg.operadores}op = ${hh.toFixed(2)} HH`);
+            }
+        });
+
+        return totalHH;
+    }
+
+    /**
+     * Obtém efetivo de um dia
+     * Usa Número RDO como chave de join (mais confiável que Número OS)
+     */
+    obterEfetivoDia(numeroRDO, data) {
         debugLog(`[CalendarioTP] Buscando efetivo para RDO=${numeroRDO}`);
 
-        const efetivoDia = this.dados.efetivos.find(ef =>
-            (ef['Número RDO'] || ef.numeroRDO || '') === numeroRDO
-        );
+        const efetivoDia = this.dados.efetivos.find(ef => {
+            const numRDO = ef['Número RDO'] || ef.numeroRDO || ef.numeroRdo || '';
+            return numRDO === numeroRDO;
+        });
 
         if (!efetivoDia) {
             debugLog(`[CalendarioTP] ⚠️ Efetivo NÃO encontrado para RDO=${numeroRDO}`);
@@ -131,90 +230,150 @@ class CalendarioTP {
     }
 
     /**
-     * Normaliza data para DD/MM/YYYY — suporta ISO 8601 (YYYY-MM-DD) e formato local
-     */
-    _normalizarData(data) {
-        if (!data) return '';
-        if (/^\d{4}-\d{2}-\d{2}/.test(data)) {
-            const [ano, mes, dia] = data.split('T')[0].split('-');
-            return `${dia}/${mes}/${ano}`;
-        }
-        return data;
-    }
-
-    /**
-     * Obtém dados completos de um dia
+     * Obtém dados completos de um dia, agregando TODOS os RDOs.
+     * Uma turma pode ter múltiplos RDOs no mesmo dia quando trabalha em 2+ O.S.
      */
     obterDadosDia(turma, dia, mes, ano) {
         const dataFormatada = `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`;
 
-        // Buscar RDO do dia — normaliza data para suportar ISO 8601, exclui deletados
-        const rdoDia = this.dados.rdos.find(rdo => {
+        // Buscar TODOS os RDOs do dia (pode haver mais de um quando a turma
+        // trabalha em duas O.S e gera dois RDOs para a mesma data)
+        const rdosDia = this.dados.rdos.filter(rdo => {
             const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
-            const data = this._normalizarData(rdo.Data || rdo.data || '');
-            const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
+            const data        = rdo.Data || rdo.data || '';
+            const deletado    = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
             return codigoTurma === turma && data === dataFormatada && deletado !== 'sim';
         });
 
-        if (!rdoDia) {
-            return null;
-        }
+        if (rdosDia.length === 0) return null;
 
-        const numeroOS = rdoDia['Número OS'] || rdoDia.numeroOS || rdoDia.numeroOs || '';
-        const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '-';
-        const observacoes = rdoDia.Observações || rdoDia.observacoes || '';
-        const houveServico = (rdoDia['Houve Serviço'] || rdoDia.houveServico || '').toLowerCase() === 'sim';
-        const causaNaoServico = (rdoDia['Causa Não Serviço'] || rdoDia.causaNaoServico || '').toUpperCase().trim();
+        const multiplosRDOs = rdosDia.length > 1;
 
-        // Calcular métricas — todos por Número RDO (chave única, imune a formato de data)
-        const hhProdutivas = this.calcularHHDia(numeroRDO);
-        const hhImprodutivas = this.calcularHIDia(numeroRDO);
-        const efetivo = this.obterEfetivoDia(numeroRDO);
+        // Acumuladores para agregar os valores de todos os RDOs do dia
+        let hhProdutivas   = 0;
+        let hhImprodutivas = 0;
+        const efetivo = { total: 0, operadores: 0, motoristas: 0, encarregado: 0, operadorEGP: 0, tecnicoSeguranca: 0, soldador: 0 };
+        const servicos          = [];
+        const horasImprodutivas = [];
+        const numeroRDOs        = [];
+        const encarregados      = new Set();
+        const observacoesLista  = [];
+        const hhPorOS           = []; // HH por O.S para exibição nas células do calendário
 
-        // Buscar serviços por Número RDO
-        const servicos = this.dados.servicos.filter(s =>
-            (s['Número RDO'] || s.numeroRDO || '') === numeroRDO
-        ).map(s => ({
-            descricao: s['Descrição'] || s.descricao || '-',
-            quantidade: parseFloat(s.Quantidade || s.quantidade || 0),
-            unidade: s.Unidade || s.unidade || 'UN',
-            hh: (parseFloat(s.Quantidade || s.quantidade || 0) * parseFloat(s.Coeficiente || s.coeficiente || 0)).toFixed(2)
-        }));
+        rdosDia.forEach(rdoDia => {
+            const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '-';
+            const numeroOS  = rdoDia['Número OS']  || rdoDia.numeroOS  || rdoDia.numeroOs || '';
 
-        // Buscar HIs por Número RDO
-        const horasImprodutivas = this.dados.horasImprodutivas.filter(hi =>
-            (hi['Número RDO'] || hi.numeroRDO || '') === numeroRDO
-        ).map(hi => ({
-            tipo: hi.Tipo || hi.tipo || '-',
-            descricao: hi['Descrição'] || hi.descricao || '-',
-            horaInicio: hi['Hora Início'] || hi.horaInicio || '-',
-            horaFim: hi['Hora Fim'] || hi.horaFim || '-',
-            hh: parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0).toFixed(2)
-        }));
+            numeroRDOs.push(numeroRDO);
+
+            const enc = rdoDia.Encarregado || rdoDia.encarregado || '';
+            if (enc) encarregados.add(enc);
+
+            // Cobrir todas as variações possíveis de normalização do campo Observações
+            const obs = (rdoDia.Observações || rdoDia.observações || rdoDia.observacoes || rdoDia.Observacoes || '').trim();
+            if (obs) observacoesLista.push(obs);
+
+            // HH produtivas e improdutivas deste RDO
+            const hhProdRDO  = this.calcularHHDia(numeroRDO, dataFormatada);
+            const hhImprRDO  = this.calcularHIDia(numeroRDO, dataFormatada);
+            hhProdutivas   += hhProdRDO;
+            hhImprodutivas += hhImprRDO;
+
+            // Normaliza a O.S para exibição: usa o campo ou extrai do prefixo do Número RDO
+            const osDisplay = (() => {
+                const os = numeroOS.trim();
+                if (os && os.toLowerCase() !== 'sem o numero da os ainda' && os !== '0') return os;
+                return numeroRDO.split('-')[0] || 'S/O.S';
+            })();
+            const kmInicio = (rdoDia['KM Início'] || rdoDia.kmInicio || rdoDia['Km Início'] || rdoDia['km_inicio'] || '').toString().trim();
+            const kmFim    = (rdoDia['KM Fim']    || rdoDia.kmFim    || rdoDia['Km Fim']    || rdoDia['km_fim']    || '').toString().trim();
+            hhPorOS.push({ numeroOS: osDisplay, hhProdutivas: hhProdRDO, hhImprodutivas: hhImprRDO, totalHH: hhProdRDO + hhImprRDO, kmInicio, kmFim });
+
+            // Efetivo — soma os totais de cada RDO
+            const ef = this.obterEfetivoDia(numeroRDO, dataFormatada);
+            efetivo.total           += ef.total;
+            efetivo.operadores      += ef.operadores;
+            efetivo.motoristas      += ef.motoristas;
+            efetivo.encarregado     += ef.encarregado;
+            efetivo.operadorEGP     += ef.operadorEGP;
+            efetivo.tecnicoSeguranca+= ef.tecnicoSeguranca;
+            efetivo.soldador        += ef.soldador;
+
+            // Serviços — inclui coluna O.S quando há múltiplos RDOs
+            const servicosRDO = this.dados.servicos
+                .filter(s => (s['Número RDO'] || s.numeroRDO || s.numeroRdo || '') === numeroRDO)
+                .map(s => ({
+                    numeroRDO: multiplosRDOs ? numeroRDO : null,
+                    numeroOS:  multiplosRDOs ? numeroOS  : null,
+                    descricao: s['Descrição'] || s.descricao || '-',
+                    quantidade: parseFloat(s.Quantidade || s.quantidade || 0),
+                    unidade:    s.Unidade || s.unidade || 'UN',
+                    hh: (parseFloat(s.Quantidade || s.quantidade || 0) *
+                         parseFloat(s.Coeficiente || s.coeficiente || 0)).toFixed(2)
+                }));
+            servicos.push(...servicosRDO);
+
+            // Horas Improdutivas
+            const hiRDO = this.dados.horasImprodutivas
+                .filter(hi => (hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '') === numeroRDO)
+                .map(hi => ({
+                    numeroRDO:  multiplosRDOs ? numeroRDO : null,
+                    numeroOS:   multiplosRDOs ? osDisplay : null,
+                    tipo:       hi.Tipo || hi.tipo || '-',
+                    descricao:  hi['Descrição'] || hi.descricao || '-',
+                    horaInicio: hi['Hora Início'] || hi.horaInicio || '-',
+                    horaFim:    hi['Hora Fim']    || hi.horaFim   || '-',
+                    hh:         parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0).toFixed(2),
+                    overlap:    false  // preenchido abaixo
+                }));
+
+            // Detectar HIs com intervalos sobrepostos para sinalização no modal
+            if (hiRDO.length > 1) {
+                const pm = (t) => {
+                    if (!t || t === '-') return -1;
+                    const parts = t.split(':').map(Number);
+                    return (parts[0] || 0) * 60 + (parts[1] || 0);
+                };
+                const ivals = hiRDO.map(h => {
+                    const s = pm(h.horaInicio);
+                    let e = pm(h.horaFim);
+                    if (s >= 0 && e >= 0 && e <= s) e += 1440; // overnight
+                    return { s, e };
+                });
+                hiRDO.forEach((h, i) => {
+                    h.overlap = ivals[i].s >= 0 && ivals.some((iv, j) =>
+                        j !== i && iv.s >= 0 && ivals[i].s < iv.e && iv.s < ivals[i].e
+                    );
+                });
+            }
+
+            debugLog(`[CalendarioTP] HI para RDO=${numeroRDO} (OS ${osDisplay}): ${hiRDO.length} registro(s), ${hhImprRDO.toFixed(2)} HH improdutivas`);
+            horasImprodutivas.push(...hiRDO);
+        });
 
         const resultado = {
-            numeroRDO,
-            numeroOS,
-            data: dataFormatada,
+            numeroRDO:    numeroRDOs.join(', '),
+            multiplosRDOs,
+            qtdRDOs:      rdosDia.length,
+            data:         dataFormatada,
             turma,
-            encarregado: rdoDia.Encarregado || rdoDia.encarregado || '-',
+            encarregado:  Array.from(encarregados).join(', ') || '-',
             hhProdutivas,
             hhImprodutivas,
-            totalHH: hhProdutivas + hhImprodutivas,
+            totalHH:      hhProdutivas + hhImprodutivas,
+            hhPorOS,
             efetivo,
-            observacoes,
-            houveServico,
-            causaNaoServico,
+            observacoes:  observacoesLista.join(' | '),
             servicos,
             horasImprodutivas
         };
 
-        debugLog(`[CalendarioTP] ✅ Dados do dia compilados:`, {
-            numeroRDO: resultado.numeroRDO,
-            hhProdutivas: resultado.hhProdutivas,
-            hhImprodutivas: resultado.hhImprodutivas,
-            totalHH: resultado.totalHH,
-            efetivoTotal: resultado.efetivo.total
+        debugLog(`[CalendarioTP] ✅ Dados do dia compilados (${rdosDia.length} RDO(s)):`, {
+            numeros:       resultado.numeroRDO,
+            hhProdutivas:  resultado.hhProdutivas,
+            hhImprodutivas:resultado.hhImprodutivas,
+            totalHH:       resultado.totalHH,
+            efetivoTotal:  resultado.efetivo.total
         });
 
         return resultado;
@@ -355,30 +514,37 @@ class CalendarioTP {
                     corStatus = '#FF9800';
                 }
 
+                // KM agregado de todos os RDOs do dia para exibir ao lado da meta
+                const kmTexto = dadosDia.hhPorOS
+                    .filter(item => item.kmInicio || item.kmFim)
+                    .map(item => `${item.kmInicio || '-'} – ${item.kmFim || '-'}`)
+                    .join(' | ');
+
                 html += `
                     <div class="calendario-dia trabalhado ${status}"
                          style="border-left: 4px solid ${corStatus}; cursor: pointer;"
                          onclick="calendarioTP.mostrarDetalhesDia('${turma}', ${dia}, ${this.mesAtual}, ${this.anoAtual})">
                         <div class="dia-numero">${dia}</div>
-                        <div class="dia-hh">
-                            <strong>${hhTotal.toFixed(1)}</strong> HH
-                        </div>
-                        <div class="dia-meta">
-                            ${(percentualMeta * 100).toFixed(0)}% da meta
-                        </div>
-                        <div class="dia-detalhes">
-                            📊 ${hhProdutivas.toFixed(0)} prod + ${hhImprodutivas.toFixed(0)} impr
-                        </div>
-                        <div class="dia-efetivo" style="color: #666;">
-                            👷 ${dadosDia.efetivo.total} pessoas
-                        </div>
-                        ${!dadosDia.houveServico && dadosDia.causaNaoServico ? `
-                            <div class="dia-causa" style="margin-top: 4px;">
-                                <span class="badge" style="background-color: ${dadosDia.causaNaoServico === 'RUMO' ? '#FF9800' : '#F44336'}; font-size: 0.65em;">
-                                    ${dadosDia.causaNaoServico}
-                                </span>
+                        ${dadosDia.hhPorOS.map(item => `
+                            <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
+                                <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${item.numeroOS}</span>
+                                <strong class="dia-hh" style="margin:0; font-size:1.05em;">${item.totalHH.toFixed(1)} HH</strong>
                             </div>
-                        ` : ''}
+                        `).join('')}
+                        <div class="dia-meta" style="display:flex; justify-content:space-between; align-items:center; gap:4px; flex-wrap:wrap;">
+                            <span>${(percentualMeta * 100).toFixed(0)}% da meta</span>
+                            ${kmTexto ? `<span style="font-size:0.80em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">📍 ${kmTexto}</span>` : ''}
+                        </div>
+                        <div class="dia-efetivo">
+                            ${[
+                                dadosDia.efetivo.encarregado      ? `Enc:${dadosDia.efetivo.encarregado}`      : '',
+                                dadosDia.efetivo.operadores       ? `Op:${dadosDia.efetivo.operadores}`         : '',
+                                dadosDia.efetivo.motoristas       ? `Mot:${dadosDia.efetivo.motoristas}`        : '',
+                                dadosDia.efetivo.soldador         ? `Sold:${dadosDia.efetivo.soldador}`         : '',
+                                dadosDia.efetivo.operadorEGP      ? `EGP:${dadosDia.efetivo.operadorEGP}`       : '',
+                                dadosDia.efetivo.tecnicoSeguranca ? `Tec:${dadosDia.efetivo.tecnicoSeguranca}`  : ''
+                            ].filter(Boolean).join(' · ')}
+                        </div>
                         ${dadosDia.observacoes ? `
                             <div class="dia-obs" style="color: #ff9800;">
                                 📝 ${dadosDia.observacoes.substring(0, 30)}${dadosDia.observacoes.length > 30 ? '...' : ''}
@@ -408,8 +574,6 @@ class CalendarioTP {
                             <div><span class="badge" style="background-color: #FFC107">Amarelo</span> 83-99% da meta (${Math.round(META_DIARIA * 0.83)}-${META_DIARIA - 1} HH)</div>
                             <div><span class="badge" style="background-color: #F44336">Vermelho</span> < 83% da meta (< ${Math.round(META_DIARIA * 0.83)} HH)</div>
                             <div><span class="badge" style="background-color: #FF9800">Laranja</span> Sem produção (só HI)</div>
-                            <div><span class="badge" style="background-color: #FF9800">RUMO</span> Sem serviço — motivo do cliente (conta no TMC)</div>
-                            <div><span class="badge" style="background-color: #F44336">ENGECOM</span> Sem serviço — motivo interno (não conta no TMC)</div>
                         </div>
                     </div>
                 </div>
@@ -427,9 +591,8 @@ class CalendarioTP {
             const turmaBanco = rdo['Código Turma'] || rdo.codigoTurma || '';
             const dataBanco = rdo['Data'] || rdo.data || '';
             const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
-            const dataNorm = this._normalizarData(dataBanco);
-            if (!dataNorm) return false;
-            const [, mes, ano] = dataNorm.split('/');
+            if (!dataBanco) return false;
+            const [dia, mes, ano] = dataBanco.split('/');
             const mesRDO = parseInt(mes);
             const anoRDO = parseInt(ano);
             return turmaBanco === turma
@@ -534,6 +697,7 @@ class CalendarioTP {
                                         <i class="fas fa-users me-2"></i>${dados.turma} |
                                         <i class="fas fa-user me-2"></i>${dados.encarregado} |
                                         <i class="fas fa-file-alt me-2"></i>RDO: ${dados.numeroRDO}
+                                        ${dados.multiplosRDOs ? `<span class="badge bg-warning text-dark ms-2"><i class="fas fa-layer-group me-1"></i>${dados.qtdRDOs} RDOs neste dia</span>` : ''}
                                     </h6>
                                 </div>
                             </div>
@@ -603,6 +767,7 @@ class CalendarioTP {
                                         <table class="table table-sm table-hover">
                                             <thead class="table-light">
                                                 <tr>
+                                                    ${dados.multiplosRDOs ? '<th>O.S</th>' : ''}
                                                     <th>Descrição</th>
                                                     <th class="text-center">Quantidade</th>
                                                     <th class="text-center">Unidade</th>
@@ -612,6 +777,7 @@ class CalendarioTP {
                                             <tbody>
                                                 ${dados.servicos.map(s => `
                                                     <tr>
+                                                        ${dados.multiplosRDOs ? `<td><span class="badge bg-secondary">${s.numeroOS || '-'}</span></td>` : ''}
                                                         <td>${s.descricao}</td>
                                                         <td class="text-center">${s.quantidade}</td>
                                                         <td class="text-center">${s.unidade}</td>
@@ -634,6 +800,7 @@ class CalendarioTP {
                                         <table class="table table-sm table-hover">
                                             <thead class="table-light">
                                                 <tr>
+                                                    ${dados.multiplosRDOs ? '<th>O.S</th>' : ''}
                                                     <th>Tipo</th>
                                                     <th>Descrição</th>
                                                     <th class="text-center">Hora Início</th>
@@ -643,8 +810,12 @@ class CalendarioTP {
                                             </thead>
                                             <tbody>
                                                 ${dados.horasImprodutivas.map(hi => `
-                                                    <tr>
-                                                        <td><span class="badge bg-warning">${hi.tipo}</span></td>
+                                                    <tr${hi.overlap ? ' class="table-warning"' : ''}>
+                                                        ${dados.multiplosRDOs ? `<td><span class="badge bg-secondary">${hi.numeroOS || '-'}</span></td>` : ''}
+                                                        <td>
+                                                            <span class="badge bg-warning">${hi.tipo}</span>
+                                                            ${hi.overlap ? '<span class="badge bg-danger ms-1" title="Intervalo se sobrepõe com outra HI deste RDO — período já contabilizado na janela mesclada">⚠️ sobreposição</span>' : ''}
+                                                        </td>
                                                         <td>${hi.descricao}</td>
                                                         <td class="text-center">${hi.horaInicio}</td>
                                                         <td class="text-center">${hi.horaFim}</td>

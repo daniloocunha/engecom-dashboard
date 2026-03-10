@@ -9,6 +9,12 @@
  */
 
 // ============================================
+// DEBUG MODE (set to true for verbose logging)
+// ============================================
+const DEBUG_MODE = false;
+const debugLog = DEBUG_MODE ? console.log.bind(console) : () => {};
+
+// ============================================
 // GOOGLE SHEETS API
 // ============================================
 const CONFIG = {

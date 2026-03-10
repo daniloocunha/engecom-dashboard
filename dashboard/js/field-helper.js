@@ -3,6 +3,12 @@
  * Resolve problema de normalização inconsistente
  */
 
+// Fallback: garante que debugLog existe mesmo se config.js não a definir
+// (ocorre quando config.js foi criado manualmente a partir de config.example.js)
+if (typeof debugLog === 'undefined') {
+    window.debugLog = () => {};
+}
+
 class FieldHelper {
     /**
      * Obtém valor de campo com fallback para múltiplas variações

@@ -678,12 +678,15 @@
                             <option value="Reprovada">🔴 Reprovada</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
-                        <button class="btn btn-sm btn-primary" onclick="gestaoOS.renderizar()">
+                    <div class="col-md-3 d-flex gap-2">
+                        <button class="btn btn-sm btn-primary" onclick="gestaoOS.renderizar()" title="Reaplicar filtros com os dados já carregados">
                             <i class="fas fa-sync me-1"></i>Atualizar
                         </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="dashboardMain.recarregar()" title="Limpar cache (5 min) e buscar dados atualizados do Google Sheets">
+                            <i class="fas fa-cloud-download-alt me-1"></i>Recarregar
+                        </button>
                     </div>
-                    <div class="col-md-7 text-muted small d-flex align-items-end">
+                    <div class="col-md-6 text-muted small d-flex align-items-end">
                         <i class="fas fa-info-circle me-1"></i>
                         O filtro de Mês/Ano do painel principal é aplicado aqui também. Clique em uma O.S para ver detalhes.
                     </div>
@@ -1040,7 +1043,7 @@
 
     <script src="js/analise-tmc.js?v=3.0.13"></script>
     <script src="js/period-comparison.js?v=3.0.13"></script>
-    <script src="js/gestao-os.js?v=3.0.13"></script>
+    <script src="js/gestao-os.js?v=3.0.16"></script>
     <script src="js/main.js?v=3.0.13"></script>
 
     <script>

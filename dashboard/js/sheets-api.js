@@ -7,11 +7,19 @@
  * Valida se um número de O.S segue o padrão aceito:
  *   - 6 dígitos começando com 98 ou 99  (ex: 987654, 998070)
  *   - 7 dígitos começando com 100 a 199 (ex: 1001234, 1020999)
+ *   - Múltiplas O.S separadas por "/"   (ex: 1017755/1018836)
  * Qualquer outro valor é considerado inválido → "Sem O.S"
  */
 function validarNumeroOS(os) {
     if (!os) return false;
     const s = String(os).trim();
+
+    // Suporte a múltiplas O.S combinadas separadas por "/" (ex: "1017755/1018836")
+    // Usuário pode registrar dois serviços de O.S diferentes em um único RDO
+    if (s.includes('/')) {
+        return s.split('/').every(parte => validarNumeroOS(parte.trim()));
+    }
+
     if (/^9[89]\d{4}$/.test(s)) return true;   // 98xxxx ou 99xxxx (6 dígitos)
     if (/^1\d{6}$/.test(s)) return true;         // 100xxxx … 199xxxx (7 dígitos)
     return false;
@@ -239,6 +247,26 @@ class GoogleSheetsAPI {
             // Converter para objetos
             this.atualizarProgresso(abas.length + 1, total, 'Processando dados...');
             const rdosBrutos = this.converterParaObjetos(resultados['RDO']);
+
+            // Normalizar Número OS a partir do Número RDO quando há inconsistência.
+            // Caso de uso: usuário corrigiu o Número RDO diretamente no Sheets
+            // (ex: "1019299-19.02.26-001" → "1009299-19.02.26-001") mas deixou o
+            // campo "Número OS" com o valor antigo ("1019299"). Neste cenário o
+            // Número RDO é a fonte de verdade — extraímos o OS do seu prefixo.
+            rdosBrutos.forEach(rdo => {
+                const numeroRDO = (rdo['Número RDO'] || rdo.numeroRDO || '').trim();
+                if (!numeroRDO) return;
+                // Formato esperado: "OS-DD.MM.YY-NNN"  ex: "1009299-19.02.26-001"
+                const partes = numeroRDO.split('-');
+                if (partes.length < 3 || !/^\d{2}\.\d{2}\.\d{2}$/.test(partes[1])) return;
+                const osFromRDO = partes[0].trim();
+                const osAtual   = (rdo['Número OS'] || rdo.numeroOS || '').toString().trim();
+                if (osFromRDO && validarNumeroOS(osFromRDO) && osFromRDO !== osAtual) {
+                    console.warn(`[sheets-api] Inconsistência corrigida: "Número OS"="${osAtual}" ≠ prefixo de "Número RDO"="${numeroRDO}" → usando "${osFromRDO}"`);
+                    rdo['Número OS'] = osFromRDO;
+                    rdo.numeroOS     = osFromRDO;
+                }
+            });
 
             // Marcar RDOs com Número OS inválido
             rdosBrutos.forEach(rdo => {

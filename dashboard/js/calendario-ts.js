@@ -48,14 +48,16 @@ class CalendarioTS {
     }
 
     /**
-     * Calcula HH do soldador de um dia — busca por Número RDO (chave única)
+     * Calcula HH do soldador de um dia (serviços executados)
      */
-    calcularHHSoldadorDia(numeroRDO) {
+    calcularHHSoldadorDia(numeroOS, data) {
         let hhTotal = 0;
 
-        const servicosDoDia = this.dados.servicos.filter(s =>
-            (s['Número RDO'] || s.numeroRDO || '') === numeroRDO
-        );
+        const servicosDoDia = this.dados.servicos.filter(s => {
+            const numOS = s['Número OS'] || s.numeroOs || s.numeroOS || '';
+            const dataServico = s['Data RDO'] || s.dataRdo || s.data || '';
+            return numOS === numeroOS && dataServico === data;
+        });
 
         servicosDoDia.forEach(servico => {
             const quantidade = parseFloat(servico.Quantidade || servico.quantidade || 0);
@@ -67,36 +69,28 @@ class CalendarioTS {
     }
 
     /**
-     * Obtém efetivo de um dia — busca por Número RDO (chave única)
+     * Obtém efetivo de um dia
      */
-    obterEfetivoDia(numeroRDO) {
-        const efetivoDia = this.dados.efetivos.find(ef =>
-            (ef['Número RDO'] || ef.numeroRDO || '') === numeroRDO
-        );
+    obterEfetivoDia(numeroOS, data) {
+        const efetivoDia = this.dados.efetivos.find(ef => {
+            const numOS = ef['Número OS'] || ef.numeroOs || ef.numeroOS || '';
+            const dataEfetivo = ef['Data RDO'] || ef.dataRdo || ef.data || '';
+            return numOS === numeroOS && dataEfetivo === data;
+        });
 
         if (!efetivoDia) {
-            return { total: 0, soldador: 0, operadores: 0, encarregado: 0, motorista: 0 };
+            return { total: 0, encarregado: 0, operadores: 0, motoristas: 0, soldador: 0, operadorEGP: 0, tecnicoSeguranca: 0 };
         }
 
-        const encarregado = parseInt(efetivoDia['Encarregado Qtd'] || efetivoDia.encarregadoQtd || 0);
-        const soldador = parseInt(efetivoDia['Soldador'] || efetivoDia.soldador || 0);
-        const operadores = parseInt(efetivoDia['Operadores'] || efetivoDia.operadores || 0);
-        const motorista = parseInt(efetivoDia['Motoristas'] || efetivoDia.motoristas || 0);
-        const total = encarregado + soldador + operadores + motorista;
+        const encarregado      = parseInt(efetivoDia['Encarregado Qtd']   || efetivoDia.encarregadoQtd    || 0);
+        const soldador         = parseInt(efetivoDia['Soldador']           || efetivoDia.soldador           || 0);
+        const operadores       = parseInt(efetivoDia['Operadores']         || efetivoDia.operadores         || 0);
+        const motoristas       = parseInt(efetivoDia['Motoristas']         || efetivoDia.motoristas         || 0);
+        const operadorEGP      = parseInt(efetivoDia['Operador EGP']       || efetivoDia.operadorEGP        || efetivoDia.operadorEgp || 0);
+        const tecnicoSeguranca = parseInt(efetivoDia['Técnico Segurança']  || efetivoDia.tecnicoSeguranca   || 0);
+        const total = encarregado + soldador + operadores + motoristas + operadorEGP + tecnicoSeguranca;
 
-        return { total, encarregado, soldador, operadores, motorista };
-    }
-
-    /**
-     * Normaliza data para DD/MM/YYYY — suporta ISO 8601 (YYYY-MM-DD) e formato local
-     */
-    _normalizarData(data) {
-        if (!data) return '';
-        if (/^\d{4}-\d{2}-\d{2}/.test(data)) {
-            const [ano, mes, dia] = data.split('T')[0].split('-');
-            return `${dia}/${mes}/${ano}`;
-        }
-        return data;
+        return { total, encarregado, soldador, operadores, motoristas, operadorEGP, tecnicoSeguranca };
     }
 
     /**
@@ -105,27 +99,52 @@ class CalendarioTS {
     obterDadosDia(turma, dia, mes, ano) {
         const dataFormatada = `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`;
 
-        // Normaliza data para suportar ISO 8601, exclui deletados
         const rdoDia = this.dados.rdos.find(rdo => {
             const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
-            const data = this._normalizarData(rdo.Data || rdo.data || '');
+            const data = rdo.Data || rdo.data || '';
             const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
             return codigoTurma === turma && data === dataFormatada && deletado !== 'sim';
         });
 
         if (!rdoDia) return null;
 
-        const numeroOS = rdoDia['Número OS'] || rdoDia.numeroOS || '';
-        const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '';
-        // Busca por Número RDO (chave única, imune a formato de data)
-        const hhSoldador = this.calcularHHSoldadorDia(numeroRDO);
-        const efetivo = this.obterEfetivoDia(numeroRDO);
+        const numeroOS  = rdoDia['Número OS']  || rdoDia.numeroOS  || '';
+        const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '-';
+        const horaInicio = rdoDia['Horário Início'] || rdoDia.horarioInicio || '-';
+        const horaFim    = rdoDia['Horário Fim']    || rdoDia.horarioFim    || '-';
+        const local      = rdoDia.Local || rdoDia.local || '-';
+        const kmInicio   = (rdoDia['KM Início'] || rdoDia.kmInicio || rdoDia['Km Início'] || rdoDia['km_inicio'] || '').toString().trim();
+        const kmFim      = (rdoDia['KM Fim']    || rdoDia.kmFim    || rdoDia['Km Fim']    || rdoDia['km_fim']    || '').toString().trim();
+
+        const hhSoldador = this.calcularHHSoldadorDia(numeroOS, dataFormatada);
+        const efetivo = this.obterEfetivoDia(numeroOS, dataFormatada);
         const observacoes = rdoDia['Observações'] || rdoDia.Observacoes || rdoDia.observacoes || '';
-        const houveServico = (rdoDia['Houve Serviço'] || rdoDia.houveServico || '').toLowerCase() === 'sim';
-        const causaNaoServico = (rdoDia['Causa Não Serviço'] || rdoDia.causaNaoServico || '').toUpperCase().trim();
+
+        // HI do dia — buscado por Número RDO (mais confiável que OS+data)
+        const hisDoDia = this.dados.horasImprodutivas.filter(hi => {
+            const hRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
+            return hRDO === numeroRDO;
+        }).map(hi => ({
+            tipo:       hi.Tipo || hi.tipo || '-',
+            descricao:  hi['Descrição'] || hi.descricao || '-',
+            horaInicio: hi['Hora Início'] || hi.horaInicio || '-',
+            horaFim:    hi['Hora Fim']    || hi.horaFim   || '-',
+            hh:         parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0).toFixed(2),
+            overlap:    false
+        }));
+
+        // Detectar sobreposição entre HIs do mesmo dia
+        if (hisDoDia.length > 1) {
+            const pm = t => { if (!t || t === '-') return -1; const p = t.split(':').map(Number); return (p[0]||0)*60+(p[1]||0); };
+            const ivals = hisDoDia.map(h => { const s = pm(h.horaInicio); let e = pm(h.horaFim); if (s>=0&&e>=0&&e<=s) e+=1440; return {s,e}; });
+            hisDoDia.forEach((h,i) => { h.overlap = ivals[i].s>=0 && ivals.some((iv,j)=>j!==i&&iv.s>=0&&ivals[i].s<iv.e&&iv.s<ivals[i].e); });
+        }
+
+        const hhImprodutivas = hisDoDia.reduce((sum, h) => sum + parseFloat(h.hh), 0);
 
         const metaDiaria = METAS.META_DIARIA_TS;
-        const percentualMeta = metaDiaria > 0 ? hhSoldador / metaDiaria : 0;
+        const totalHHDia = hhSoldador + hhImprodutivas;
+        const percentualMeta = metaDiaria > 0 ? totalHHDia / metaDiaria : 0;
 
         let status = 'vermelho';
         if (percentualMeta >= 1.0) {
@@ -137,14 +156,20 @@ class CalendarioTS {
         return {
             data: dataFormatada,
             numeroOS,
+            numeroRDO,
+            horaInicio,
+            horaFim,
+            local,
+            kmInicio,
+            kmFim,
             hhSoldador,
+            hhImprodutivas,
             metaDiaria,
             percentualMeta,
             status,
             efetivo,
             observacoes,
-            houveServico,
-            causaNaoServico,
+            horasImprodutivas: hisDoDia,
             rdo: rdoDia
         };
     }
@@ -157,20 +182,20 @@ class CalendarioTS {
             const turmaBanco = rdo['Código Turma'] || rdo.codigoTurma || '';
             const dataBanco = rdo['Data'] || rdo.data || '';
             const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
-            const dataNorm = this._normalizarData(dataBanco);
-            if (!dataNorm) return false;
-            const [, mes, ano] = dataNorm.split('/');
+            if (!dataBanco) return false;
+            const [, mes, ano] = dataBanco.split('/');
             return turmaBanco === turma
                 && parseInt(mes) === this.mesAtual
                 && parseInt(ano) === this.anoAtual
                 && deletado !== 'sim';
         });
 
-        // HH Soldador total — por Número RDO (chave única)
+        // HH Soldador total
         let hhSoldadorTotal = 0;
         rdosTurma.forEach(rdo => {
-            const numRDO = rdo['Número RDO'] || rdo.numeroRDO || '';
-            hhSoldadorTotal += this.calcularHHSoldadorDia(numRDO);
+            const numeroOS = rdo['Número OS'] || rdo.numeroOS || '';
+            const dataBanco = rdo['Data'] || rdo.data || '';
+            hhSoldadorTotal += this.calcularHHSoldadorDia(numeroOS, dataBanco);
         });
 
         // Dias trabalhados
@@ -260,22 +285,24 @@ class CalendarioTS {
                          style="border-left: 4px solid ${corStatus}; cursor: pointer;"
                          onclick="calendarioTS.mostrarDetalhesDia('${turma}', ${dia}, ${this.mesAtual}, ${this.anoAtual})">
                         <div class="dia-numero">${dia}</div>
-                        <div class="dia-hh">
-                            <strong>${dadosDia.hhSoldador.toFixed(1)}</strong> HH
+                        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
+                            <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${dadosDia.numeroOS}</span>
+                            <strong class="dia-hh" style="margin:0; font-size:1.05em;">${(dadosDia.hhSoldador + dadosDia.hhImprodutivas).toFixed(1)} HH</strong>
                         </div>
-                        <div class="dia-meta">
-                            ${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta
+                        <div class="dia-meta" style="display:flex; justify-content:space-between; align-items:center; gap:4px; flex-wrap:wrap;">
+                            <span>${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta</span>
+                            ${(dadosDia.kmInicio || dadosDia.kmFim) ? `<span style="font-size:0.80em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">📍 ${dadosDia.kmInicio || '-'} – ${dadosDia.kmFim || '-'}</span>` : ''}
                         </div>
-                        <div class="dia-efetivo" style="color: #666;">
-                            👷 ${dadosDia.efetivo.total} pessoas
+                        <div class="dia-efetivo">
+                            ${[
+                                dadosDia.efetivo.encarregado      ? `Enc:${dadosDia.efetivo.encarregado}`      : '',
+                                dadosDia.efetivo.operadores       ? `Op:${dadosDia.efetivo.operadores}`         : '',
+                                dadosDia.efetivo.motoristas       ? `Mot:${dadosDia.efetivo.motoristas}`        : '',
+                                dadosDia.efetivo.soldador         ? `Sold:${dadosDia.efetivo.soldador}`         : '',
+                                dadosDia.efetivo.operadorEGP      ? `EGP:${dadosDia.efetivo.operadorEGP}`       : '',
+                                dadosDia.efetivo.tecnicoSeguranca ? `Tec:${dadosDia.efetivo.tecnicoSeguranca}`  : ''
+                            ].filter(Boolean).join(' · ')}
                         </div>
-                        ${!dadosDia.houveServico && dadosDia.causaNaoServico ? `
-                            <div class="dia-causa" style="margin-top: 4px;">
-                                <span class="badge" style="background-color: ${dadosDia.causaNaoServico === 'RUMO' ? '#FF9800' : '#F44336'}; font-size: 0.65em;">
-                                    ${dadosDia.causaNaoServico}
-                                </span>
-                            </div>
-                        ` : ''}
                         ${dadosDia.observacoes ? `
                             <div class="dia-obs" style="margin-top: 4px; color: #ff9800;">
                                 📝 ${dadosDia.observacoes.substring(0, 30)}${dadosDia.observacoes.length > 30 ? '...' : ''}
@@ -302,8 +329,6 @@ class CalendarioTS {
                             <div><span class="badge" style="background-color: #4CAF50">Verde</span> ≥ 100% da meta (≥ ${META_DIARIA} HH)</div>
                             <div><span class="badge" style="background-color: #FFC107">Amarelo</span> 80-99% da meta</div>
                             <div><span class="badge" style="background-color: #F44336">Vermelho</span> < 80% da meta</div>
-                            <div><span class="badge" style="background-color: #FF9800">RUMO</span> Sem serviço — motivo do cliente</div>
-                            <div><span class="badge" style="background-color: #F44336">ENGECOM</span> Sem serviço — motivo interno</div>
                         </div>
                     </div>
                 </div>
@@ -347,10 +372,9 @@ class CalendarioTS {
 
             if (!isTS) return;
 
-            // Verificar se é do mês/ano filtrado — normaliza ISO 8601
+            // Verificar se é do mês/ano filtrado
             if (dataBanco) {
-                const dataNorm = this._normalizarData(dataBanco);
-                const partes = dataNorm ? dataNorm.split('/') : [];
+                const partes = dataBanco.split('/');
                 if (partes.length === 3) {
                     const mes = parseInt(partes[1]);
                     const ano = parseInt(partes[2]);
@@ -404,23 +428,23 @@ class CalendarioTS {
         const dados = this.obterDadosDia(turma, dia, mes, ano);
         if (!dados) return;
 
-        const numeroRDO_modal = dados.rdo?.['Número RDO'] || dados.rdo?.numeroRDO || '';
+        const numeroOS = dados.numeroOS;
+        const dataFormatada = dados.data;
 
-        // Busca por Número RDO (chave única, imune a formato de data)
-        const servicosDoDia = this.dados.servicos.filter(s =>
-            (s['Número RDO'] || s.numeroRDO || '') === numeroRDO_modal
-        );
-
-        const servicosFormatados = servicosDoDia.map(s => ({
-            descricao: s['Descrição'] || s.descricao || '-',
-            quantidade: parseFloat(s.Quantidade || s.quantidade || 0).toFixed(2),
-            coeficiente: parseFloat(s.Coeficiente || s.coeficiente || 0).toFixed(4),
-            unidade: s.Unidade || s.unidade || '-',
-            hh: (parseFloat(s.Quantidade || s.quantidade || 0) * parseFloat(s.Coeficiente || s.coeficiente || 0)).toFixed(2)
-        }));
+        // Serviços buscados por Número RDO (mais confiável que OS+data)
+        const servicosFormatados = this.dados.servicos
+            .filter(s => (s['Número RDO'] || s.numeroRDO || s.numeroRdo || '') === dados.numeroRDO)
+            .map(s => ({
+                descricao:   s['Descrição'] || s.descricao || '-',
+                quantidade:  parseFloat(s.Quantidade  || s.quantidade  || 0).toFixed(2),
+                coeficiente: parseFloat(s.Coeficiente || s.coeficiente || 0).toFixed(4),
+                unidade:     s.Unidade || s.unidade || '-',
+                hh: (parseFloat(s.Quantidade  || s.quantidade  || 0) *
+                     parseFloat(s.Coeficiente || s.coeficiente || 0)).toFixed(2)
+            }));
 
         const encarregado = dados.rdo?.Encarregado || dados.rdo?.encarregado || '-';
-        const numeroRDO = dados.rdo?.['Número RDO'] || dados.rdo?.numeroRDO || '-';
+        const totalHH = dados.hhSoldador + dados.hhImprodutivas;
 
         const modalHTML = `
             <div class="modal fade" id="modalDetalhesDiaTS" tabindex="-1">
@@ -434,48 +458,75 @@ class CalendarioTS {
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
-                            <!-- Info -->
-                            <div class="mb-3">
-                                <h6 class="text-muted">
-                                    <i class="fas fa-user me-2"></i>${encarregado} &nbsp;|&nbsp;
-                                    <i class="fas fa-file-alt me-2"></i>RDO: ${numeroRDO} &nbsp;|&nbsp;
-                                    <i class="fas fa-hashtag me-2"></i>OS: ${numeroOS}
-                                </h6>
+                            <!-- Cabeçalho info -->
+                            <div class="row mb-4">
+                                <div class="col-md-12">
+                                    <h6 class="text-muted mb-1">
+                                        <i class="fas fa-user me-2"></i>${encarregado} &nbsp;|&nbsp;
+                                        <i class="fas fa-file-alt me-2"></i>RDO: ${dados.numeroRDO} &nbsp;|&nbsp;
+                                        <i class="fas fa-hashtag me-2"></i>OS: ${dados.numeroOS}
+                                    </h6>
+                                    <h6 class="text-muted mb-0">
+                                        <i class="fas fa-map-marker-alt me-2"></i>${dados.local} &nbsp;|&nbsp;
+                                        <i class="fas fa-clock me-2"></i>${dados.horaInicio} – ${dados.horaFim}
+                                    </h6>
+                                </div>
                             </div>
 
                             <!-- Métricas -->
                             <div class="row mb-4">
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <div class="text-center p-3 bg-danger bg-opacity-10 rounded">
                                         <h4 class="mb-1 fw-bold">${dados.hhSoldador.toFixed(2)}</h4>
                                         <small class="text-muted">HH Soldador</small>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
                                     <div class="text-center p-3 bg-warning bg-opacity-10 rounded">
-                                        <h4 class="mb-1 fw-bold">${dados.metaDiaria.toFixed(2)}</h4>
-                                        <small class="text-muted">Meta Diária</small>
+                                        <h4 class="mb-1 fw-bold">${dados.hhImprodutivas.toFixed(2)}</h4>
+                                        <small class="text-muted">HH Improdutivas</small>
                                     </div>
                                 </div>
-                                <div class="col-md-4">
+                                <div class="col-md-3">
+                                    <div class="text-center p-3 bg-primary bg-opacity-10 rounded">
+                                        <h4 class="mb-1 fw-bold">${totalHH.toFixed(2)}</h4>
+                                        <small class="text-muted">Total HH</small>
+                                        <div class="mt-1"><small class="text-muted">Meta: ${dados.metaDiaria.toFixed(2)} HH</small></div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
                                     <div class="text-center p-3 bg-info bg-opacity-10 rounded">
                                         <h4 class="mb-1 fw-bold">${dados.efetivo?.total || 0}</h4>
                                         <small class="text-muted">Efetivo Total</small>
                                         <div class="mt-1">
                                             <small class="text-muted">
-                                                Enc: ${dados.efetivo?.encarregado || 0} |
-                                                Sold: ${dados.efetivo?.soldador || 0} |
-                                                Op: ${dados.efetivo?.operadores || 0} |
-                                                Mot: ${dados.efetivo?.motorista || 0}
+                                                ${[
+                                                    dados.efetivo?.encarregado      ? `Enc: ${dados.efetivo.encarregado}`      : '',
+                                                    dados.efetivo?.soldador         ? `Sold: ${dados.efetivo.soldador}`         : '',
+                                                    dados.efetivo?.operadores       ? `Op: ${dados.efetivo.operadores}`         : '',
+                                                    dados.efetivo?.motoristas       ? `Mot: ${dados.efetivo.motoristas}`        : '',
+                                                    dados.efetivo?.operadorEGP      ? `EGP: ${dados.efetivo.operadorEGP}`       : '',
+                                                    dados.efetivo?.tecnicoSeguranca ? `Tec: ${dados.efetivo.tecnicoSeguranca}`  : ''
+                                                ].filter(Boolean).join(' | ')}
                                             </small>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Gráfico de Performance -->
+                            <!-- Gráficos -->
                             <div class="row mb-4">
-                                <div class="col-md-6 offset-md-3">
+                                <div class="col-md-6">
+                                    <div class="card">
+                                        <div class="card-header bg-light">
+                                            <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Distribuição HH</h6>
+                                        </div>
+                                        <div class="card-body">
+                                            <canvas id="chartDistribuicaoHHTS" style="max-height: 250px;"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
                                     <div class="card">
                                         <div class="card-header bg-light">
                                             <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Performance vs Meta</h6>
@@ -524,7 +575,43 @@ class CalendarioTS {
                                         </table>
                                     </div>
                                 </div>
-                            ` : '<p class="text-muted text-center">Nenhum serviço registrado neste dia</p>'}
+                            ` : '<p class="text-muted mb-4"><i class="fas fa-info-circle me-2"></i>Nenhum serviço registrado</p>'}
+
+                            <!-- Horas Improdutivas -->
+                            ${dados.horasImprodutivas.length > 0 ? `
+                                <div class="mb-4">
+                                    <h6 class="text-muted mb-3">
+                                        <i class="fas fa-pause-circle me-2"></i>Horas Improdutivas
+                                    </h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-hover">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Tipo</th>
+                                                    <th>Descrição</th>
+                                                    <th class="text-center">Hora Início</th>
+                                                    <th class="text-center">Hora Fim</th>
+                                                    <th class="text-end">HH</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                ${dados.horasImprodutivas.map(hi => `
+                                                    <tr${hi.overlap ? ' class="table-warning"' : ''}>
+                                                        <td>
+                                                            <span class="badge bg-warning text-dark">${hi.tipo}</span>
+                                                            ${hi.overlap ? '<span class="badge bg-danger ms-1" title="Intervalo se sobrepõe com outra HI deste RDO">⚠️ sobreposição</span>' : ''}
+                                                        </td>
+                                                        <td>${hi.descricao}</td>
+                                                        <td class="text-center">${hi.horaInicio}</td>
+                                                        <td class="text-center">${hi.horaFim}</td>
+                                                        <td class="text-end"><strong>${hi.hh}</strong></td>
+                                                    </tr>
+                                                `).join('')}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            ` : '<p class="text-muted mb-4"><i class="fas fa-info-circle me-2"></i>Nenhuma hora improdutiva registrada</p>'}
 
                             <!-- Observações -->
                             ${dados.observacoes ? `
@@ -568,55 +655,66 @@ class CalendarioTS {
     }
 
     /**
-     * Renderiza gráfico de performance do dia
+     * Renderiza gráficos do modal de detalhes do dia
      */
     renderizarGraficoPerformance(dados) {
-        const ctx = document.getElementById('chartPerformanceTS');
-        if (!ctx) return;
-
+        const corStatus = dados.status === 'verde' ? '#4CAF50' :
+                          dados.status === 'amarelo' ? '#FFC107' : '#F44336';
         const percentualMeta = dados.metaDiaria > 0
             ? (dados.hhSoldador / dados.metaDiaria) * 100
             : 0;
 
-        const chart = new Chart(ctx, {
-            type: 'doughnut',
-            data: {
-                labels: ['HH Soldador', 'Falta para Meta'],
-                datasets: [{
-                    data: [
-                        dados.hhSoldador,
-                        Math.max(0, dados.metaDiaria - dados.hhSoldador)
-                    ],
-                    backgroundColor: [
-                        dados.status === 'verde' ? '#4CAF50' :
-                        dados.status === 'amarelo' ? '#FFC107' : '#F44336',
-                        '#e0e0e0'
-                    ],
-                    borderWidth: 2,
-                    borderColor: '#fff'
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: true,
-                plugins: {
-                    legend: { position: 'bottom' },
-                    title: {
-                        display: true,
-                        text: `${percentualMeta.toFixed(1)}% da Meta`,
-                        font: { size: 16, weight: 'bold' }
-                    },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return `${context.label}: ${(context.parsed || 0).toFixed(2)} HH`;
-                            }
-                        }
+        const tooltipHH = context => `${context.label}: ${(context.parsed || 0).toFixed(2)} HH`;
+
+        // Gráfico 1: Distribuição HH Soldador vs Improdutivas
+        const ctxDist = document.getElementById('chartDistribuicaoHHTS');
+        if (ctxDist) {
+            const chartDist = new Chart(ctxDist, {
+                type: 'doughnut',
+                data: {
+                    labels: ['HH Soldador', 'HH Improdutivas'],
+                    datasets: [{
+                        data: [dados.hhSoldador, dados.hhImprodutivas],
+                        backgroundColor: [corStatus, '#FFC107'],
+                        borderWidth: 2, borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        title: { display: true, text: `${(dados.hhSoldador + dados.hhImprodutivas).toFixed(2)} HH Total`, font: { size: 14, weight: 'bold' } },
+                        tooltip: { callbacks: { label: tooltipHH } }
                     }
                 }
-            }
-        });
-        this.modalCharts.push(chart);
+            });
+            this.modalCharts.push(chartDist);
+        }
+
+        // Gráfico 2: Performance do Soldador vs Meta
+        const ctxPerf = document.getElementById('chartPerformanceTS');
+        if (ctxPerf) {
+            const chartPerf = new Chart(ctxPerf, {
+                type: 'doughnut',
+                data: {
+                    labels: ['HH Soldador', 'Falta para Meta'],
+                    datasets: [{
+                        data: [dados.hhSoldador, Math.max(0, dados.metaDiaria - dados.hhSoldador)],
+                        backgroundColor: [corStatus, '#e0e0e0'],
+                        borderWidth: 2, borderColor: '#fff'
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: true,
+                    plugins: {
+                        legend: { position: 'bottom' },
+                        title: { display: true, text: `${percentualMeta.toFixed(1)}% da Meta`, font: { size: 16, weight: 'bold' } },
+                        tooltip: { callbacks: { label: tooltipHH } }
+                    }
+                }
+            });
+            this.modalCharts.push(chartPerf);
+        }
     }
 }
 
