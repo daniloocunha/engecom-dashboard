@@ -11,6 +11,6 @@
   "vars": {
     // URL de implantação do Google Apps Script
     // Atualizar aqui quando uma nova implantação for criada no Apps Script
-    "APPS_SCRIPT_URL": "https://script.google.com/macros/s/AKfycbz2rDosv90_R560u5UTCTcIxPcEn-Qv7h_aAReyCqAapKKPPhD2FlPXJPHxE7VF2D1Hfw/exec"
+    "APPS_SCRIPT_URL": "https://script.google.com/macros/s/AKfycbwAGDpVAJc-z4J0K9_F7yCwNebqWDNG7LhDyvhROFIMOXJ2k3bnfsjE9_mDfNssbZOl6g/exec"
   }
 }
