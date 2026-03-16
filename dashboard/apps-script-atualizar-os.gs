@@ -196,6 +196,10 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu) {
     var dados  = sheet.getDataRange().getValues();
     var header = dados[0].map(function(h) { return h.toString().trim(); });
     var colOS  = _findCol(header, 'N\u00famero OS');
+    var colSt  = _findCol(header, 'Status');
+    var colGV  = _findCol(header, 'GE/Via');
+    var colNt  = _findCol(header, 'Nota');
+    var colAt  = _findCol(header, 'Atualizado Em');
     // Mediu column may not exist in older sheets — find safely
     var colMediu = _findColSafe(header, 'Mediu');
     var agora  = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
@@ -205,13 +209,13 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu) {
         var osNaLinha = (dados[i][colOS] || '').toString().trim();
         if (osNaLinha === numeroOS.trim()) {
             var row = i + 1;
-            sheet.getRange(row, 2).setValue(status || '');
-            sheet.getRange(row, 3).setValue(gevia  || '');
-            sheet.getRange(row, 4).setValue(nota !== undefined ? nota : '');
+            sheet.getRange(row, colSt + 1).setValue(status || '');
+            sheet.getRange(row, colGV + 1).setValue(gevia  || '');
+            sheet.getRange(row, colNt + 1).setValue(nota !== undefined ? nota : '');
             if (colMediu >= 0) {
                 sheet.getRange(row, colMediu + 1).setValue(mediu !== undefined ? mediu : '');
             }
-            sheet.getRange(row, 6).setValue(agora);
+            sheet.getRange(row, colAt + 1).setValue(agora);
             SpreadsheetApp.flush();
             Logger.log('[GestaoOS] Atualizado: OS ' + numeroOS + ' (linha ' + row + ')');
             return { sucesso: true, acao: 'atualizado', linha: row };
@@ -579,8 +583,8 @@ function _proximoSequencial(ss, os2, dadosRDOOriginal, hdrRDO) {
 }
 
 /**
- * Clona linhas de uma aba relacionada (Servicos ou HorasImprodutivas) para o novo RDO.
- * As linhas originais NAO sao removidas do RDO original — apenas clonadas com novos IDs.
+ * Move linhas de uma aba relacionada (Servicos ou HorasImprodutivas) para o novo RDO.
+ * As linhas originais SAO removidas do RDO original (iteracao de tras pra frente).
  *
  * Para Servicos: chave = "desc|qty|coef"
  * Para HorasImprodutivas: chave = "data|tipo|ini|fim|ops"
@@ -600,30 +604,37 @@ function _moverLinhasParaNovoRDO(ss, nomeAba, rdoOriginal, novoRDO, novaOS, chav
     var colOS     = _findColSafe(hdr, 'N\u00famero OS');
     if (colRDONum < 0) { Logger.log('[_moverLinhasParaNovoRDO] Sem coluna Numero RDO em ' + nomeAba); return; }
 
+    // Pre-calcular indices de coluna fora do loop
+    var colDesc = colQty = colCoef = colDataRDO = colTipo = colIni = colFim = colOps = -1;
+    if (tipo === 'servico') {
+        colDesc = _findColSafe(hdr, 'Descri\u00e7\u00e3o');
+        colQty  = _findColSafe(hdr, 'Quantidade');
+        colCoef = _findColSafe(hdr, 'Coeficiente');
+    } else if (tipo === 'hi') {
+        colDataRDO = _findColSafe(hdr, 'Data RDO');
+        colTipo    = _findColSafe(hdr, 'Tipo');
+        colIni     = _findColSafe(hdr, 'Hora In\u00edcio');
+        colFim     = _findColSafe(hdr, 'Hora Fim');
+        colOps     = _findColSafe(hdr, 'Operadores');
+    }
+
     // Construir set de chaves para lookup rapido
     var chavesSet = {};
     chaves.forEach(function(c) { chavesSet[c] = true; });
 
-    var linhasParaClonar = [];
+    // Identificar linhas a mover (indices das linhas de dados, 1-based)
+    var linhasParaMover = []; // { idx: indice_em_dados, clone: linha_copiada }
     for (var i = 1; i < dados.length; i++) {
         var rdoNaLinha = (dados[i][colRDONum] || '').toString().trim();
         if (rdoNaLinha !== rdoOriginal.trim()) continue;
 
         var chave = '';
         if (tipo === 'servico') {
-            var colDesc  = _findColSafe(hdr, 'Descri\u00e7\u00e3o');
-            var colQty   = _findColSafe(hdr, 'Quantidade');
-            var colCoef  = _findColSafe(hdr, 'Coeficiente');
             var desc = colDesc >= 0 ? (dados[i][colDesc] || '').toString().trim() : '';
             var qty  = colQty  >= 0 ? (dados[i][colQty]  || '').toString().trim() : '';
             var coef = colCoef >= 0 ? (dados[i][colCoef] || '').toString().trim() : '';
             chave = desc + '|' + qty + '|' + coef;
         } else if (tipo === 'hi') {
-            var colDataRDO = _findColSafe(hdr, 'Data RDO');
-            var colTipo    = _findColSafe(hdr, 'Tipo');
-            var colIni     = _findColSafe(hdr, 'Hora In\u00edcio');
-            var colFim     = _findColSafe(hdr, 'Hora Fim');
-            var colOps     = _findColSafe(hdr, 'Operadores');
             var dataRDO = colDataRDO >= 0 ? (dados[i][colDataRDO] || '').toString().trim() : '';
             var tipoHI  = colTipo    >= 0 ? (dados[i][colTipo]    || '').toString().trim() : '';
             var ini     = colIni     >= 0 ? (dados[i][colIni]     || '').toString().trim() : '';
@@ -633,19 +644,24 @@ function _moverLinhasParaNovoRDO(ss, nomeAba, rdoOriginal, novoRDO, novaOS, chav
         }
 
         if (chavesSet[chave]) {
-            linhasParaClonar.push(dados[i].slice());
+            linhasParaMover.push({ idx: i, clone: dados[i].slice() });
         }
     }
 
-    // Clonar as linhas com o novo Numero RDO e nova OS
-    linhasParaClonar.forEach(function(linhaClone) {
-        linhaClone[colRDONum] = novoRDO;
-        if (colOS >= 0) linhaClone[colOS] = novaOS;
-        sheet.appendRow(linhaClone);
+    if (linhasParaMover.length === 0) return;
+
+    // Inserir clones com novo RDO/OS
+    linhasParaMover.forEach(function(item) {
+        item.clone[colRDONum] = novoRDO;
+        if (colOS >= 0) item.clone[colOS] = novaOS;
+        sheet.appendRow(item.clone);
     });
 
-    if (linhasParaClonar.length > 0) {
-        SpreadsheetApp.flush();
-        Logger.log('[_moverLinhasParaNovoRDO] ' + nomeAba + ': ' + linhasParaClonar.length + ' linha(s) clonadas para ' + novoRDO);
+    // Remover linhas originais de tras pra frente (para nao deslocar indices)
+    for (var j = linhasParaMover.length - 1; j >= 0; j--) {
+        sheet.deleteRow(linhasParaMover[j].idx + 1); // +1: planilha e 1-based
     }
+
+    SpreadsheetApp.flush();
+    Logger.log('[_moverLinhasParaNovoRDO] ' + nomeAba + ': ' + linhasParaMover.length + ' linha(s) movidas para ' + novoRDO);
 }
