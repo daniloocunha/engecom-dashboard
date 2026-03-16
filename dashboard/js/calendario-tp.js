@@ -547,7 +547,7 @@ class CalendarioTP {
                         </div>
                         ${dadosDia.observacoes ? `
                             <div class="dia-obs" style="color: #ff9800;">
-                                📝 ${dadosDia.observacoes.substring(0, 30)}${dadosDia.observacoes.length > 30 ? '...' : ''}
+                                📝 ${escapeHtml(dadosDia.observacoes.substring(0, 30))}${dadosDia.observacoes.length > 30 ? '...' : ''}
                             </div>
                         ` : ''}
                     </div>
@@ -777,11 +777,11 @@ class CalendarioTP {
                                             <tbody>
                                                 ${dados.servicos.map(s => `
                                                     <tr>
-                                                        ${dados.multiplosRDOs ? `<td><span class="badge bg-secondary">${s.numeroOS || '-'}</span></td>` : ''}
-                                                        <td>${s.descricao}</td>
-                                                        <td class="text-center">${s.quantidade}</td>
-                                                        <td class="text-center">${s.unidade}</td>
-                                                        <td class="text-end"><strong>${s.hh}</strong></td>
+                                                        ${dados.multiplosRDOs ? `<td><span class="badge bg-secondary">${escapeHtml(s.numeroOS || '-')}</span></td>` : ''}
+                                                        <td>${escapeHtml(s.descricao)}</td>
+                                                        <td class="text-center">${escapeHtml(String(s.quantidade))}</td>
+                                                        <td class="text-center">${escapeHtml(s.unidade)}</td>
+                                                        <td class="text-end"><strong>${escapeHtml(String(s.hh))}</strong></td>
                                                     </tr>
                                                 `).join('')}
                                             </tbody>
@@ -811,15 +811,15 @@ class CalendarioTP {
                                             <tbody>
                                                 ${dados.horasImprodutivas.map(hi => `
                                                     <tr${hi.overlap ? ' class="table-warning"' : ''}>
-                                                        ${dados.multiplosRDOs ? `<td><span class="badge bg-secondary">${hi.numeroOS || '-'}</span></td>` : ''}
+                                                        ${dados.multiplosRDOs ? `<td><span class="badge bg-secondary">${escapeHtml(hi.numeroOS || '-')}</span></td>` : ''}
                                                         <td>
-                                                            <span class="badge bg-warning">${hi.tipo}</span>
+                                                            <span class="badge bg-warning">${escapeHtml(hi.tipo)}</span>
                                                             ${hi.overlap ? '<span class="badge bg-danger ms-1" title="Intervalo se sobrepõe com outra HI deste RDO — período já contabilizado na janela mesclada">⚠️ sobreposição</span>' : ''}
                                                         </td>
-                                                        <td>${hi.descricao}</td>
-                                                        <td class="text-center">${hi.horaInicio}</td>
-                                                        <td class="text-center">${hi.horaFim}</td>
-                                                        <td class="text-end"><strong>${hi.hh}</strong></td>
+                                                        <td>${escapeHtml(hi.descricao)}</td>
+                                                        <td class="text-center">${escapeHtml(hi.horaInicio)}</td>
+                                                        <td class="text-center">${escapeHtml(hi.horaFim)}</td>
+                                                        <td class="text-end"><strong>${escapeHtml(String(hi.hh))}</strong></td>
                                                     </tr>
                                                 `).join('')}
                                             </tbody>
@@ -834,7 +834,7 @@ class CalendarioTP {
                                     <h6 class="alert-heading">
                                         <i class="fas fa-comment-dots me-2"></i>Observações
                                     </h6>
-                                    <p class="mb-0">${dados.observacoes}</p>
+                                    <p class="mb-0">${escapeHtml(dados.observacoes)}</p>
                                 </div>
                             ` : ''}
                         </div>

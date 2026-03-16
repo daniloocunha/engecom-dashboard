@@ -53,6 +53,15 @@
                 </div>
             </div>
 
+            <button class="btn btn-outline-warning btn-sm position-relative me-2"
+                    id="btnAuditoriaOS"
+                    onclick="osAuditoria.abrirModalLista()"
+                    title="O.S com números suspeitos detectadas"
+                    style="display:none;">
+                <i class="fas fa-exclamation-triangle me-1"></i>Auditoria OS
+                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                      id="badgeAuditoriaCount" style="font-size:0.65rem;">0</span>
+            </button>
             <button class="btn btn-outline-light btn-sm" onclick="auth.logout()">
                 <i class="fas fa-sign-out-alt me-1"></i>
                 Sair
@@ -1027,6 +1036,7 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- Scripts do Dashboard (cache-bust: altere ?v=X.Y.Z a cada release) -->
+    <script src="js/safe-html.js?v=3.0.13"></script>
     <script src="js/config.js?v=3.0.13"></script>
     <script src="js/auth.js?v=3.0.13"></script>
     <script src="js/field-helper.js?v=3.0.13"></script>
@@ -1044,6 +1054,7 @@
     <script src="js/analise-tmc.js?v=3.0.13"></script>
     <script src="js/period-comparison.js?v=3.0.13"></script>
     <script src="js/gestao-os.js?v=3.0.19"></script>
+    <script src="js/os-auditoria.js?v=3.0.20"></script>
     <script src="js/main.js?v=3.0.13"></script>
 
     <script>
@@ -1079,7 +1090,7 @@
                             <span class="visually-hidden">Carregando...</span>
                         </div>
                         <p class="mt-3">Erro ao carregar. Tentando novamente... (${tentativasCarregamento}/${MAX_TENTATIVAS})</p>
-                        <p class="text-muted"><small>${error.message}</small></p>
+                        <p class="text-muted"><small>${escapeHtml(error.message)}</small></p>
                     `;
 
                     setTimeout(() => inicializarDashboard(), delay);
@@ -1093,7 +1104,7 @@
                             </h5>
                             <hr>
                             <p><strong>Detalhes do erro:</strong></p>
-                            <p class="mb-2"><code>${error.message}</code></p>
+                            <p class="mb-2"><code>${escapeHtml(error.message)}</code></p>
                             <hr>
                             <p class="mb-2"><strong>Possíveis causas:</strong></p>
                             <ul class="text-start">
@@ -1116,7 +1127,92 @@
                 }
             }
         }
+    </script>
 
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Modal Auditoria OS — Lista de O.S suspeitas               -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="modalAuditoriaLista" tabindex="-1" aria-labelledby="modalAuditoriaListaLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-warning bg-opacity-25">
+                    <h5 class="modal-title" id="modalAuditoriaListaLabel">
+                        <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
+                        Auditoria de O.S
+                        <span class="badge bg-danger ms-2" id="auditoriaListaBadge">0</span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body" id="auditoriaListaBody">
+                    <!-- Preenchido dinamicamente por osAuditoria.abrirModalLista() -->
+                </div>
+                <div class="modal-footer d-flex justify-content-between align-items-center">
+                    <span class="small text-muted" id="auditoriaIgnoradasInfo"></span>
+                    <div>
+                        <button type="button" class="btn btn-sm btn-outline-secondary me-2"
+                                onclick="osAuditoria.abrirRevisarIgnoradas()">
+                            <i class="fas fa-eye-slash me-1"></i>Ver Ignoradas
+                        </button>
+                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Modal Auditoria OS — Corrigir número de O.S               -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="modalAuditoriaCorrigir" tabindex="-1" aria-labelledby="modalAuditoriaCorrigirLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary bg-opacity-10">
+                    <h5 class="modal-title" id="modalAuditoriaCorrigirLabel">
+                        <i class="fas fa-edit me-2 text-primary"></i>Corrigir Número de O.S
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body" id="auditoriaCorrigirBody">
+                    <!-- Preenchido dinamicamente por osAuditoria.abrirModalCorrigir() -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btnConfirmarCorrigir"
+                            onclick="osAuditoria.confirmarCorrigir()">
+                        <i class="fas fa-check me-1"></i>Confirmar Correção
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Modal Auditoria OS — Dividir O.S entre dois RDOs          -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="modalAuditoriaDividir" tabindex="-1" aria-labelledby="modalAuditoriaDividirLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-success bg-opacity-10">
+                    <h5 class="modal-title" id="modalAuditoriaDividirLabel">
+                        <i class="fas fa-code-branch me-2 text-success"></i>Dividir O.S em Duas
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body" id="auditoriaDividirBody">
+                    <!-- Preenchido dinamicamente por osAuditoria.abrirModalDividir() -->
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-success" id="btnConfirmarDividir"
+                            onclick="osAuditoria.confirmarDividir()">
+                        <i class="fas fa-code-branch me-1"></i>Confirmar Divisão
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
         // Inicialização
         document.addEventListener('DOMContentLoaded', async () => {
             // Verificar autenticação
@@ -1133,5 +1229,6 @@
             dashboardMain.aplicarFiltros();
         }
     </script>
+
 </body>
 </html>

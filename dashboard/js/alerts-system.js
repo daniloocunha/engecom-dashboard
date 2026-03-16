@@ -10,7 +10,9 @@ class AlertsSystem {
             SLA_CRITICO: 0.70,      // < 70% = crítico
             SLA_ALERTA: 0.80,       // < 80% = alerta
             SLA_OK: 0.96,           // >= 96% = ok
-            HH_MINIMO_TP: 80,       // Mínimo HH esperado por TP
+            // Mínimo operacional diário: usa a meta configurada em METAS.META_DIARIA_TP
+            // para evitar divergência caso o valor seja ajustado no config.js.
+            HH_MINIMO_TP: (typeof METAS !== 'undefined' ? METAS.META_DIARIA_TP : 96),
             DIAS_MINIMO_TMC: 15     // Mínimo dias trabalhados por TMC
         };
     }

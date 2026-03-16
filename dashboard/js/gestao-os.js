@@ -32,9 +32,9 @@ function _esc(text) {
     return d.innerHTML;
 }
 
-/** Escapa para uso dentro de atributos HTML (garante que " não quebre o atributo) */
+/** Escapa para uso dentro de atributos HTML (garante que " e ' não quebrem o atributo) */
 function _escAttr(text) {
-    return _esc(text).replace(/"/g, '&quot;');
+    return _esc(text).replace(/"/g, '&quot;').replace(/'/g, '&#39;');
 }
 
 /** Exibe uma mensagem de erro temporária via Toast Bootstrap (sem bloquear a UI) */
@@ -256,7 +256,7 @@ class GestaoOS {
     /** Retorna o <select> de status para a tabela (dentro da célula) */
     _statusSelectHTML(grupo) {
         const status = this.getStatus(grupo);
-        const osEsc  = _esc(grupo.numeroOS);
+        const osEsc  = _escAttr(grupo.numeroOS);
         const optionsHTML = STATUS_OPTS.map(o =>
             `<option value="${o.val}" ${status === o.val ? 'selected' : ''}>${o.icon} ${o.val}</option>`
         ).join('');
@@ -276,7 +276,7 @@ class GestaoOS {
     /** Retorna o <select> de status para dentro do modal */
     _statusModalHTML(grupo, modalOsId) {
         const status = this.getStatus(grupo);
-        const osEsc  = _esc(grupo.numeroOS);
+        const osEsc  = _escAttr(grupo.numeroOS);
         const optionsHTML = STATUS_OPTS.map(o =>
             `<option value="${o.val}" ${status === o.val ? 'selected' : ''}>${o.icon} ${o.val}</option>`
         ).join('');
@@ -372,7 +372,7 @@ class GestaoOS {
 
     _geviaHTML(numeroOS) {
         const valor = this.getGeVia(numeroOS);
-        const osEsc = _esc(numeroOS);
+        const osEsc = _escAttr(numeroOS);
         return `<select class="form-select form-select-sm border-primary text-primary fw-bold"
                          style="font-size:0.75rem;min-width:95px;background-color:#e7f0ff;cursor:pointer;"
                          onchange="event.stopPropagation();gestaoOS.setGeVia('${osEsc}', this.value)"
@@ -385,7 +385,7 @@ class GestaoOS {
 
     _geviaBadgeHTML(numeroOS, modalOsId) {
         const valor = this.getGeVia(numeroOS);
-        const osEsc = _esc(numeroOS);
+        const osEsc = _escAttr(numeroOS);
         return `<select id="geviaBadge_${modalOsId}"
                          class="form-select form-select-sm border-primary text-primary fw-bold d-inline-block"
                          style="width:auto;background-color:#e7f0ff;font-size:0.8rem;"
@@ -396,10 +396,14 @@ class GestaoOS {
                 </select>`;
     }
 
-    // ── Já Mediu (Feature 1) — localStorage apenas ────────────────────────
+    // ── Já Mediu ───────────────────────────────────────────────────────────
 
     getMediu(numeroOS) {
-        return localStorage.getItem('gestaoOS_mediu_' + numeroOS) === 'sim';
+        // Preferir valor local (mais recente); fallback para servidor
+        const local = localStorage.getItem('gestaoOS_mediu_' + numeroOS);
+        if (local !== null) return local === 'sim';
+        const sv = this._dadosServidor?.[numeroOS];
+        return sv?.mediu === 'sim';
     }
 
     setMediu(numeroOS, valor) {
@@ -408,6 +412,8 @@ class GestaoOS {
         } else {
             localStorage.removeItem('gestaoOS_mediu_' + numeroOS);
         }
+        // Sincronizar com servidor para que outros dispositivos vejam o estado atualizado
+        this._salvarNoServidor(numeroOS);
         const cel = document.getElementById(`mediu-cel-${CSS.escape(numeroOS)}`);
         if (cel) cel.innerHTML = this._mediuHTML(numeroOS);
         this._atualizarResumo();
@@ -892,15 +898,18 @@ class GestaoOS {
         const nota   = sv.nota !== undefined ? sv.nota
                      : (localStorage.getItem('gestaoOS_notas_' + numeroOS)
                      || localStorage.getItem('gestaoOS_nota_' + numeroOS) || '');
+        // mediu: localStorage tem prioridade (última ação do usuário)
+        const mediuLocal = localStorage.getItem('gestaoOS_mediu_' + numeroOS);
+        const mediu = mediuLocal !== null ? mediuLocal : (sv.mediu || 'nao');
 
         // Atualizar cache com valores definitivos antes de enviar
         if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
-        Object.assign(this._dadosServidor[numeroOS], { status, gevia, nota });
+        Object.assign(this._dadosServidor[numeroOS], { status, gevia, nota, mediu });
 
         try {
             const resp = await fetch(url, {
                 method: 'POST',
-                body: JSON.stringify({ acao: 'salvarGestaoOS', numeroOS, status, gevia, nota })
+                body: JSON.stringify({ acao: 'salvarGestaoOS', numeroOS, status, gevia, nota, mediu })
             });
             const j = await resp.json();
 
@@ -934,8 +943,20 @@ class GestaoOS {
             if (match) osNums.add(match[2]);
         }
 
-        // Apenas O.S que ainda não existem no servidor (servidor tem prioridade)
-        const paraEnviar = [...osNums].filter(os => !this._dadosServidor[os]);
+        // Enviar O.S que não existem no servidor OU que divergem (mudança feita offline).
+        // Sem esse filtro, alterações offline em O.S já existentes seriam silenciosamente perdidas.
+        const paraEnviar = [...osNums].filter(os => {
+            const sv = this._dadosServidor[os];
+            if (!sv) return true; // não existe no servidor → enviar (migração)
+            // Verificar divergência nos campos editáveis
+            const localStatus = localStorage.getItem('gestaoOS_status_' + os);
+            const localGevia  = localStorage.getItem('gestaoOS_gevia_'  + os);
+            const localNota   = localStorage.getItem('gestaoOS_notas_'  + os)
+                             || localStorage.getItem('gestaoOS_nota_'   + os);
+            return (localStatus !== null && localStatus !== sv.status)
+                || (localGevia  !== null && localGevia  !== sv.gevia)
+                || (localNota   !== null && localNota   !== sv.nota);
+        });
         if (paraEnviar.length === 0) return;
 
         console.log('[GestaoOS] 📤 Migrando', paraEnviar.length, 'O.S do localStorage → servidor (sequencial, 1 por vez)...');
@@ -1035,9 +1056,17 @@ class GestaoOS {
     // ── Limpeza de localStorage órfão ─────────────────────────────────────
 
     _limparLocalStorageOrfao() {
-        if (!this._grupos) return;
-        const osAtivas = new Set();
-        this._grupos.forEach(gt => gt.ordens.forEach((go, os) => osAtivas.add(os)));
+        // Usar _dadosServidor como fonte completa de O.S conhecidas.
+        // NUNCA usar this._grupos: pode estar filtrado por mês/ano e causaria remoção
+        // de dados de O.S fora do filtro ativo (bug de perda de dados).
+        // Só executar após o servidor ter carregado para evitar remoções prematuras.
+        if (!this._servidorCarregado) return;
+
+        const osAtivas = new Set(Object.keys(this._dadosServidor || {}));
+        // Também preservar O.S visíveis na tela (segurança extra para dados sem espelho no servidor)
+        if (this._grupos) {
+            this._grupos.forEach(gt => gt.ordens.forEach((go, os) => osAtivas.add(os)));
+        }
         const prefixos = [
             'gestaoOS_status_', 'gestaoOS_gevia_',
             'gestaoOS_nota_', 'gestaoOS_notas_',
@@ -1334,7 +1363,7 @@ class GestaoOS {
                 <h6 class="border-bottom pb-1 mb-2">
                   <i class="fas fa-sticky-note me-1 text-info"></i>Anotações
                   <button class="btn btn-sm btn-outline-info ms-2 py-0 px-2"
-                          onclick="gestaoOS.abrirEditorNotaModal('${_esc(numeroOS)}','${modalOsId}')"
+                          onclick="gestaoOS.abrirEditorNotaModal('${_escAttr(numeroOS)}','${modalOsId}')"
                           style="font-size:0.75rem;">
                     <i class="fas fa-plus me-1"></i>Nova nota
                   </button>

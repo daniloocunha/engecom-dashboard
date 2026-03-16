@@ -153,7 +153,7 @@ class CalculadoraMedicao {
         // ✅ URGENTE: Validar divisão por zero
         if (!diasUteis || diasUteis <= 0) {
             console.error(`❌ [CRÍTICO] Dias úteis inválido para ${mes}/${ano}: ${diasUteis}`);
-            throw new Error(`Dias úteis inválido (${diasUteis}) para ${mes}/${ano}. Configure dias úteis corretamente.`);
+            return null;
         }
 
         // ✅ URGENTE: Validar dados antes de calcular
@@ -168,12 +168,12 @@ class CalculadoraMedicao {
         // ✅ URGENTE: Validar resultados
         if (isNaN(mediaEncarregado) || !isFinite(mediaEncarregado)) {
             console.error(`❌ [CRÍTICO] Média encarregado inválida: ${mediaEncarregado}`);
-            throw new Error(`Cálculo de média encarregado resultou em ${mediaEncarregado}`);
+            return null;
         }
 
         if (isNaN(mediaOperadores) || !isFinite(mediaOperadores)) {
             console.error(`❌ [CRÍTICO] Média operadores inválida: ${mediaOperadores}`);
-            throw new Error(`Cálculo de média operadores resultou em ${mediaOperadores}`);
+            return null;
         }
         const mediaCaminhao = diasTrabalhados / diasUteis;
 
@@ -220,7 +220,7 @@ class CalculadoraMedicao {
         // ✅ Validar antes de calcular
         if (!diasUteis || diasUteis <= 0) {
             console.error(`❌ [CRÍTICO] diasUteis inválido em calcularMediaOperadores: ${diasUteis}`);
-            throw new Error(`diasUteis inválido: ${diasUteis}`);
+            return 0;
         }
 
         let totalOperadoresDia = 0;
@@ -249,7 +249,7 @@ class CalculadoraMedicao {
         // ✅ Validar resultado
         if (isNaN(media) || !isFinite(media)) {
             console.error(`❌ [CRÍTICO] Média operadores inválida: totalOperadoresDia=${totalOperadoresDia}, diasUteis=${diasUteis}, resultado=${media}`);
-            throw new Error(`Cálculo de média operadores resultou em ${media}`);
+            return 0;
         }
 
         return media;
@@ -264,7 +264,7 @@ class CalculadoraMedicao {
     calcularMediaEfetivo(rdos, diasUteis) {
         if (!diasUteis || diasUteis <= 0) {
             console.error(`❌ [CRÍTICO] diasUteis inválido em calcularMediaEfetivo: ${diasUteis}`);
-            throw new Error(`diasUteis inválido: ${diasUteis}`);
+            return { total: 0, operadores: 0, encarregado: 0, motoristas: 0, soldadores: 0 };
         }
 
         let totalEfetivoDia = {
@@ -313,7 +313,7 @@ class CalculadoraMedicao {
         // Validar resultado
         if (isNaN(mediaEfetivo.total) || !isFinite(mediaEfetivo.total)) {
             console.error(`❌ [CRÍTICO] Média efetivo inválida`);
-            throw new Error(`Cálculo de média efetivo resultou em valores inválidos`);
+            return { total: 0, operadores: 0, encarregado: 0, motoristas: 0, soldadores: 0 };
         }
 
         return mediaEfetivo;
@@ -384,7 +384,7 @@ class CalculadoraMedicao {
         // ✅ URGENTE: Validar dias úteis
         if (!diasUteis || diasUteis <= 0) {
             console.error(`❌ [CRÍTICO] Dias úteis inválido para ${mes}/${ano}: ${diasUteis}`);
-            throw new Error(`Dias úteis inválido (${diasUteis}) para ${mes}/${ano}`);
+            return null;
         }
 
         const metaMensal = calcularMetaMensalTP(diasUteis);
@@ -392,7 +392,7 @@ class CalculadoraMedicao {
         // ✅ URGENTE: Validar meta
         if (!metaMensal || metaMensal <= 0 || isNaN(metaMensal)) {
             console.error(`❌ [CRÍTICO] Meta mensal inválida: ${metaMensal} (diasUteis=${diasUteis})`);
-            throw new Error(`Meta mensal inválida: ${metaMensal}`);
+            return null;
         }
 
         // Calcular HH total
@@ -402,18 +402,20 @@ class CalculadoraMedicao {
         // ✅ URGENTE: Validar HH
         if (isNaN(hhServicos) || isNaN(hhImprodutivas)) {
             console.error(`❌ [CRÍTICO] HH inválidas: serviços=${hhServicos}, improdutivas=${hhImprodutivas}`);
-            throw new Error(`HH calculadas inválidas`);
+            return null;
         }
 
         const hhTotal = hhServicos + hhImprodutivas;
 
-        // Percentual do SLA atingido
-        const percentualSLA = Math.min(hhTotal / metaMensal, METAS.LIMITE_FATURAMENTO_TP);
+        // SLA real (sem teto) — usado para exibição de performance
+        const percentualSLAReal = hhTotal / metaMensal;
+        // SLA de faturamento (capado em 110%) — base para cálculo financeiro
+        const percentualSLA = Math.min(percentualSLAReal, METAS.LIMITE_FATURAMENTO_TP);
 
         // ✅ URGENTE: Validar percentual
         if (isNaN(percentualSLA) || !isFinite(percentualSLA)) {
             console.error(`❌ [CRÍTICO] Percentual SLA inválido: hhTotal=${hhTotal}, metaMensal=${metaMensal}, percentual=${percentualSLA}`);
-            throw new Error(`Percentual SLA inválido: ${percentualSLA}`);
+            return null;
         }
 
         // Valores fixos
@@ -440,8 +442,9 @@ class CalculadoraMedicao {
                 improdutivas: hhImprodutivas,
                 total: hhTotal
             },
-            percentualSLA,
-            atingiuTeto: percentualSLA >= METAS.LIMITE_FATURAMENTO_TP,
+            percentualSLA,          // capado em 110% — base do faturamento
+            percentualSLAReal,      // sem teto — reflete a performance real
+            atingiuTeto: percentualSLAReal >= METAS.LIMITE_FATURAMENTO_TP,
             valoresFixos,
             engecom: valorEngecom,
             encogel: valorEncogel,
@@ -472,7 +475,7 @@ class CalculadoraMedicao {
         // Validar dias úteis
         if (!diasUteis || diasUteis <= 0) {
             console.error(`❌ [CRÍTICO] Dias úteis inválido para ${mes}/${ano}: ${diasUteis}`);
-            throw new Error(`Dias úteis inválido (${diasUteis}) para ${mes}/${ano}`);
+            return null;
         }
 
         // Meta mensal TS: 1 soldador × 8h × dias úteis
@@ -481,7 +484,7 @@ class CalculadoraMedicao {
         // Validar meta
         if (!metaMensal || metaMensal <= 0 || isNaN(metaMensal)) {
             console.error(`❌ [CRÍTICO] Meta mensal TS inválida: ${metaMensal} (diasUteis=${diasUteis})`);
-            throw new Error(`Meta mensal TS inválida: ${metaMensal}`);
+            return null;
         }
 
         // Calcular HH do soldador (apenas serviços executados)
@@ -490,7 +493,7 @@ class CalculadoraMedicao {
         // Validar HH
         if (isNaN(hhSoldador)) {
             console.error(`❌ [CRÍTICO] HH soldador inválidas: ${hhSoldador}`);
-            throw new Error(`HH soldador calculadas inválidas`);
+            return null;
         }
 
         // Percentual do SLA atingido (baseado apenas no soldador)
@@ -499,7 +502,7 @@ class CalculadoraMedicao {
         // Validar percentual
         if (isNaN(percentualSLA) || !isFinite(percentualSLA)) {
             console.error(`❌ [CRÍTICO] Percentual SLA TS inválido: hhSoldador=${hhSoldador}, metaMensal=${metaMensal}, percentual=${percentualSLA}`);
-            throw new Error(`Percentual SLA TS inválido: ${percentualSLA}`);
+            return null;
         }
 
         // Valores fixos

@@ -91,6 +91,17 @@ class DashboardMain {
             this.dados.efetivos
         );
 
+        // OS Audit: detectar números suspeitos e exibir badge
+        if (typeof osAuditoria !== 'undefined') {
+            osAuditoria.carregarDados(
+                this.dados.rdos,
+                this.dados.servicos,
+                this.dados.horasImprodutivas,
+                this.dados.efetivos
+            );
+            osAuditoria.atualizarBadge();
+        }
+
         // Alertas de qualidade de dados: serviços customizados sem HH Manual preenchido
         const customizadosSemHH = sheetsAPI._customizadosSemHH || [];
         if (customizadosSemHH.length > 0 && typeof alertsSystem !== 'undefined') {
@@ -678,12 +689,12 @@ class DashboardMain {
 
         // ✅ VALIDAÇÃO: Verificar se mês/ano são válidos
         if (!mes || mes < 1 || mes > 12) {
-            alert('Erro: Mês inválido. Selecione um mês entre 1 e 12.');
+            mostrarToast('Mês inválido. Selecione um mês entre 1 e 12.', 'warning');
             return;
         }
 
         if (!ano || ano < 2020 || ano > 2030) {
-            alert('Erro: Ano inválido. Selecione um ano entre 2020 e 2030.');
+            mostrarToast('Ano inválido. Selecione um ano entre 2020 e 2030.', 'warning');
             return;
         }
 
@@ -719,7 +730,7 @@ class DashboardMain {
 
         } catch (error) {
             console.error('[Dashboard] Erro ao aplicar filtros:', error);
-            alert('Erro ao aplicar filtros. Tente novamente.');
+            mostrarToast('Erro ao aplicar filtros. Tente novamente.', 'danger');
         }
     }
 
@@ -804,11 +815,11 @@ class DashboardMain {
                 document.getElementById('loadingOverlay').style.display = 'none';
                 document.getElementById('mainContainer').style.display = 'block';
 
-                alert('Dados recarregados com sucesso!');
+                mostrarToast('Dados recarregados com sucesso!', 'success');
 
             } catch (error) {
                 console.error('[Dashboard] Erro ao recarregar:', error);
-                alert('Erro ao recarregar dados. Tente novamente.');
+                mostrarToast('Erro ao recarregar dados. Tente novamente.', 'danger');
             }
         }
     }
