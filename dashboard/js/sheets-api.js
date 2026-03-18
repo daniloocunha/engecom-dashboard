@@ -42,7 +42,10 @@ class GoogleSheetsAPI {
         const url = `${this.baseURL}/${this.spreadsheetId}/values/${nomeAba}!${range}?key=${this.apiKey}`;
 
         try {
-            const response = await fetch(url);
+            const controller = new AbortController();
+            const timeoutId  = setTimeout(() => controller.abort(), 30000);
+            const response   = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
             if (!response.ok) return [];
 
             const data = await response.json();
@@ -72,7 +75,10 @@ class GoogleSheetsAPI {
         const url = `${this.baseURL}/${this.spreadsheetId}/values/${nomeAba}!${range}?key=${this.apiKey}`;
 
         try {
-            const response = await fetch(url);
+            const controller = new AbortController();
+            const timeoutId  = setTimeout(() => controller.abort(), 30000);
+            const response   = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 // Detectar rate limit (429) e exibir mensagem amigável

@@ -117,9 +117,6 @@ object AppConstants {
 
     // ========== GOOGLE SHEETS ==========
 
-    /** Versão dos headers do Google Sheets */
-    const val SHEETS_HEADERS_VERSION = 4
-
     /** Delay entre operações batch para evitar quota (em milissegundos) */
     const val SHEETS_BATCH_DELAY_MS = 100L
 

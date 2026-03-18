@@ -221,9 +221,7 @@ class SheetsRelatedDataManager(
                     }
                 }
 
-                rowsToDelete.sortedDescending().forEach { rowIndex ->
-                    auditService.deleteSheetRow(sheetName, rowIndex)
-                }
+                auditService.deleteSheetRows(sheetName, rowsToDelete)
 
                 Log.d(tag, "Deletadas ${rowsToDelete.size} linhas de $sheetName para NumeroRDO: $numeroRDO")
                 deletedSheets.add(sheetName)

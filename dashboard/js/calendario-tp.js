@@ -402,7 +402,7 @@ class CalendarioTP {
                     <div class="modal-content">
                         <div class="modal-header bg-primary text-white">
                             <h5 class="modal-title">
-                                <i class="fas fa-list me-2"></i>O.S Trabalhadas - ${turma}
+                                <i class="fas fa-list me-2"></i>O.S Trabalhadas - ${escapeHtml(turma)}
                             </h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
@@ -414,7 +414,7 @@ class CalendarioTP {
                                 ${Array.from(stats.osSet).sort().map(os => `
                                     <div class="list-group-item d-flex align-items-center">
                                         <i class="fas fa-file-alt text-primary me-3"></i>
-                                        <strong>${os}</strong>
+                                        <strong>${escapeHtml(os)}</strong>
                                     </div>
                                 `).join('')}
                             </div>
@@ -436,7 +436,7 @@ class CalendarioTP {
                 <div class="card-header bg-primary text-white">
                     <div class="row align-items-center">
                         <div class="col-md-3">
-                            <h5 class="mb-0"><i class="fas fa-industry me-2"></i>${turma}</h5>
+                            <h5 class="mb-0"><i class="fas fa-industry me-2"></i>${escapeHtml(turma)}</h5>
                         </div>
                         <div class="col-md-9">
                             <div class="row g-2">
@@ -523,17 +523,17 @@ class CalendarioTP {
                 html += `
                     <div class="calendario-dia trabalhado ${status}"
                          style="border-left: 4px solid ${corStatus}; cursor: pointer;"
-                         onclick="calendarioTP.mostrarDetalhesDia('${turma}', ${dia}, ${this.mesAtual}, ${this.anoAtual})">
+                         onclick="calendarioTP.mostrarDetalhesDia(${JSON.stringify(turma)}, ${dia}, ${this.mesAtual}, ${this.anoAtual})">
                         <div class="dia-numero">${dia}</div>
                         ${dadosDia.hhPorOS.map(item => `
                             <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
-                                <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${item.numeroOS}</span>
+                                <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${escapeHtml(item.numeroOS)}</span>
                                 <strong class="dia-hh" style="margin:0; font-size:1.05em;">${item.totalHH.toFixed(1)} HH</strong>
                             </div>
                         `).join('')}
                         <div class="dia-meta" style="display:flex; justify-content:space-between; align-items:center; gap:4px; flex-wrap:wrap;">
                             <span>${(percentualMeta * 100).toFixed(0)}% da meta</span>
-                            ${kmTexto ? `<span style="font-size:0.80em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">📍 ${kmTexto}</span>` : ''}
+                            ${kmTexto ? `<span style="font-size:0.80em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">📍 ${escapeHtml(kmTexto)}</span>` : ''}
                         </div>
                         <div class="dia-efetivo">
                             ${[

@@ -41,6 +41,9 @@ class ModeloLoader(private val context: Context) {
         // Carregar tema DDS
         views.etTemaDDS.setText(rdoModelo.temaDDS)
 
+        // Carregar nomes dos colaboradores
+        views.etNomeColaboradores.setText(rdoModelo.nomeColaboradores)
+
         // Carregar efetivo
         views.etEfetivoEncarregado.setText(rdoModelo.efetivo.encarregado.toString())
         views.etEfetivoOperadores.setText(rdoModelo.efetivo.operadores.toString())
@@ -107,6 +110,7 @@ class ModeloLoader(private val context: Context) {
         val etHorarioInicio: EditText,
         val etHorarioFim: EditText,
         val etTemaDDS: EditText,
+        val etNomeColaboradores: EditText,
 
         // Spinners
         val spinnerCodigoTurma: Spinner,

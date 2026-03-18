@@ -276,7 +276,7 @@ class ViewManager {
 
             return `
                 <tr>
-                    <td><strong>${tp.turma}</strong></td>
+                    <td><strong>${escapeHtml(tp.turma)}</strong></td>
                     <td>${(tp.hh?.total || 0).toFixed(1)} HH</td>
                     <td>${sla.toFixed(1)}%</td>
                     <td>${formatarMoeda(faturamento)}</td>
@@ -314,7 +314,7 @@ class ViewManager {
 
             return `
                 <tr>
-                    <td><strong>${tmc.turma}</strong></td>
+                    <td><strong>${escapeHtml(tmc.turma)}</strong></td>
                     <td>${tmc.diasTrabalhados || 0}</td>
                     <td>${(tmc.mediaOperadores || 0).toFixed(1)}</td>
                     <td>${formatarMoeda(faturamento)}</td>
@@ -362,7 +362,7 @@ class ViewManager {
 
             return `
                 <tr>
-                    <td><strong>${ts.turma}</strong></td>
+                    <td><strong>${escapeHtml(ts.turma)}</strong></td>
                     <td>${(ts.hhSoldador || 0).toFixed(1)} HH</td>
                     <td>${sla.toFixed(1)}%</td>
                     <td>${formatarMoeda(faturamento)}</td>
@@ -473,7 +473,7 @@ function exportarRelatorio() {
     debugLog('[Export] Iniciando exportação de relatório...');
 
     if (!dashboardMain || !dashboardMain.estatisticas) {
-        alert('Nenhum dado disponível para exportar. Por favor, aguarde o carregamento dos dados.');
+        mostrarToast('Nenhum dado disponível para exportar. Aguarde o carregamento.', 'warning');
         return;
     }
 
@@ -508,7 +508,7 @@ function exportarRelatorio() {
 
     } catch (error) {
         console.error('[Export] Erro ao exportar relatório:', error);
-        alert(`Erro ao exportar relatório: ${error.message}`);
+        mostrarToast('Erro ao exportar relatório: ' + error.message, 'danger');
     }
 }
 

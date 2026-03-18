@@ -12,7 +12,7 @@ function exportarCSV() {
 
         const dados = obterDadosParaExport();
         if (!dados || dados.length === 0) {
-            alert('Nenhum dado disponível para exportar. Aplique os filtros primeiro.');
+            mostrarToast('Nenhum dado disponível para exportar. Aplique os filtros primeiro.', 'warning');
             return;
         }
 
@@ -72,11 +72,11 @@ function exportarCSV() {
         document.body.removeChild(link);
 
         debugLog(`[Export] CSV exportado com sucesso: ${filename}`);
-        alert(`Arquivo ${filename} baixado com sucesso!`);
+        mostrarToast(`Arquivo ${filename} baixado com sucesso!`, 'success');
 
     } catch (error) {
         console.error('[Export] Erro ao exportar CSV:', error);
-        alert('Erro ao exportar CSV: ' + error.message);
+        mostrarToast('Erro ao exportar CSV: ' + error.message, 'danger');
     }
 }
 
@@ -96,7 +96,7 @@ function exportarExcel() {
 
         const dados = obterDadosParaExport();
         if (!dados || dados.length === 0) {
-            alert('Nenhum dado disponível para exportar. Aplique os filtros primeiro.');
+            mostrarToast('Nenhum dado disponível para exportar. Aplique os filtros primeiro.', 'warning');
             return;
         }
 
@@ -149,11 +149,11 @@ function exportarExcel() {
         XLSX.writeFile(wb, filename);
 
         debugLog(`[Export] Excel exportado com sucesso: ${filename}`);
-        alert(`Arquivo ${filename} baixado com sucesso!`);
+        mostrarToast(`Arquivo ${filename} baixado com sucesso!`, 'success');
 
     } catch (error) {
         console.error('[Export] Erro ao exportar Excel:', error);
-        alert('Erro ao exportar Excel: ' + error.message);
+        mostrarToast('Erro ao exportar Excel: ' + error.message, 'danger');
     }
 }
 
@@ -173,7 +173,7 @@ function exportarPDF() {
 
         const dados = obterDadosParaExport();
         if (!dados || dados.length === 0) {
-            alert('Nenhum dado disponível para exportar. Aplique os filtros primeiro.');
+            mostrarToast('Nenhum dado disponível para exportar. Aplique os filtros primeiro.', 'warning');
             return;
         }
 
@@ -240,11 +240,11 @@ function exportarPDF() {
         doc.save(filename);
 
         debugLog(`[Export] PDF exportado com sucesso: ${filename}`);
-        alert(`Arquivo ${filename} baixado com sucesso!`);
+        mostrarToast(`Arquivo ${filename} baixado com sucesso!`, 'success');
 
     } catch (error) {
         console.error('[Export] Erro ao exportar PDF:', error);
-        alert('Erro ao exportar PDF: ' + error.message);
+        mostrarToast('Erro ao exportar PDF: ' + error.message, 'danger');
     }
 }
 

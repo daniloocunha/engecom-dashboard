@@ -49,12 +49,21 @@ class OSAuditoria {
     // ═══════════════════════════════════════════════════════════
 
     _isSuspeito(numeroOS) {
-        if (!numeroOS || numeroOS === 'Sem O.S') return null;
+        if (!numeroOS) return null;
         const ignorado = localStorage.getItem('osAuditoria_ignorada_' + numeroOS);
         if (ignorado) return null;
 
         const s = String(numeroOS).trim();
-        if (/[^0-9]/.test(s)) return null; // não numérico: deixa para outras validações
+
+        // O.S em branco ou placeholder textual ("Sem O.S", "SEM O NÚMERO DA OS AINDA", etc.)
+        if (!s || /^sem\b/i.test(s) || /sem.*o\.?s/i.test(s) || /sem.*n[uú]mero/i.test(s))
+            return { nivel: 'leve', motivo: 'O.S não preenchida (placeholder textual)' };
+
+        // Duas O.S concatenadas com separador (ex: "1017755/1018836", "1023380+1013236")
+        if (/\d+[\/\+\&]\d+/.test(s))
+            return { nivel: 'critico', motivo: 'Duas O.S concatenadas com separador (/' + '+&)' };
+
+        if (/[^0-9]/.test(s)) return null; // outros não-numéricos: códigos de turma, etc.
 
         if (s.length >= 8)
             return { nivel: 'critico', motivo: '8 ou mais dígitos (possível concatenação)' };
@@ -153,13 +162,34 @@ class OSAuditoria {
                     <tbody>`;
 
             const renderLinha = ({ os, info }) => {
-                const osEsc = escAttr(os);
+                const osEsc  = escAttr(os);
+                const colId  = 'rdoObs_' + os.replace(/[^a-zA-Z0-9]/g, '_');
                 const badgeCls = info.nivel === 'critico' ? 'bg-danger' : 'bg-warning text-dark';
+
+                // Sub-painel: RDOs com data + observação
+                const rdosHtml = info.rdos.map(r => {
+                    const numRDO = escapeHtml(r['Número RDO'] || r.numeroRDO || '-');
+                    const data   = escapeHtml(r['Data'] || r.data || '-');
+                    const obs    = (r['Observações'] || r.observacoes || '').trim();
+                    return `<tr>
+                        <td class="small text-muted ps-2">${numRDO}</td>
+                        <td class="small text-muted">${data}</td>
+                        <td class="small">${obs ? escapeHtml(obs) : '<span class="text-muted fst-italic">sem observação</span>'}</td>
+                    </tr>`;
+                }).join('');
+
                 return `
                     <tr>
-                        <td><span class="badge ${badgeCls}">${escapeHtml(os)}</span></td>
+                        <td>
+                            <span class="badge ${badgeCls}">${escapeHtml(os)}</span>
+                        </td>
                         <td class="small text-muted">${escapeHtml(info.motivo)}</td>
-                        <td class="text-center">${info.rdos.length}</td>
+                        <td class="text-center">
+                            <button class="btn btn-link btn-sm p-0 text-decoration-none"
+                                    data-bs-toggle="collapse" data-bs-target="#${colId}">
+                                ${info.rdos.length} <i class="fas fa-chevron-down" style="font-size:0.6rem"></i>
+                            </button>
+                        </td>
                         <td class="text-center">${info.servicos.length}</td>
                         <td>
                             <button class="btn btn-sm btn-outline-primary me-1 py-0"
@@ -174,6 +204,20 @@ class OSAuditoria {
                                     data-acao="ignorar" data-os="${osEsc}">
                                 <i class="fas fa-eye-slash me-1"></i>Ignorar
                             </button>
+                        </td>
+                    </tr>
+                    <tr class="collapse" id="${colId}">
+                        <td colspan="5" class="p-0">
+                            <table class="table table-sm table-bordered mb-0 bg-light">
+                                <thead class="table-secondary">
+                                    <tr>
+                                        <th class="ps-2 small">Número RDO</th>
+                                        <th class="small">Data</th>
+                                        <th class="small">Observações</th>
+                                    </tr>
+                                </thead>
+                                <tbody>${rdosHtml}</tbody>
+                            </table>
                         </td>
                     </tr>`;
             };

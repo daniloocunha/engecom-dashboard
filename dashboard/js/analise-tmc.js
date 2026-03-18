@@ -308,7 +308,7 @@ class AnaliseTMC {
                     <div class="card-header bg-info text-white">
                         <h5 class="mb-0">
                             <i class="fas fa-hard-hat me-2"></i>
-                            ${nomeTMC}
+                            ${escapeHtml(nomeTMC)}
                         </h5>
                     </div>
                     <div class="card-body">
@@ -399,10 +399,10 @@ class AnaliseTMC {
                                         <tbody>
                                             ${stats.rdosComHoraExtra.map(rdo => `
                                                 <tr>
-                                                    <td><code>${rdo.numeroRDO}</code></td>
-                                                    <td>${rdo.data}</td>
-                                                    <td><strong>${rdo.horaFim}</strong></td>
-                                                    <td><span class="badge bg-warning text-dark">${rdo.observacao}</span></td>
+                                                    <td><code>${escapeHtml(rdo.numeroRDO)}</code></td>
+                                                    <td>${escapeHtml(rdo.data)}</td>
+                                                    <td><strong>${escapeHtml(rdo.horaFim)}</strong></td>
+                                                    <td><span class="badge bg-warning text-dark">${escapeHtml(rdo.observacao)}</span></td>
                                                 </tr>
                                             `).join('')}
                                         </tbody>

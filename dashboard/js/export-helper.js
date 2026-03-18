@@ -69,7 +69,7 @@ class ExportHelper {
      */
     static exportarEstatisticasCSV(estatisticas, filtros) {
         if (!estatisticas) {
-            alert('Nenhum dado para exportar');
+            mostrarToast('Nenhum dado para exportar.', 'warning');
             return;
         }
 
@@ -154,7 +154,7 @@ class ExportHelper {
      */
     static exportarRDOsCSV(rdos, mes, ano) {
         if (!rdos || rdos.length === 0) {
-            alert('Nenhum RDO para exportar');
+            mostrarToast('Nenhum RDO para exportar.', 'warning');
             return;
         }
 

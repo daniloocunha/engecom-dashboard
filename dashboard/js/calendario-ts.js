@@ -231,8 +231,8 @@ class CalendarioTS {
                 <div class="card-header bg-danger text-white">
                     <div class="row align-items-center">
                         <div class="col-md-4">
-                            <h5 class="mb-0"><i class="fas fa-fire me-2"></i>${turma}</h5>
-                            <small class="opacity-75">Encarregado: ${stats.encarregado}</small>
+                            <h5 class="mb-0"><i class="fas fa-fire me-2"></i>${escapeHtml(turma)}</h5>
+                            <small class="opacity-75">Encarregado: ${escapeHtml(stats.encarregado)}</small>
                         </div>
                         <div class="col-md-8">
                             <div class="row g-2">
@@ -283,15 +283,15 @@ class CalendarioTS {
                 html += `
                     <div class="calendario-dia trabalhado ${dadosDia.status}"
                          style="border-left: 4px solid ${corStatus}; cursor: pointer;"
-                         onclick="calendarioTS.mostrarDetalhesDia('${turma}', ${dia}, ${this.mesAtual}, ${this.anoAtual})">
+                         onclick="calendarioTS.mostrarDetalhesDia(${JSON.stringify(turma)}, ${dia}, ${this.mesAtual}, ${this.anoAtual})">
                         <div class="dia-numero">${dia}</div>
                         <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
-                            <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${dadosDia.numeroOS}</span>
+                            <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${escapeHtml(dadosDia.numeroOS)}</span>
                             <strong class="dia-hh" style="margin:0; font-size:1.05em;">${(dadosDia.hhSoldador + dadosDia.hhImprodutivas).toFixed(1)} HH</strong>
                         </div>
                         <div class="dia-meta" style="display:flex; justify-content:space-between; align-items:center; gap:4px; flex-wrap:wrap;">
                             <span>${(dadosDia.percentualMeta * 100).toFixed(0)}% da meta</span>
-                            ${(dadosDia.kmInicio || dadosDia.kmFim) ? `<span style="font-size:0.80em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">📍 ${dadosDia.kmInicio || '-'} – ${dadosDia.kmFim || '-'}</span>` : ''}
+                            ${(dadosDia.kmInicio || dadosDia.kmFim) ? `<span style="font-size:0.80em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">📍 ${escapeHtml(dadosDia.kmInicio || '-')} – ${escapeHtml(dadosDia.kmFim || '-')}</span>` : ''}
                         </div>
                         <div class="dia-efetivo">
                             ${[
@@ -305,7 +305,7 @@ class CalendarioTS {
                         </div>
                         ${dadosDia.observacoes ? `
                             <div class="dia-obs" style="margin-top: 4px; color: #ff9800;">
-                                📝 ${dadosDia.observacoes.substring(0, 30)}${dadosDia.observacoes.length > 30 ? '...' : ''}
+                                📝 ${escapeHtml(dadosDia.observacoes.substring(0, 30))}${dadosDia.observacoes.length > 30 ? '...' : ''}
                             </div>
                         ` : ''}
                     </div>

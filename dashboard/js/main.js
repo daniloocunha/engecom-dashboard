@@ -636,19 +636,19 @@ class DashboardMain {
 
                     const dayDiv = document.createElement('div');
                     dayDiv.className = `heatmap-day ${dia.status}`;
-                    // ✅ Adicionar observações se existirem
+                    // Adicionar observações se existirem (campos escapados para prevenir XSS)
                     let tooltipObservacoes = '';
                     if (dia.observacoes && dia.observacoes.length > 0) {
                         tooltipObservacoes = '<hr style="margin: 8px 0; border-color: rgba(255,255,255,0.3);">';
                         tooltipObservacoes += '<strong>Observações:</strong><br>';
-                        tooltipObservacoes += dia.observacoes.map(obs => `• ${obs}`).join('<br>');
+                        tooltipObservacoes += dia.observacoes.map(obs => `• ${escapeHtml(obs)}`).join('<br>');
                     }
 
                     dayDiv.innerHTML = `
                         <div class="heatmap-day-number">${d}</div>
                         <div class="heatmap-day-hh">${dia.hhTotal.toFixed(0)} HH</div>
                         <div class="heatmap-tooltip">
-                            ${dia.data}<br>
+                            ${escapeHtml(dia.data)}<br>
                             Serviços: ${dia.hhServicos.toFixed(1)} HH<br>
                             Improdutivas: ${dia.hhImprodutivas.toFixed(1)} HH<br>
                             Total: ${dia.hhTotal.toFixed(1)} HH<br>

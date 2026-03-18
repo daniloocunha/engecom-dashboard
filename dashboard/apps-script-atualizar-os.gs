@@ -516,7 +516,17 @@ function _dividirOSInterno(numeroRDO, os1, os2, servicosOS2, hiOS2, movimentacao
     if (colDataCriacao >= 0) {
         novaLinhaRDO[colDataCriacao] = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
     }
-    abaRDO.appendRow(novaLinhaRDO);
+    // Inserir sem acionar validacao de dados (a nova OS pode nao estar na lista dropdown)
+    // Limpa validacao da coluna OS inteira antes de inserir — regras de range nao sao
+    // anuladas por clearDataValidations() numa unica celula.
+    if (colOS >= 0) {
+        abaRDO.getRange(1, colOS + 1, abaRDO.getMaxRows(), 1).clearDataValidations();
+        SpreadsheetApp.flush();
+    }
+    var novaPosicao = abaRDO.getLastRow() + 1;
+    abaRDO.insertRowAfter(abaRDO.getLastRow());
+    var novaLinhRange = abaRDO.getRange(novaPosicao, 1, 1, novaLinhaRDO.length);
+    novaLinhRange.setValues([novaLinhaRDO]);
     SpreadsheetApp.flush();
 
     // 4. Mover servicos e HI para o novo RDO
