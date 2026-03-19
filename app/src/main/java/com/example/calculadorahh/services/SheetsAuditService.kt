@@ -70,9 +70,9 @@ class SheetsAuditService(
         try {
             val rowNumber = lookupHelper.findRowNumberByNumeroRDO(numeroRDO) ?: return null
 
-            // Coluna W: Versão App (após adição de "Causa Não Serviço" em coluna P)
+            // Coluna V: Versão App
             val response = sheetsService.spreadsheets().values()
-                .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!W$rowNumber")
+                .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!V$rowNumber")
                 .execute()
 
             val values = response.getValues() ?: return null
@@ -93,7 +93,7 @@ class SheetsAuditService(
     suspend fun getValidRDONumbers(): Set<String> = withContext(Dispatchers.IO) {
         try {
             val response = sheetsService.spreadsheets().values()
-                .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!B2:T")
+                .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!B2:S")
                 .execute()
 
             val values = response.getValues() ?: return@withContext emptySet()
@@ -103,7 +103,7 @@ class SheetsAuditService(
             values.forEach { row ->
                 if (row.isNotEmpty()) {
                     val numeroRDO = row.getOrNull(0)?.toString() ?: ""
-                    val deletado = row.getOrNull(18)?.toString() ?: ""
+                    val deletado = row.getOrNull(17)?.toString() ?: ""
 
                     if (numeroRDO.isNotBlank() && deletado != "Sim") {
                         validRDOs.add(numeroRDO)

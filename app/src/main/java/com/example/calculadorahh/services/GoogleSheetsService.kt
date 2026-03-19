@@ -237,7 +237,7 @@ class GoogleSheetsService(private val context: Context) {
             val valueRange = ValueRange().setValues(listOf(rdoRow))
 
             service.spreadsheets().values()
-                .append(spreadsheetId, "${SheetsConstants.SHEET_RDO}!A:W", valueRange)
+                .append(spreadsheetId, "${SheetsConstants.SHEET_RDO}!A:V", valueRange)
                 .setValueInputOption("RAW")
                 .setInsertDataOption("INSERT_ROWS")
                 .execute()

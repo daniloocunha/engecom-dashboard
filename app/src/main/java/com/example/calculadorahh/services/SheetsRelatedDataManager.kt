@@ -42,14 +42,13 @@ class SheetsRelatedDataManager(
             rdo.clima,                                   // M: Clima
             rdo.temaDDS,                                 // N: Tema DDS
             if (rdo.houveServico) "Sim" else "Não",      // O: Houve Serviço
-            rdo.causaNaoServico,                         // P: Causa Não Serviço ("RUMO", "ENGECOM" ou "")
-            if (rdo.houveTransporte) "Sim" else "Não",   // Q: Houve Transporte
-            rdo.nomeColaboradores,                       // R: Nome Colaboradores
-            rdo.observacoes,                             // S: Observações
-            if (isDelete) "Sim" else "Não",              // T: Deletado
-            currentDateTime,                             // U: Data Sincronização
-            dataCriacao ?: currentDateTime,              // V: Data Criação
-            BuildConfig.VERSION_CODE.toString()          // W: Versão App
+            if (rdo.houveTransporte) "Sim" else "Não",   // P: Houve Transporte
+            rdo.nomeColaboradores,                       // Q: Nome Colaboradores
+            rdo.observacoes,                             // R: Observações
+            if (isDelete) "Sim" else "Não",              // S: Deletado
+            currentDateTime,                             // T: Data Sincronização
+            dataCriacao ?: currentDateTime,              // U: Data Criação
+            BuildConfig.VERSION_CODE.toString()          // V: Versão App
         )
     }
 
