@@ -877,7 +877,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
 
     fun marcarRDOComoSincronizado(id: Long): Boolean {
         val db = writableDatabase
-        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val agora = sdf.format(Date())
 
         val values = ContentValues().apply {
@@ -897,7 +897,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
      */
     fun marcarRDOComoSincronizando(id: Long): Boolean {
         val db = writableDatabase
-        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val agora = sdf.format(Date())
 
         // 🔥 FIX Bug 3: Manter sincronizado=0 enquanto não confirmado
@@ -915,7 +915,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
      */
     fun marcarRDOComErroSync(id: Long, mensagemErro: String): Boolean {
         val db = writableDatabase
-        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val agora = sdf.format(Date())
 
         val tentativasAtuais = db.query(
@@ -985,12 +985,11 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         val db = readableDatabase
         val gson = Gson()
 
-        // 🔥 FIX: Usar .use {} para auto-close
-        // Busca RDOs que NÃO estão sincronizados (PENDING, RETRY, ERROR)
+        // Busca RDOs PENDING e RETRY, e ERROR somente se tentativas < 10
         db.query(
             TABLE_RDO,
             null,
-            "$COLUMN_SYNC_STATUS IN (?, ?, ?)",
+            "($COLUMN_SYNC_STATUS IN (?, ?)) OR ($COLUMN_SYNC_STATUS = ? AND $COLUMN_TENTATIVAS_SYNC < 10)",
             arrayOf(
                 SyncStatus.PENDING.toDbValue(),
                 SyncStatus.RETRY.toDbValue(),
@@ -1088,7 +1087,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
      */
     fun resetarRDOsPresos(): Int {
         val db = writableDatabase
-        val sdf = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+        val sdf = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
         val calendar = java.util.Calendar.getInstance()
         calendar.add(java.util.Calendar.MINUTE, -15)
         val quinzeMinAtras = sdf.format(calendar.time)

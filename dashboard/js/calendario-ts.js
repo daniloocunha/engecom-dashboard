@@ -48,15 +48,14 @@ class CalendarioTS {
     }
 
     /**
-     * Calcula HH do soldador de um dia (serviços executados)
+     * Calcula HH do soldador por Número RDO (mais confiável que OS+data)
      */
-    calcularHHSoldadorDia(numeroOS, data) {
+    calcularHHSoldadorDia(numeroRDO) {
         let hhTotal = 0;
 
         const servicosDoDia = this.dados.servicos.filter(s => {
-            const numOS = s['Número OS'] || s.numeroOs || s.numeroOS || '';
-            const dataServico = s['Data RDO'] || s.dataRdo || s.data || '';
-            return numOS === numeroOS && dataServico === data;
+            const numRDO = s['Número RDO'] || s.numeroRDO || s.numeroRdo || '';
+            return numRDO === numeroRDO;
         });
 
         servicosDoDia.forEach(servico => {
@@ -69,13 +68,12 @@ class CalendarioTS {
     }
 
     /**
-     * Obtém efetivo de um dia
+     * Obtém efetivo por Número RDO (mais confiável que OS+data)
      */
-    obterEfetivoDia(numeroOS, data) {
+    obterEfetivoDia(numeroRDO) {
         const efetivoDia = this.dados.efetivos.find(ef => {
-            const numOS = ef['Número OS'] || ef.numeroOs || ef.numeroOS || '';
-            const dataEfetivo = ef['Data RDO'] || ef.dataRdo || ef.data || '';
-            return numOS === numeroOS && dataEfetivo === data;
+            const numRDO = ef['Número RDO'] || ef.numeroRDO || ef.numeroRdo || '';
+            return numRDO === numeroRDO;
         });
 
         if (!efetivoDia) {
@@ -94,37 +92,118 @@ class CalendarioTS {
     }
 
     /**
-     * Obtém dados completos de um dia
+     * Algoritmo sweep-line para merge de HI sobrepostas (mesmo do calculations.js)
+     * Evita dupla contagem quando intervalos se sobrepõem
+     */
+    _calcularHHMerged(hisArray, operadoresDefault = 12) {
+        if (!hisArray || hisArray.length === 0) return 0;
+
+        const parseMin = (t) => {
+            const parts = (t || '').split(':').map(Number);
+            return (parts[0] || 0) * 60 + (parts[1] || 0);
+        };
+
+        const intervals = [];
+        hisArray.forEach(hi => {
+            const horaInicio = hi['Hora Início'] || hi.horaInicio || '';
+            const horaFim    = hi['Hora Fim']    || hi.horaFim    || '';
+            if (!horaInicio || !horaFim) return;
+
+            let startMin = parseMin(horaInicio);
+            let endMin   = parseMin(horaFim);
+            if (endMin <= startMin) endMin += 1440;
+
+            const tipo = (hi.Tipo || hi.tipo || '').toLowerCase();
+            let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
+            if (operadores <= 0) operadores = operadoresDefault;
+
+            // Pré-filtro: trens < 15 min descartados
+            if (tipo.includes('trem') && (endMin - startMin) < METAS.MINUTOS_MINIMOS_TREM) return;
+
+            intervals.push({ startMin, endMin, tipo, operadores });
+        });
+
+        if (intervals.length === 0) return 0;
+
+        // Sweep line: breakpoints para cada segmento único
+        const breakpoints = new Set();
+        intervals.forEach(iv => { breakpoints.add(iv.startMin); breakpoints.add(iv.endMin); });
+        const timeline = [...breakpoints].sort((a, b) => a - b);
+
+        let totalHH = 0;
+        for (let i = 0; i < timeline.length - 1; i++) {
+            const segStart = timeline[i];
+            const segEnd   = timeline[i + 1];
+            const duracaoHoras = (segEnd - segStart) / 60;
+            if (duracaoHoras <= 0) continue;
+
+            const active = intervals.filter(iv => iv.startMin <= segStart && iv.endMin >= segEnd);
+            if (active.length === 0) continue;
+
+            const operadores = Math.max(...active.map(iv => iv.operadores));
+            const hasChuva = active.some(iv => iv.tipo.includes('chuva'));
+
+            if (hasChuva) {
+                totalHH += (duracaoHoras * operadores) / METAS.DIVISOR_CHUVA;
+            } else {
+                totalHH += duracaoHoras * operadores;
+            }
+        }
+
+        return totalHH;
+    }
+
+    /**
+     * Obtém dados completos de um dia — agrega múltiplos RDOs da mesma turma+dia
      */
     obterDadosDia(turma, dia, mes, ano) {
         const dataFormatada = `${String(dia).padStart(2, '0')}/${String(mes).padStart(2, '0')}/${ano}`;
 
-        const rdoDia = this.dados.rdos.find(rdo => {
+        // Buscar TODOS os RDOs do dia (não apenas o primeiro)
+        const rdosDia = this.dados.rdos.filter(rdo => {
             const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
             const data = rdo.Data || rdo.data || '';
             const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
             return codigoTurma === turma && data === dataFormatada && deletado !== 'sim';
         });
 
-        if (!rdoDia) return null;
+        if (rdosDia.length === 0) return null;
 
-        const numeroOS  = rdoDia['Número OS']  || rdoDia.numeroOS  || '';
-        const numeroRDO = rdoDia['Número RDO'] || rdoDia.numeroRDO || '-';
-        const horaInicio = rdoDia['Horário Início'] || rdoDia.horarioInicio || '-';
-        const horaFim    = rdoDia['Horário Fim']    || rdoDia.horarioFim    || '-';
-        const local      = rdoDia.Local || rdoDia.local || '-';
-        const kmInicio   = (rdoDia['KM Início'] || rdoDia.kmInicio || rdoDia['Km Início'] || rdoDia['km_inicio'] || '').toString().trim();
-        const kmFim      = (rdoDia['KM Fim']    || rdoDia.kmFim    || rdoDia['Km Fim']    || rdoDia['km_fim']    || '').toString().trim();
+        // Usar primeiro RDO para campos de contexto, mas agregar HH de todos
+        const rdoPrincipal = rdosDia[0];
+        const numeroOS  = rdoPrincipal['Número OS']  || rdoPrincipal.numeroOS  || '';
+        const numeroRDO = rdoPrincipal['Número RDO'] || rdoPrincipal.numeroRDO || '-';
+        const horaInicio = rdoPrincipal['Horário Início'] || rdoPrincipal.horarioInicio || '-';
+        const horaFim    = rdoPrincipal['Horário Fim']    || rdoPrincipal.horarioFim    || '-';
+        const local      = rdoPrincipal.Local || rdoPrincipal.local || '-';
+        const kmInicio   = (rdoPrincipal['KM Início'] || rdoPrincipal.kmInicio || rdoPrincipal['Km Início'] || rdoPrincipal['km_inicio'] || '').toString().trim();
+        const kmFim      = (rdoPrincipal['KM Fim']    || rdoPrincipal.kmFim    || rdoPrincipal['Km Fim']    || rdoPrincipal['km_fim']    || '').toString().trim();
+        const observacoes = rdoPrincipal['Observações'] || rdoPrincipal.Observacoes || rdoPrincipal.observacoes || '';
 
-        const hhSoldador = this.calcularHHSoldadorDia(numeroOS, dataFormatada);
-        const efetivo = this.obterEfetivoDia(numeroOS, dataFormatada);
-        const observacoes = rdoDia['Observações'] || rdoDia.Observacoes || rdoDia.observacoes || '';
+        // Agregar HH Soldador de TODOS os RDOs do dia (join por Número RDO)
+        let hhSoldador = 0;
+        let efetivo = { total: 0, encarregado: 0, operadores: 0, motoristas: 0, soldador: 0, operadorEGP: 0, tecnicoSeguranca: 0 };
+        const allHIs = [];
+        const numerosRDO = [];
 
-        // HI do dia — buscado por Número RDO (mais confiável que OS+data)
-        const hisDoDia = this.dados.horasImprodutivas.filter(hi => {
-            const hRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
-            return hRDO === numeroRDO;
-        }).map(hi => ({
+        rdosDia.forEach(rdo => {
+            const nRDO = rdo['Número RDO'] || rdo.numeroRDO || '';
+            numerosRDO.push(nRDO);
+            hhSoldador += this.calcularHHSoldadorDia(nRDO);
+
+            // Usar efetivo do primeiro RDO que tenha dados
+            const ef = this.obterEfetivoDia(nRDO);
+            if (ef.total > efetivo.total) efetivo = ef;
+
+            // Coletar todas as HIs de todos os RDOs do dia
+            this.dados.horasImprodutivas.filter(hi => {
+                const hRDO = hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '';
+                return hRDO === nRDO;
+            }).forEach(hi => allHIs.push(hi));
+        });
+
+        // Formatar HIs para exibição no modal
+        const hisDoDia = allHIs.map(hi => ({
             tipo:       hi.Tipo || hi.tipo || '-',
             descricao:  hi['Descrição'] || hi.descricao || '-',
             horaInicio: hi['Hora Início'] || hi.horaInicio || '-',
@@ -133,14 +212,16 @@ class CalendarioTS {
             overlap:    false
         }));
 
-        // Detectar sobreposição entre HIs do mesmo dia
+        // Detectar sobreposição visual entre HIs
         if (hisDoDia.length > 1) {
             const pm = t => { if (!t || t === '-') return -1; const p = t.split(':').map(Number); return (p[0]||0)*60+(p[1]||0); };
             const ivals = hisDoDia.map(h => { const s = pm(h.horaInicio); let e = pm(h.horaFim); if (s>=0&&e>=0&&e<=s) e+=1440; return {s,e}; });
             hisDoDia.forEach((h,i) => { h.overlap = ivals[i].s>=0 && ivals.some((iv,j)=>j!==i&&iv.s>=0&&ivals[i].s<iv.e&&iv.s<ivals[i].e); });
         }
 
-        const hhImprodutivas = hisDoDia.reduce((sum, h) => sum + parseFloat(h.hh), 0);
+        // Calcular HH Improdutivas via merge (evita dupla contagem)
+        const opDefault = efetivo.operadores > 0 ? efetivo.operadores : 12;
+        const hhImprodutivas = this._calcularHHMerged(allHIs, opDefault);
 
         const metaDiaria = METAS.META_DIARIA_TS;
         const totalHHDia = hhSoldador + hhImprodutivas;
@@ -156,7 +237,7 @@ class CalendarioTS {
         return {
             data: dataFormatada,
             numeroOS,
-            numeroRDO,
+            numeroRDO: rdosDia.length > 1 ? numerosRDO.join(', ') : numeroRDO,
             horaInicio,
             horaFim,
             local,
@@ -170,7 +251,7 @@ class CalendarioTS {
             efetivo,
             observacoes,
             horasImprodutivas: hisDoDia,
-            rdo: rdoDia
+            rdo: rdoPrincipal
         };
     }
 
@@ -190,19 +271,21 @@ class CalendarioTS {
                 && deletado !== 'sim';
         });
 
-        // HH Soldador total
+        // HH Soldador total (join por Número RDO)
         let hhSoldadorTotal = 0;
         rdosTurma.forEach(rdo => {
-            const numeroOS = rdo['Número OS'] || rdo.numeroOS || '';
-            const dataBanco = rdo['Data'] || rdo.data || '';
-            hhSoldadorTotal += this.calcularHHSoldadorDia(numeroOS, dataBanco);
+            const numeroRDO = rdo['Número RDO'] || rdo.numeroRDO || '';
+            hhSoldadorTotal += this.calcularHHSoldadorDia(numeroRDO);
         });
 
         // Dias trabalhados
         const diasTrabalhados = rdosTurma.length;
 
-        // Meta mensal
-        const metaMensal = METAS.META_DIARIA_TS * diasTrabalhados;
+        // SLA baseado em dias úteis (consistente com TP/TMC)
+        const diasUteis = typeof calculadoraMedicao !== 'undefined'
+            ? calculadoraMedicao.getDiasUteis(this.mesAtual, this.anoAtual)
+            : diasTrabalhados;
+        const metaMensal = METAS.META_DIARIA_TS * diasUteis;
         const slaPercentual = metaMensal > 0 ? ((hhSoldadorTotal / metaMensal) * 100).toFixed(1) : '0.0';
 
         // Encarregado
@@ -283,7 +366,7 @@ class CalendarioTS {
                 html += `
                     <div class="calendario-dia trabalhado ${dadosDia.status}"
                          style="border-left: 4px solid ${corStatus}; cursor: pointer;"
-                         onclick="calendarioTS.mostrarDetalhesDia(${JSON.stringify(turma)}, ${dia}, ${this.mesAtual}, ${this.anoAtual})">
+                         onclick="calendarioTS.mostrarDetalhesDia('${turma.replace(/'/g, "\\'")}', ${dia}, ${this.mesAtual}, ${this.anoAtual})">
                         <div class="dia-numero">${dia}</div>
                         <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
                             <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${escapeHtml(dadosDia.numeroOS)}</span>
@@ -431,9 +514,10 @@ class CalendarioTS {
         const numeroOS = dados.numeroOS;
         const dataFormatada = dados.data;
 
-        // Serviços buscados por Número RDO (mais confiável que OS+data)
+        // Serviços buscados por Número(s) RDO
+        const numerosRDOArr = dados.numeroRDO.split(', ').map(s => s.trim());
         const servicosFormatados = this.dados.servicos
-            .filter(s => (s['Número RDO'] || s.numeroRDO || s.numeroRdo || '') === dados.numeroRDO)
+            .filter(s => numerosRDOArr.includes(s['Número RDO'] || s.numeroRDO || s.numeroRdo || ''))
             .map(s => ({
                 descricao:   s['Descrição'] || s.descricao || '-',
                 quantidade:  parseFloat(s.Quantidade  || s.quantidade  || 0).toFixed(2),
@@ -453,7 +537,7 @@ class CalendarioTS {
                         <div class="modal-header bg-danger text-white">
                             <h5 class="modal-title">
                                 <i class="fas fa-fire me-2"></i>
-                                Detalhes do Dia — ${dados.data} | ${turma}
+                                Detalhes do Dia — ${escapeHtml(dados.data)} | ${escapeHtml(turma)}
                             </h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
@@ -462,13 +546,13 @@ class CalendarioTS {
                             <div class="row mb-4">
                                 <div class="col-md-12">
                                     <h6 class="text-muted mb-1">
-                                        <i class="fas fa-user me-2"></i>${encarregado} &nbsp;|&nbsp;
-                                        <i class="fas fa-file-alt me-2"></i>RDO: ${dados.numeroRDO} &nbsp;|&nbsp;
-                                        <i class="fas fa-hashtag me-2"></i>OS: ${dados.numeroOS}
+                                        <i class="fas fa-user me-2"></i>${escapeHtml(encarregado)} &nbsp;|&nbsp;
+                                        <i class="fas fa-file-alt me-2"></i>RDO: ${escapeHtml(dados.numeroRDO)} &nbsp;|&nbsp;
+                                        <i class="fas fa-hashtag me-2"></i>OS: ${escapeHtml(dados.numeroOS)}
                                     </h6>
                                     <h6 class="text-muted mb-0">
-                                        <i class="fas fa-map-marker-alt me-2"></i>${dados.local} &nbsp;|&nbsp;
-                                        <i class="fas fa-clock me-2"></i>${dados.horaInicio} – ${dados.horaFim}
+                                        <i class="fas fa-map-marker-alt me-2"></i>${escapeHtml(dados.local)} &nbsp;|&nbsp;
+                                        <i class="fas fa-clock me-2"></i>${escapeHtml(dados.horaInicio)} – ${escapeHtml(dados.horaFim)}
                                     </h6>
                                 </div>
                             </div>
@@ -558,7 +642,7 @@ class CalendarioTS {
                                             <tbody>
                                                 ${servicosFormatados.map(s => `
                                                     <tr>
-                                                        <td>${s.descricao}</td>
+                                                        <td>${escapeHtml(s.descricao)}</td>
                                                         <td class="text-center">${s.quantidade}</td>
                                                         <td class="text-center">${s.coeficiente}</td>
                                                         <td class="text-center">${s.unidade}</td>
@@ -619,7 +703,7 @@ class CalendarioTS {
                                     <h6 class="alert-heading">
                                         <i class="fas fa-sticky-note me-2"></i>Observações
                                     </h6>
-                                    <p class="mb-0">${dados.observacoes}</p>
+                                    <p class="mb-0">${escapeHtml(dados.observacoes)}</p>
                                 </div>
                             ` : ''}
                         </div>

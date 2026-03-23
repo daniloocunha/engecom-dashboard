@@ -400,8 +400,8 @@ See `GERENCIAR_SERVICOS.md` for detailed instructions.
 - Update `RDOSyncWorker.kt` for background sync changes
 
 ## Version Information
-- **versionCode**: 12
-- **versionName**: "3.0.0"
+- **versionCode**: 16
+- **versionName**: "5.0.0"
 - **AGP Version**: 8.13.1
 - **Kotlin Version**: 2.0.21
 - **Gradle Version**: 8.13 (via wrapper)
@@ -432,15 +432,17 @@ See `GERENCIAR_SERVICOS.md` for detailed instructions.
 
 **Google Sheets Configuration (Config tab):**
 ```
-versao_minima          | 8
-versao_recomendada     | 8
-hash_md5               | 51b8ec2435bcc04bc44977fe4ac94a5e
-tamanho_apk_mb         | 3.2
-url_download           | [Your APK hosting URL]
+versao_minima          | 16
+versao_recomendada     | 16
+hash_md5               | [Gerar após build: md5sum app/release/app-release.apk]
+tamanho_apk_mb         | [Verificar após build]
+url_download           | [URL do APK hospedado]
 forcar_update          | NAO
-mensagem_aviso         | Nova versão 2.1.0 disponível - Correção crítica de sincronização!
+mensagem_aviso         | Nova versão 5.0.0 disponível - Correções críticas de sincronização!
 mensagem_bloqueio      | Atualize para continuar usando
 ```
+
+> **IMPORTANTE**: Após gerar o APK release, atualize `hash_md5` e `tamanho_apk_mb` na aba Config do Google Sheets. O `versao_minima` usa `versionCode` (16), não `versionName` (5.0.0).
 
 ## Version History
 

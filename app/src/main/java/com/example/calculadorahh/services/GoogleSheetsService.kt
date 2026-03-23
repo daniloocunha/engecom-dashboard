@@ -177,11 +177,11 @@ class GoogleSheetsService(private val context: Context) {
 
             Log.d(tag, "Linha encontrada: $rowNumber para numeroRDO: ${numeroRDOAntigo ?: rdo.numeroRDO}")
 
-            // Preservar Data Criação original (coluna V - após adição de "Causa Não Serviço" em P)
+            // Preservar Data Criação original (coluna U)
             var dataCriacaoOriginal: String? = null
             try {
                 val existingDataResult = service.spreadsheets().values()
-                    .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!V${rowNumber}")
+                    .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!U${rowNumber}")
                     .execute()
                 val values = existingDataResult.getValues()
                 if (values != null && values.isNotEmpty() && values[0].isNotEmpty()) {

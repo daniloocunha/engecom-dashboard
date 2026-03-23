@@ -112,7 +112,7 @@ async function handleAppsScriptProxy(request, env) {
             });
         }
 
-        return new Response(jsonText, { status: 200, headers: corsHeaders });
+        return new Response(jsonText, { status: httpStatus, headers: corsHeaders });
 
     } catch (err) {
         return new Response(

@@ -44,13 +44,7 @@ class AnaliseTMC {
 
             // Aplicar filtro de mês/ano se definido
             if (this.filtroMes && this.filtroAno) {
-                const data = rdo.Data || rdo.data || '';
-                if (data) {
-                    const [dia, mes, ano] = data.split('/');
-                    if (parseInt(mes) !== this.filtroMes || parseInt(ano) !== this.filtroAno) {
-                        return; // Ignorar TMCs fora do período
-                    }
-                }
+                if (!FieldHelper.rdoNoPeriodo(rdo, this.filtroMes, this.filtroAno)) return;
             }
 
             tmcsSet.add(turma.trim());
@@ -98,13 +92,9 @@ class AnaliseTMC {
 
         // Aplicar filtro de mês/ano se definido
         if (this.filtroMes && this.filtroAno) {
-            rdosFiltrados = rdosFiltrados.filter(rdo => {
-                const data = rdo.Data || rdo.data || '';
-                if (!data) return false;
-
-                const [dia, mes, ano] = data.split('/');
-                return parseInt(mes) === this.filtroMes && parseInt(ano) === this.filtroAno;
-            });
+            rdosFiltrados = rdosFiltrados.filter(rdo =>
+                FieldHelper.rdoNoPeriodo(rdo, this.filtroMes, this.filtroAno)
+            );
         }
 
         return rdosFiltrados;

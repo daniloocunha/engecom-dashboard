@@ -135,56 +135,39 @@ class CalendarioTP {
 
         if (intervals.length === 0) return 0;
 
-        // 2. Ordenar por startMin
-        intervals.sort((a, b) => a.startMin - b.startMin);
+        // Pré-filtro: trens < 15 min descartados antes do merge
+        const filtered = intervals.filter(iv => {
+            if (iv.tipo.includes('trem') && (iv.endMin - iv.startMin) < METAS.MINUTOS_MINIMOS_TREM) return false;
+            return true;
+        });
 
-        // 3. Mesclar sobrepostos — só desconta o trecho em comum, não o evento inteiro
-        const merged = [{
-            startMin:   intervals[0].startMin,
-            endMin:     intervals[0].endMin,
-            tipos:      [intervals[0].tipo],
-            operadores: intervals[0].operadores
-        }];
+        if (filtered.length === 0) return 0;
 
-        for (let i = 1; i < intervals.length; i++) {
-            const cur  = intervals[i];
-            const last = merged[merged.length - 1];
-            if (cur.startMin <= last.endMin) {
-                // Sobreposição: estende o fim e une os tipos
-                last.endMin     = Math.max(last.endMin, cur.endMin);
-                last.tipos.push(cur.tipo);
-                last.operadores = Math.max(last.operadores, cur.operadores);
+        // 2. Sweep line: breakpoints para cada segmento único
+        const breakpoints = new Set();
+        filtered.forEach(iv => { breakpoints.add(iv.startMin); breakpoints.add(iv.endMin); });
+        const timeline = [...breakpoints].sort((a, b) => a - b);
+
+        // 3. Para cada segmento entre breakpoints, calcular HH
+        let totalHH = 0;
+        for (let i = 0; i < timeline.length - 1; i++) {
+            const segStart = timeline[i];
+            const segEnd   = timeline[i + 1];
+            const duracaoHoras = (segEnd - segStart) / 60;
+            if (duracaoHoras <= 0) continue;
+
+            const active = filtered.filter(iv => iv.startMin <= segStart && iv.endMin >= segEnd);
+            if (active.length === 0) continue;
+
+            const operadores = Math.max(...active.map(iv => iv.operadores));
+            const hasChuva = active.some(iv => iv.tipo.includes('chuva'));
+
+            if (hasChuva) {
+                totalHH += (duracaoHoras * operadores) / METAS.DIVISOR_CHUVA;
             } else {
-                // Sem sobreposição: novo segmento independente
-                merged.push({
-                    startMin:   cur.startMin,
-                    endMin:     cur.endMin,
-                    tipos:      [cur.tipo],
-                    operadores: cur.operadores
-                });
+                totalHH += duracaoHoras * operadores;
             }
         }
-
-        // 4. Calcular HH por segmento mesclado aplicando regras de tipo
-        let totalHH = 0;
-        merged.forEach(seg => {
-            const duracaoHoras = (seg.endMin - seg.startMin) / 60;
-            const soTrens  = seg.tipos.every(t => t.includes('trem'));
-            const hasChuva = seg.tipos.some(t  => t.includes('chuva'));
-
-            let hh;
-            if (soTrens && duracaoHoras < (METAS.MINUTOS_MINIMOS_TREM / 60)) {
-                hh = 0; // Trem < 15 min não conta
-            } else if (hasChuva) {
-                hh = (duracaoHoras * seg.operadores) / METAS.DIVISOR_CHUVA;
-            } else {
-                hh = duracaoHoras * seg.operadores;
-            }
-            totalHH += hh;
-            if (hh > 0) {
-                debugLog(`  [HI merged] tipos=[${seg.tipos}] ${seg.endMin - seg.startMin}min × ${seg.operadores}op = ${hh.toFixed(2)} HH`);
-            }
-        });
 
         return totalHH;
     }
@@ -523,7 +506,7 @@ class CalendarioTP {
                 html += `
                     <div class="calendario-dia trabalhado ${status}"
                          style="border-left: 4px solid ${corStatus}; cursor: pointer;"
-                         onclick="calendarioTP.mostrarDetalhesDia(${JSON.stringify(turma)}, ${dia}, ${this.mesAtual}, ${this.anoAtual})">
+                         onclick="calendarioTP.mostrarDetalhesDia('${turma.replace(/'/g, "\\'")}', ${dia}, ${this.mesAtual}, ${this.anoAtual})">
                         <div class="dia-numero">${dia}</div>
                         ${dadosDia.hhPorOS.map(item => `
                             <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
@@ -627,16 +610,22 @@ class CalendarioTP {
         });
         const numeroOS = osSet.size;
 
-        // Calcular HH Improdutivas
+        // Calcular HH Improdutivas via merge (consistente com cálculo diário)
         let hhImprodutivas = 0;
         rdosTurma.forEach(rdo => {
             const numeroRDO = rdo['Número RDO'] || rdo.numeroRDO || '';
             const his = this.dados.horasImprodutivas.filter(hi =>
                 (hi['Número RDO'] || hi.numeroRDO) === numeroRDO
             );
-            his.forEach(hi => {
-                hhImprodutivas += parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0);
-            });
+            if (his.length > 0) {
+                const efetivo = this.dados.efetivos.find(e =>
+                    (e['Número RDO'] || e.numeroRDO) === numeroRDO
+                );
+                const opDefault = efetivo
+                    ? parseInt(efetivo['Operadores'] || efetivo.operadores || 12)
+                    : 12;
+                hhImprodutivas += this._calcularHHMerged(his, opDefault);
+            }
         });
 
         // Calcular HH Total (produtivas + improdutivas)

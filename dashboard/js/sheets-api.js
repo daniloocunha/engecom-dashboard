@@ -448,6 +448,13 @@ class GoogleSheetsAPI {
     }
 
     /**
+     * Retorna lista de serviços customizados sem HH Manual preenchido.
+     */
+    getCustomizadosSemHH() {
+        return this._customizadosSemHH || [];
+    }
+
+    /**
      * Calcula HH Improdutivas
      * Fórmula: (Hora Fim - Hora Início) × Operadores
      * v3.0.0: Lê operadores da própria linha HI (nova coluna J), com fallback para Efetivo (legado)
@@ -567,6 +574,11 @@ class GoogleSheetsAPI {
         const minutos = parseInt(partes[1]);
 
         if (isNaN(horas) || isNaN(minutos)) return null;
+
+        if (horas < 0 || horas > 23 || minutos < 0 || minutos > 59) {
+            console.warn(`[Hora] Valor fora de faixa: ${hora}`);
+            return null;
+        }
 
         return horas * 60 + minutos;
     }

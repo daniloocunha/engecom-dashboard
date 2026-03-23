@@ -190,12 +190,10 @@ class SheetsRelatedDataManager(
         val rdoVersion = auditService.getRDOAppVersion(numeroRDO)
 
         if (rdoVersion != null && rdoVersion > BuildConfig.VERSION_CODE) {
-            Log.w(
-                tag,
-                "⚠️ RDO $numeroRDO foi criado por versão mais nova (v$rdoVersion > v${BuildConfig.VERSION_CODE}). " +
-                "Pulando deleção para evitar perda de dados."
-            )
-            return
+            val msg = "⚠️ RDO $numeroRDO foi criado por versão mais nova (v$rdoVersion > v${BuildConfig.VERSION_CODE}). " +
+                "Abortando sync para evitar perda de dados."
+            Log.w(tag, msg)
+            throw Exception(msg)
         }
 
         // Coletar TODOS os erros antes de falhar

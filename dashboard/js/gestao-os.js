@@ -63,7 +63,8 @@ function _mostrarToastErro(msg) {
 function _parseData(str) {
     if (!str) return null;
     const [d, m, y] = str.split('/');
-    return new Date(+y, +m - 1, +d);
+    const year = y.length === 2 ? 2000 + +y : +y;
+    return new Date(year, +m - 1, +d);
 }
 
 function _fmtData(str) {
@@ -412,6 +413,9 @@ class GestaoOS {
         } else {
             localStorage.removeItem('gestaoOS_mediu_' + numeroOS);
         }
+        // Atualizar cache em memória
+        if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
+        this._dadosServidor[numeroOS].mediu = valor ? 'sim' : 'nao';
         // Sincronizar com servidor para que outros dispositivos vejam o estado atualizado
         this._salvarNoServidor(numeroOS);
         const cel = document.getElementById(`mediu-cel-${CSS.escape(numeroOS)}`);
@@ -684,8 +688,15 @@ class GestaoOS {
 
     getAnexos(numeroOS) {
         const json = localStorage.getItem('gestaoOS_anexos_' + numeroOS);
-        if (!json) return [];
-        try { return JSON.parse(json); } catch { return []; }
+        if (json) {
+            try { return JSON.parse(json); } catch { /* fall through */ }
+        }
+        // Fallback: dados do servidor (outro computador pode ter feito o upload)
+        const sv = this._dadosServidor?.[numeroOS];
+        if (sv?.anexos) {
+            try { return typeof sv.anexos === 'string' ? JSON.parse(sv.anexos) : sv.anexos; } catch { return []; }
+        }
+        return [];
     }
 
     setAnexos(numeroOS, arr) {
@@ -694,18 +705,21 @@ class GestaoOS {
         } else {
             try { localStorage.setItem('gestaoOS_anexos_' + numeroOS, JSON.stringify(arr)); } catch (e) { /* quota */ }
         }
+        this._salvarNoServidor(numeroOS); // sincronizar anexos com o servidor
     }
 
     /**
-     * Retorna URL de thumbnail do Google Drive que funciona em <img>.
-     * A URL /uc?export=view redireciona e navegadores bloqueiam em img tags;
-     * /thumbnail?id=...&sz=w200 é servida diretamente sem redirecionamentos.
+     * Retorna URL de thumbnail do Google Drive que funciona em <img> sem login.
+     * - lh3.googleusercontent.com/d/ID=w200 : URL CDN do Google, funciona sem sessão
+     *   para arquivos com permissão "qualquer pessoa com o link".
+     * - drive.google.com/thumbnail exige cookies de sessão Google (falha em outros PCs).
      */
     _driveThumbUrl(a) {
         const id = a.fileId ||
+                   (a.url || '').match(/\/d\/([^/?&]+)/)?.[1] ||
                    (a.url || '').match(/[?&]id=([^&]+)/)?.[1] || '';
         if (!id) return a.url || '';
-        return `https://drive.google.com/thumbnail?id=${encodeURIComponent(id)}&sz=w200`;
+        return `https://lh3.googleusercontent.com/d/${encodeURIComponent(id)}=w200`;
     }
 
     _anexosHTML(numeroOS, modalOsId) {
@@ -902,14 +916,19 @@ class GestaoOS {
         const mediuLocal = localStorage.getItem('gestaoOS_mediu_' + numeroOS);
         const mediu = mediuLocal !== null ? mediuLocal : (sv.mediu || 'nao');
 
+        // anexos: localStorage tem prioridade; fallback para servidor
+        const anexosLocal = localStorage.getItem('gestaoOS_anexos_' + numeroOS);
+        const anexos = anexosLocal !== null ? anexosLocal
+                     : (sv.anexos ? (typeof sv.anexos === 'string' ? sv.anexos : JSON.stringify(sv.anexos)) : '[]');
+
         // Atualizar cache com valores definitivos antes de enviar
         if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
-        Object.assign(this._dadosServidor[numeroOS], { status, gevia, nota, mediu });
+        Object.assign(this._dadosServidor[numeroOS], { status, gevia, nota, mediu, anexos });
 
         try {
             const resp = await fetch(url, {
                 method: 'POST',
-                body: JSON.stringify({ acao: 'salvarGestaoOS', numeroOS, status, gevia, nota, mediu })
+                body: JSON.stringify({ acao: 'salvarGestaoOS', numeroOS, status, gevia, nota, mediu, anexos })
             });
             const j = await resp.json();
 
@@ -1195,9 +1214,10 @@ class GestaoOS {
                 if (this.filtroMes && this.filtroAno) {
                     const hasRDOInMonth = go.datas.some(d => {
                         const parts = d.split('/');
-                        return parts.length >= 3 &&
-                               +parts[1] === this.filtroMes &&
-                               +parts[2] === this.filtroAno;
+                        if (parts.length < 3) return false;
+                        const year = parts[2].length === 2 ? 2000 + +parts[2] : +parts[2];
+                        return +parts[1] === this.filtroMes &&
+                               year === this.filtroAno;
                     });
                     if (!hasRDOInMonth) ordensParaDeletar.push(numeroOS);
                 }
@@ -1539,7 +1559,8 @@ class GestaoOS {
                 if (!dataStr) return false;
                 const parts = dataStr.split('/');
                 if (parts.length < 3) return false;
-                if (+parts[1] !== this.filtroMes || +parts[2] !== this.filtroAno) return false;
+                const year = parts[2].length === 2 ? 2000 + +parts[2] : +parts[2];
+                if (+parts[1] !== this.filtroMes || year !== this.filtroAno) return false;
             }
             return true;
         });
