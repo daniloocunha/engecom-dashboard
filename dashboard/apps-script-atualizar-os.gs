@@ -534,19 +534,23 @@ function _dividirOSInterno(numeroRDO, os1, os2, servicosOS2, hiOS2, movimentacao
     if (colDataCriacao >= 0) {
         novaLinhaRDO[colDataCriacao] = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
     }
-    // Inserir sem acionar validacao de dados (a nova OS pode nao estar na lista dropdown)
-    // 1a limpeza: remove validacao da coluna OS inteira (linhas existentes)
-    if (colOS >= 0) {
-        abaRDO.getRange(1, colOS + 1, abaRDO.getMaxRows(), 1).clearDataValidations();
-        SpreadsheetApp.flush();
-    }
+    // Inserir sem acionar validacao de dados (os2 pode nao estar na lista dropdown)
+    // Estrategia em 2 passos para contornar validacao de forma confiavel:
+    // Passo 1: escreve a linha com os1 (valor ja aceito pela validacao)
+    // Passo 2: limpa validacao apenas na celula OS e sobrescreve com os2
     var novaPosicao = abaRDO.getLastRow() + 1;
     abaRDO.insertRowAfter(abaRDO.getLastRow());
-    // 2a limpeza: a nova linha herda validacao da linha anterior — limpar de novo ANTES do setValues
-    abaRDO.getRange(novaPosicao, 1, 1, abaRDO.getLastColumn()).clearDataValidations();
+
+    var novaLinhaParaEscrever = novaLinhaRDO.slice();
+    novaLinhaParaEscrever[colOS] = os1; // os1 ja esta na lista de validacao
+    var novaLinhRange = abaRDO.getRange(novaPosicao, 1, 1, novaLinhaParaEscrever.length);
+    novaLinhRange.setValues([novaLinhaParaEscrever]);
     SpreadsheetApp.flush();
-    var novaLinhRange = abaRDO.getRange(novaPosicao, 1, 1, novaLinhaRDO.length);
-    novaLinhRange.setValues([novaLinhaRDO]);
+
+    // Agora limpa validacao apenas na celula OS da nova linha e atualiza para os2
+    var celulaOS = abaRDO.getRange(novaPosicao, colOS + 1);
+    celulaOS.clearDataValidations();
+    celulaOS.setValue(os2);
     SpreadsheetApp.flush();
 
     // 4. Mover servicos e HI para o novo RDO
