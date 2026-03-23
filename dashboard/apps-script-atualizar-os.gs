@@ -535,14 +535,16 @@ function _dividirOSInterno(numeroRDO, os1, os2, servicosOS2, hiOS2, movimentacao
         novaLinhaRDO[colDataCriacao] = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
     }
     // Inserir sem acionar validacao de dados (a nova OS pode nao estar na lista dropdown)
-    // Limpa validacao da coluna OS inteira antes de inserir — regras de range nao sao
-    // anuladas por clearDataValidations() numa unica celula.
+    // 1a limpeza: remove validacao da coluna OS inteira (linhas existentes)
     if (colOS >= 0) {
         abaRDO.getRange(1, colOS + 1, abaRDO.getMaxRows(), 1).clearDataValidations();
         SpreadsheetApp.flush();
     }
     var novaPosicao = abaRDO.getLastRow() + 1;
     abaRDO.insertRowAfter(abaRDO.getLastRow());
+    // 2a limpeza: a nova linha herda validacao da linha anterior — limpar de novo ANTES do setValues
+    abaRDO.getRange(novaPosicao, 1, 1, abaRDO.getLastColumn()).clearDataValidations();
+    SpreadsheetApp.flush();
     var novaLinhRange = abaRDO.getRange(novaPosicao, 1, 1, novaLinhaRDO.length);
     novaLinhRange.setValues([novaLinhaRDO]);
     SpreadsheetApp.flush();
