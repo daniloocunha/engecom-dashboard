@@ -420,7 +420,7 @@ See `GERENCIAR_SERVICOS.md` for detailed instructions.
 - **IMPORTANT**: Always use this keystore for ALL future releases to ensure updates work correctly
 
 **Current Release (v2.1.0):**
-- **APK Location**: `app/release/app-release-v2.1.0.apk`
+- **APK Location**: `app/release/app-release-v5.0.0.apk`
 - **MD5 Hash**: `51b8ec2435bcc04bc44977fe4ac94a5e`
 - **File Size**: ~3.2 MB
 - **Signed with**: APK Signature Scheme v2/v3 (modern Android signing)
@@ -434,8 +434,8 @@ See `GERENCIAR_SERVICOS.md` for detailed instructions.
 ```
 versao_minima          | 16
 versao_recomendada     | 16
-hash_md5               | [Gerar após build: md5sum app/release/app-release.apk]
-tamanho_apk_mb         | [Verificar após build]
+hash_md5               | 286FEBD53237AE44F6F5B37A2E9AEFE0
+tamanho_apk_mb         | 6.77
 url_download           | [URL do APK hospedado]
 forcar_update          | NAO
 mensagem_aviso         | Nova versão 5.0.0 disponível - Correções críticas de sincronização!
