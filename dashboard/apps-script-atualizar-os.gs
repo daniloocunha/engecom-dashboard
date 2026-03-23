@@ -350,6 +350,54 @@ function _removerLinhaAnexo(fileId) {
 // === Helpers ===
 
 /**
+ * Adiciona valores na lista de validacao (dropdown) de uma coluna.
+ * Necessario quando os1/os2 sao numeros novos, fora da lista existente.
+ * Se a coluna nao tiver validacao do tipo VALUE_IN_LIST, nao faz nada.
+ */
+function _adicionarOSNaValidacao(sheet, colIdx, novosValores) {
+    try {
+        var lastRow = sheet.getLastRow();
+        if (lastRow < 2) return; // sem dados
+
+        // Ler regra de validacao da primeira celula de dados da coluna
+        var primeiraCell = sheet.getRange(2, colIdx + 1);
+        var rule = primeiraCell.getDataValidation();
+        if (!rule) return; // sem validacao, nao precisa fazer nada
+
+        var tipo = rule.getCriteriaType();
+        if (tipo !== SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST) return;
+
+        var criteriaValues = rule.getCriteriaValues();
+        var listaAtual = criteriaValues[0] || [];     // array de strings permitidas
+        var mostrarDropdown = criteriaValues[1] !== false;
+
+        // Adicionar apenas os valores que ainda nao estao na lista
+        var mudou = false;
+        novosValores.forEach(function(v) {
+            var val = (v || '').toString().trim();
+            if (val && listaAtual.indexOf(val) === -1) {
+                listaAtual.push(val);
+                mudou = true;
+            }
+        });
+
+        if (!mudou) return; // ja estavam na lista
+
+        // Reaplicar a validacao com a lista expandida em toda a coluna de dados
+        var novaRegra = SpreadsheetApp.newDataValidation()
+            .requireValueInList(listaAtual, mostrarDropdown)
+            .build();
+        sheet.getRange(2, colIdx + 1, lastRow - 1, 1).setDataValidation(novaRegra);
+        SpreadsheetApp.flush();
+
+        Logger.log('[_adicionarOSNaValidacao] Adicionados: ' + novosValores.join(', '));
+    } catch (e) {
+        // Nao-fatal: se falhar, a escrita vai gerar o erro original de validacao
+        Logger.log('[_adicionarOSNaValidacao] Erro (nao-fatal): ' + e.message);
+    }
+}
+
+/**
  * Retorna a aba "GestaoOS", criando-a com cabecalho se nao existir.
  */
 function _obterOuCriarAbaGestaoOS(ss) {
@@ -518,6 +566,10 @@ function _dividirOSInterno(numeroRDO, os1, os2, servicosOS2, hiOS2, movimentacao
         return { sucesso: false, erro: 'Numero RDO "' + numeroRDO + '" nao encontrado' };
     }
 
+    // Adicionar os1 e os2 na lista de validacao da coluna OS antes de qualquer escrita.
+    // Tanto os1 quanto os2 podem ser numeros novos, fora do dropdown atual.
+    _adicionarOSNaValidacao(abaRDO, colOS, [os1, os2]);
+
     // Atualizar OS do RDO original para OS1
     abaRDO.getRange(linhaOriginal + 1, colOS + 1).setValue(os1);
     SpreadsheetApp.flush();
@@ -534,23 +586,10 @@ function _dividirOSInterno(numeroRDO, os1, os2, servicosOS2, hiOS2, movimentacao
     if (colDataCriacao >= 0) {
         novaLinhaRDO[colDataCriacao] = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
     }
-    // Inserir sem acionar validacao de dados (os2 pode nao estar na lista dropdown)
-    // Estrategia em 2 passos para contornar validacao de forma confiavel:
-    // Passo 1: escreve a linha com os1 (valor ja aceito pela validacao)
-    // Passo 2: limpa validacao apenas na celula OS e sobrescreve com os2
+    // Inserir nova linha (os2 ja foi adicionado na lista de validacao acima)
     var novaPosicao = abaRDO.getLastRow() + 1;
     abaRDO.insertRowAfter(abaRDO.getLastRow());
-
-    var novaLinhaParaEscrever = novaLinhaRDO.slice();
-    novaLinhaParaEscrever[colOS] = os1; // os1 ja esta na lista de validacao
-    var novaLinhRange = abaRDO.getRange(novaPosicao, 1, 1, novaLinhaParaEscrever.length);
-    novaLinhRange.setValues([novaLinhaParaEscrever]);
-    SpreadsheetApp.flush();
-
-    // Agora limpa validacao apenas na celula OS da nova linha e atualiza para os2
-    var celulaOS = abaRDO.getRange(novaPosicao, colOS + 1);
-    celulaOS.clearDataValidations();
-    celulaOS.setValue(os2);
+    abaRDO.getRange(novaPosicao, 1, 1, novaLinhaRDO.length).setValues([novaLinhaRDO]);
     SpreadsheetApp.flush();
 
     // 4. Mover servicos e HI para o novo RDO
