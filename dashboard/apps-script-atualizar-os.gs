@@ -350,6 +350,64 @@ function _removerLinhaAnexo(fileId) {
 // === Helpers ===
 
 /**
+ * Escreve valores em um range via Sheets REST API (PUT values).
+ * Este metodo NAO obedece regras de validacao de dados — util quando
+ * os valores escritos nao estao na lista do dropdown da coluna.
+ *
+ * @param {string}   spreadsheetId  - ID da planilha
+ * @param {string}   sheetName      - Nome da aba (ex: 'RDO')
+ * @param {number}   startRow       - Linha inicial (1-indexed)
+ * @param {number}   startCol       - Coluna inicial (1-indexed)
+ * @param {Array[]}  valoresMatrix  - Matriz de valores [[linha1col1, ...], ...]
+ */
+function _escreverIgnorandoValidacao(spreadsheetId, sheetName, startRow, startCol, valoresMatrix) {
+    // Converter coluna numerica para letra (ex: 1→A, 7→G, 27→AA)
+    function colToLetter(n) {
+        var s = '';
+        while (n > 0) {
+            var r = (n - 1) % 26;
+            s = String.fromCharCode(65 + r) + s;
+            n = Math.floor((n - 1) / 26);
+        }
+        return s;
+    }
+
+    var endRow = startRow + valoresMatrix.length - 1;
+    var endCol = startCol + (valoresMatrix[0] ? valoresMatrix[0].length - 1 : 0);
+    var rangeNotation = sheetName + '!' + colToLetter(startCol) + startRow
+                      + ':' + colToLetter(endCol) + endRow;
+
+    var token = ScriptApp.getOAuthToken();
+    var url = 'https://sheets.googleapis.com/v4/spreadsheets/'
+              + spreadsheetId + '/values/'
+              + encodeURIComponent(rangeNotation)
+              + '?valueInputOption=RAW';
+
+    var options = {
+        method: 'PUT',
+        headers: {
+            'Authorization': 'Bearer ' + token,
+            'Content-Type': 'application/json'
+        },
+        payload: JSON.stringify({
+            range: rangeNotation,
+            majorDimension: 'ROWS',
+            values: valoresMatrix
+        }),
+        muteHttpExceptions: true
+    };
+
+    var response = UrlFetchApp.fetch(url, options);
+    var code = response.getResponseCode();
+    if (code !== 200) {
+        var errBody = response.getContentText();
+        try { errBody = JSON.parse(errBody).error.message; } catch (_) {}
+        throw new Error('Sheets API (' + code + '): ' + errBody);
+    }
+    Logger.log('[_escreverIgnorandoValidacao] Escrito em ' + rangeNotation);
+}
+
+/**
  * Adiciona valores na lista de validacao (dropdown) de uma coluna.
  * Necessario quando os1/os2 sao numeros novos, fora da lista existente.
  * Se a coluna nao tiver validacao do tipo VALUE_IN_LIST, nao faz nada.
@@ -566,13 +624,10 @@ function _dividirOSInterno(numeroRDO, os1, os2, servicosOS2, hiOS2, movimentacao
         return { sucesso: false, erro: 'Numero RDO "' + numeroRDO + '" nao encontrado' };
     }
 
-    // Adicionar os1 e os2 na lista de validacao da coluna OS antes de qualquer escrita.
-    // Tanto os1 quanto os2 podem ser numeros novos, fora do dropdown atual.
-    _adicionarOSNaValidacao(abaRDO, colOS, [os1, os2]);
+    var ssId = ss.getId();
 
-    // Atualizar OS do RDO original para OS1
-    abaRDO.getRange(linhaOriginal + 1, colOS + 1).setValue(os1);
-    SpreadsheetApp.flush();
+    // Atualizar OS do RDO original para OS1 (bypassa validacao de dados via REST API)
+    _escreverIgnorandoValidacao(ssId, 'RDO', linhaOriginal + 1, colOS + 1, [[os1]]);
 
     // 2. Gerar numero RDO para o novo RDO (OS2)
     var novoNumeroRDO = _proximoSequencial(ss, os2, dadosRDOOriginal, hdrRDO);
@@ -586,11 +641,12 @@ function _dividirOSInterno(numeroRDO, os1, os2, servicosOS2, hiOS2, movimentacao
     if (colDataCriacao >= 0) {
         novaLinhaRDO[colDataCriacao] = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
     }
-    // Inserir nova linha (os2 ja foi adicionado na lista de validacao acima)
-    var novaPosicao = abaRDO.getLastRow() + 1;
-    abaRDO.insertRowAfter(abaRDO.getLastRow());
-    abaRDO.getRange(novaPosicao, 1, 1, novaLinhaRDO.length).setValues([novaLinhaRDO]);
+    // Inserir nova linha (appendRow nao aciona validacao; usamos appendRow + escrita via REST)
+    abaRDO.appendRow(new Array(novaLinhaRDO.length).fill(''));
     SpreadsheetApp.flush();
+    var novaPosicao = abaRDO.getLastRow();
+    // Sobrescreve a linha vazia com os dados reais, ignorando validacao
+    _escreverIgnorandoValidacao(ssId, 'RDO', novaPosicao, 1, [novaLinhaRDO]);
 
     // 4. Mover servicos e HI para o novo RDO
     _moverLinhasParaNovoRDO(ss, 'Servicos', numeroRDO, novoNumeroRDO, os2, servicosOS2, 'servico');
