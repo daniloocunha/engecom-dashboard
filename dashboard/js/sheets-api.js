@@ -42,7 +42,10 @@ class GoogleSheetsAPI {
         const url = `${this.baseURL}/${this.spreadsheetId}/values/${nomeAba}!${range}?key=${this.apiKey}`;
 
         try {
-            const response = await fetch(url);
+            const controller = new AbortController();
+            const timeoutId  = setTimeout(() => controller.abort(), 30000);
+            const response   = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
             if (!response.ok) return [];
 
             const data = await response.json();
@@ -72,7 +75,10 @@ class GoogleSheetsAPI {
         const url = `${this.baseURL}/${this.spreadsheetId}/values/${nomeAba}!${range}?key=${this.apiKey}`;
 
         try {
-            const response = await fetch(url);
+            const controller = new AbortController();
+            const timeoutId  = setTimeout(() => controller.abort(), 30000);
+            const response   = await fetch(url, { signal: controller.signal });
+            clearTimeout(timeoutId);
 
             if (!response.ok) {
                 // Detectar rate limit (429) e exibir mensagem amigável
@@ -442,6 +448,13 @@ class GoogleSheetsAPI {
     }
 
     /**
+     * Retorna lista de serviços customizados sem HH Manual preenchido.
+     */
+    getCustomizadosSemHH() {
+        return this._customizadosSemHH || [];
+    }
+
+    /**
      * Calcula HH Improdutivas
      * Fórmula: (Hora Fim - Hora Início) × Operadores
      * v3.0.0: Lê operadores da própria linha HI (nova coluna J), com fallback para Efetivo (legado)
@@ -561,6 +574,11 @@ class GoogleSheetsAPI {
         const minutos = parseInt(partes[1]);
 
         if (isNaN(horas) || isNaN(minutos)) return null;
+
+        if (horas < 0 || horas > 23 || minutos < 0 || minutos > 59) {
+            console.warn(`[Hora] Valor fora de faixa: ${hora}`);
+            return null;
+        }
 
         return horas * 60 + minutos;
     }

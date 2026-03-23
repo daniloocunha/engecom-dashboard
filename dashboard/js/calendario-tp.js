@@ -135,56 +135,39 @@ class CalendarioTP {
 
         if (intervals.length === 0) return 0;
 
-        // 2. Ordenar por startMin
-        intervals.sort((a, b) => a.startMin - b.startMin);
+        // Pré-filtro: trens < 15 min descartados antes do merge
+        const filtered = intervals.filter(iv => {
+            if (iv.tipo.includes('trem') && (iv.endMin - iv.startMin) < METAS.MINUTOS_MINIMOS_TREM) return false;
+            return true;
+        });
 
-        // 3. Mesclar sobrepostos — só desconta o trecho em comum, não o evento inteiro
-        const merged = [{
-            startMin:   intervals[0].startMin,
-            endMin:     intervals[0].endMin,
-            tipos:      [intervals[0].tipo],
-            operadores: intervals[0].operadores
-        }];
+        if (filtered.length === 0) return 0;
 
-        for (let i = 1; i < intervals.length; i++) {
-            const cur  = intervals[i];
-            const last = merged[merged.length - 1];
-            if (cur.startMin <= last.endMin) {
-                // Sobreposição: estende o fim e une os tipos
-                last.endMin     = Math.max(last.endMin, cur.endMin);
-                last.tipos.push(cur.tipo);
-                last.operadores = Math.max(last.operadores, cur.operadores);
+        // 2. Sweep line: breakpoints para cada segmento único
+        const breakpoints = new Set();
+        filtered.forEach(iv => { breakpoints.add(iv.startMin); breakpoints.add(iv.endMin); });
+        const timeline = [...breakpoints].sort((a, b) => a - b);
+
+        // 3. Para cada segmento entre breakpoints, calcular HH
+        let totalHH = 0;
+        for (let i = 0; i < timeline.length - 1; i++) {
+            const segStart = timeline[i];
+            const segEnd   = timeline[i + 1];
+            const duracaoHoras = (segEnd - segStart) / 60;
+            if (duracaoHoras <= 0) continue;
+
+            const active = filtered.filter(iv => iv.startMin <= segStart && iv.endMin >= segEnd);
+            if (active.length === 0) continue;
+
+            const operadores = Math.max(...active.map(iv => iv.operadores));
+            const hasChuva = active.some(iv => iv.tipo.includes('chuva'));
+
+            if (hasChuva) {
+                totalHH += (duracaoHoras * operadores) / METAS.DIVISOR_CHUVA;
             } else {
-                // Sem sobreposição: novo segmento independente
-                merged.push({
-                    startMin:   cur.startMin,
-                    endMin:     cur.endMin,
-                    tipos:      [cur.tipo],
-                    operadores: cur.operadores
-                });
+                totalHH += duracaoHoras * operadores;
             }
         }
-
-        // 4. Calcular HH por segmento mesclado aplicando regras de tipo
-        let totalHH = 0;
-        merged.forEach(seg => {
-            const duracaoHoras = (seg.endMin - seg.startMin) / 60;
-            const soTrens  = seg.tipos.every(t => t.includes('trem'));
-            const hasChuva = seg.tipos.some(t  => t.includes('chuva'));
-
-            let hh;
-            if (soTrens && duracaoHoras < (METAS.MINUTOS_MINIMOS_TREM / 60)) {
-                hh = 0; // Trem < 15 min não conta
-            } else if (hasChuva) {
-                hh = (duracaoHoras * seg.operadores) / METAS.DIVISOR_CHUVA;
-            } else {
-                hh = duracaoHoras * seg.operadores;
-            }
-            totalHH += hh;
-            if (hh > 0) {
-                debugLog(`  [HI merged] tipos=[${seg.tipos}] ${seg.endMin - seg.startMin}min × ${seg.operadores}op = ${hh.toFixed(2)} HH`);
-            }
-        });
 
         return totalHH;
     }
@@ -402,7 +385,7 @@ class CalendarioTP {
                     <div class="modal-content">
                         <div class="modal-header bg-primary text-white">
                             <h5 class="modal-title">
-                                <i class="fas fa-list me-2"></i>O.S Trabalhadas - ${turma}
+                                <i class="fas fa-list me-2"></i>O.S Trabalhadas - ${escapeHtml(turma)}
                             </h5>
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
@@ -414,7 +397,7 @@ class CalendarioTP {
                                 ${Array.from(stats.osSet).sort().map(os => `
                                     <div class="list-group-item d-flex align-items-center">
                                         <i class="fas fa-file-alt text-primary me-3"></i>
-                                        <strong>${os}</strong>
+                                        <strong>${escapeHtml(os)}</strong>
                                     </div>
                                 `).join('')}
                             </div>
@@ -436,7 +419,7 @@ class CalendarioTP {
                 <div class="card-header bg-primary text-white">
                     <div class="row align-items-center">
                         <div class="col-md-3">
-                            <h5 class="mb-0"><i class="fas fa-industry me-2"></i>${turma}</h5>
+                            <h5 class="mb-0"><i class="fas fa-industry me-2"></i>${escapeHtml(turma)}</h5>
                         </div>
                         <div class="col-md-9">
                             <div class="row g-2">
@@ -523,17 +506,18 @@ class CalendarioTP {
                 html += `
                     <div class="calendario-dia trabalhado ${status}"
                          style="border-left: 4px solid ${corStatus}; cursor: pointer;"
-                         onclick="calendarioTP.mostrarDetalhesDia('${turma}', ${dia}, ${this.mesAtual}, ${this.anoAtual})">
+                         data-turma="${escapeHtml(turma)}" data-dia="${dia}" data-mes="${this.mesAtual}" data-ano="${this.anoAtual}"
+                         onclick="calendarioTP.mostrarDetalhesDia(this.dataset.turma, +this.dataset.dia, +this.dataset.mes, +this.dataset.ano)">
                         <div class="dia-numero">${dia}</div>
                         ${dadosDia.hhPorOS.map(item => `
                             <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
-                                <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${item.numeroOS}</span>
+                                <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${escapeHtml(item.numeroOS)}</span>
                                 <strong class="dia-hh" style="margin:0; font-size:1.05em;">${item.totalHH.toFixed(1)} HH</strong>
                             </div>
                         `).join('')}
                         <div class="dia-meta" style="display:flex; justify-content:space-between; align-items:center; gap:4px; flex-wrap:wrap;">
                             <span>${(percentualMeta * 100).toFixed(0)}% da meta</span>
-                            ${kmTexto ? `<span style="font-size:0.80em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">📍 ${kmTexto}</span>` : ''}
+                            ${kmTexto ? `<span style="font-size:0.80em; color:#555; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:60%;">📍 ${escapeHtml(kmTexto)}</span>` : ''}
                         </div>
                         <div class="dia-efetivo">
                             ${[
@@ -627,16 +611,22 @@ class CalendarioTP {
         });
         const numeroOS = osSet.size;
 
-        // Calcular HH Improdutivas
+        // Calcular HH Improdutivas via merge (consistente com cálculo diário)
         let hhImprodutivas = 0;
         rdosTurma.forEach(rdo => {
             const numeroRDO = rdo['Número RDO'] || rdo.numeroRDO || '';
             const his = this.dados.horasImprodutivas.filter(hi =>
                 (hi['Número RDO'] || hi.numeroRDO) === numeroRDO
             );
-            his.forEach(hi => {
-                hhImprodutivas += parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0);
-            });
+            if (his.length > 0) {
+                const efetivo = this.dados.efetivos.find(e =>
+                    (e['Número RDO'] || e.numeroRDO) === numeroRDO
+                );
+                const opDefault = efetivo
+                    ? parseInt(efetivo['Operadores'] || efetivo.operadores || 12)
+                    : 12;
+                hhImprodutivas += this._calcularHHMerged(his, opDefault);
+            }
         });
 
         // Calcular HH Total (produtivas + improdutivas)

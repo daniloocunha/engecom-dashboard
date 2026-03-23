@@ -24,6 +24,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.activity.result.contract.ActivityResultContracts
+import com.google.android.material.snackbar.Snackbar
+import com.google.gson.Gson
 
 
 
@@ -215,6 +217,12 @@ class RDOFragment : Fragment() {
         spinnerHouveServicoListenerAtivo = true
         verificarModoEdicao()
         carregarModelo()
+
+        // Oferecer restaurar rascunho apenas para formulários novos (sem edição e sem template)
+        val temTemplate = requireActivity().intent.getBooleanExtra("USAR_MODELO", false)
+        if (!isEditMode && !temTemplate) {
+            verificarEOfereceRestaurarRascunho()
+        }
     }
 
     private fun inicializarViews(view: View) {
@@ -447,6 +455,7 @@ class RDOFragment : Fragment() {
                             isEditMode = true
                             editRdoId = id
                             rdoSalvoNestaSessao = true
+                            limparRascunho()
 
                             // Sincronizar com Google Sheets (agora RDO está garantidamente no banco)
                             SyncHelper.syncRDO(requireContext(), id,
@@ -550,6 +559,7 @@ class RDOFragment : Fragment() {
                             isEditMode = true
                             editRdoId = idSalvo
                             rdoSalvoNestaSessao = true
+                            limparRascunho()
 
                             // Sincronizar com Google Sheets (agora RDO está garantidamente no banco)
                             SyncHelper.syncRDO(requireContext(), idSalvo,
@@ -843,6 +853,7 @@ class RDOFragment : Fragment() {
             etHorarioInicio = etHorarioInicio,
             etHorarioFim = etHorarioFim,
             etTemaDDS = etTemaDDS,
+            etNomeColaboradores = etNomeColaboradores,
             spinnerCodigoTurma = spinnerCodigoTurma,
             spinnerEncarregado = spinnerEncarregado,
             spinnerStatusOS = spinnerStatusOS,
@@ -974,6 +985,7 @@ class RDOFragment : Fragment() {
         isEditMode = false
         editRdoId = -1L
         rdoSalvoNestaSessao = false
+        limparRascunho()
 
         Toast.makeText(requireContext(), "Formulário limpo", Toast.LENGTH_SHORT).show()
     }
@@ -1084,6 +1096,153 @@ class RDOFragment : Fragment() {
             }
             .setCancelable(false)
             .show()
+    }
+
+    // ======= RASCUNHO (Auto-save em SharedPreferences) =======
+
+    override fun onPause() {
+        super.onPause()
+        salvarRascunho()
+    }
+
+    /** Salva o estado atual do formulário como rascunho. Ignorado em modo de edição. */
+    private fun salvarRascunho() {
+        if (isEditMode || rdoSalvoNestaSessao) return
+        if (!formTemDados()) return
+        try {
+            val json = Gson().toJson(coletarDadosFormulario())
+            requireContext()
+                .getSharedPreferences("rdo_rascunho", android.content.Context.MODE_PRIVATE)
+                .edit()
+                .putString("dados", json)
+                .putLong("timestamp", System.currentTimeMillis())
+                .apply()
+        } catch (_: Exception) { /* silent — nunca travar o onPause */ }
+    }
+
+    /** Remove o rascunho salvo. */
+    private fun limparRascunho() {
+        requireContext()
+            .getSharedPreferences("rdo_rascunho", android.content.Context.MODE_PRIVATE)
+            .edit().clear().apply()
+    }
+
+    /** Retorna true se o formulário tem algum dado útil que vale a pena salvar. */
+    private fun formTemDados(): Boolean {
+        if (!::etNumeroOS.isInitialized) return false
+        return dataSelecionada.isNotEmpty()
+            || etNumeroOS.text.toString().isNotEmpty()
+            || etLocal.text.toString().isNotEmpty()
+            || servicosManager.getServicos().isNotEmpty()
+            || hiManager.getHorasImprodutivas().isNotEmpty()
+    }
+
+    /**
+     * Verifica se existe rascunho salvo e, caso sim, exibe Snackbar para o usuário escolher
+     * se quer restaurar. Rascunhos com mais de 48 horas são descartados automaticamente.
+     */
+    private fun verificarEOfereceRestaurarRascunho() {
+        val prefs = requireContext()
+            .getSharedPreferences("rdo_rascunho", android.content.Context.MODE_PRIVATE)
+        val json      = prefs.getString("dados", null) ?: return
+        val timestamp = prefs.getLong("timestamp", 0L)
+
+        if (System.currentTimeMillis() - timestamp > 48 * 60 * 60 * 1_000L) {
+            limparRascunho()
+            return
+        }
+
+        val rascunho = try {
+            Gson().fromJson(json, RDOData::class.java)
+        } catch (_: Exception) {
+            limparRascunho(); return
+        }
+
+        if (rascunho.data.isEmpty() && rascunho.numeroOS.isEmpty() && rascunho.local.isEmpty()) {
+            limparRascunho(); return
+        }
+
+        // Usar decorView como âncora — fragment_rdo tem ScrollView na raiz,
+        // que não aceita filhos adicionais e causaria IllegalStateException
+        val anchor = requireActivity().window.decorView.rootView
+        Snackbar.make(anchor, "Você tem um rascunho não salvo. Restaurar?", Snackbar.LENGTH_INDEFINITE)
+            .setAction("Restaurar") { restaurarRascunho(rascunho) }
+            .addCallback(object : Snackbar.Callback() {
+                override fun onDismissed(snackbar: Snackbar?, event: Int) {
+                    // Limpa o rascunho em qualquer saída (restaurado ou dispensado)
+                    limparRascunho()
+                }
+            })
+            .show()
+    }
+
+    /** Preenche o formulário com os dados do rascunho. */
+    @SuppressLint("SetTextI18n")
+    private fun restaurarRascunho(rascunho: RDOData) {
+        // Data
+        if (rascunho.data.isNotEmpty()) {
+            dataSelecionada = rascunho.data
+            btnData.text = rascunho.data
+        }
+
+        // Campos de texto simples
+        etLocal.setText(rascunho.local)
+        etNumeroOS.setText(rascunho.numeroOS)
+        etKmInicio.setText(rascunho.kmInicio)
+        etKmFim.setText(rascunho.kmFim)
+        etHorarioInicio.setText(rascunho.horarioInicio)
+        etHorarioFim.setText(rascunho.horarioFim)
+        etTemaDDS.setText(rascunho.temaDDS)
+        etNomeColaboradores.setText(rascunho.nomeColaboradores)
+        etObservacoes.setText(rascunho.observacoes)
+
+        // Spinners com busca por valor
+        selecionarSpinnerRascunho(spinnerCodigoTurma, codigosTurma, rascunho.codigoTurma)
+        selecionarSpinnerRascunho(spinnerEncarregado, nomesEncarregado, rascunho.encarregado)
+        selecionarSpinnerRascunho(spinnerStatusOS, statusOSOpcoes, rascunho.statusOS)
+        selecionarSpinnerRascunho(spinnerClima, climaOpcoes, rascunho.clima)
+
+        // Houve serviço — silencia o listener para não abrir o diálogo de causa
+        spinnerHouveServicoListenerAtivo = false
+        spinnerHouveServico.setSelection(if (rascunho.houveServico) 0 else 1)
+        causaNaoServico = rascunho.causaNaoServico
+        mostrarSecoesPorHouveServico(rascunho.houveServico, causaNaoServico)
+        spinnerHouveServicoListenerAtivo = true
+
+        // Houve transporte
+        spinnerHouveTransporte.setSelection(if (rascunho.houveTransporte) 0 else 1)
+
+        // Efetivo (omite zeros para não poluir campos vazios)
+        etEfetivoEncarregado.setText(rascunho.efetivo.encarregado.takeIf { it > 0 }?.toString() ?: "")
+        etEfetivoOperadores.setText(rascunho.efetivo.operadores.takeIf { it > 0 }?.toString() ?: "")
+        etEfetivoOperadorEGP.setText(rascunho.efetivo.operadorEGP.takeIf { it > 0 }?.toString() ?: "")
+        etEfetivoTecnicoSeguranca.setText(rascunho.efetivo.tecnicoSeguranca.takeIf { it > 0 }?.toString() ?: "")
+        etEfetivoSoldador.setText(rascunho.efetivo.soldador.takeIf { it > 0 }?.toString() ?: "")
+        etEfetivoMotoristas.setText(rascunho.efetivo.motoristas.takeIf { it > 0 }?.toString() ?: "")
+
+        // Equipamentos
+        for (equip in rascunho.equipamentos) {
+            when (equip.tipo) {
+                "Caminhão Cabinado" -> etEquipCaminhaoCabinado.setText(equip.placa)
+                "Caminhão Munck"    -> etEquipCaminhaoMunck.setText(equip.placa)
+                "Micro-ônibus"      -> etEquipMicroOnibus.setText(equip.placa)
+                "Mini Escavadeira"  -> etEquipMiniEscavadeira.setText(equip.placa)
+            }
+        }
+
+        // Listas dinâmicas
+        rascunho.servicos.forEach { servicosManager.adicionarItem(it) }
+        rascunho.materiais.forEach { materiaisManager.adicionarItem(it) }
+        rascunho.hiItens.forEach { hiManager.adicionarItem(it) }
+        rascunho.transportes.forEach { transportesManager.adicionarItem(it) }
+
+        Toast.makeText(requireContext(), "Rascunho restaurado!", Toast.LENGTH_SHORT).show()
+    }
+
+    /** Seleciona um item no spinner buscando pela posição do valor na lista de opções. */
+    private fun selecionarSpinnerRascunho(spinner: Spinner, opcoes: List<String>, valor: String) {
+        val idx = opcoes.indexOf(valor)
+        if (idx >= 0) spinner.setSelection(idx)
     }
 
 }

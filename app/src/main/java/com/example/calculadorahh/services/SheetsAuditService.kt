@@ -70,9 +70,9 @@ class SheetsAuditService(
         try {
             val rowNumber = lookupHelper.findRowNumberByNumeroRDO(numeroRDO) ?: return null
 
-            // Coluna W: Versão App (após adição de "Causa Não Serviço" em coluna P)
+            // Coluna V: Versão App
             val response = sheetsService.spreadsheets().values()
-                .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!W$rowNumber")
+                .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!V$rowNumber")
                 .execute()
 
             val values = response.getValues() ?: return null
@@ -154,12 +154,38 @@ class SheetsAuditService(
                 return@withContext 0
             }
 
-            var deletedCount = 0
-            orphanRows.forEach { rowIndex ->
-                if (deleteSheetRow(sheetName, rowIndex)) deletedCount++
+            // Buscar sheetId uma única vez (evita N GETs — causa do 429)
+            val spreadsheet = sheetsService.spreadsheets().get(spreadsheetId).execute()
+            val sheetId = spreadsheet.sheets.find { it.properties.title == sheetName }
+                ?.properties?.sheetId
+                ?: run {
+                    Log.w(tag, "Aba '$sheetName' não encontrada ao tentar deletar órfãos")
+                    return@withContext 0
+                }
+
+            // Enviar todas as deleções num único batchUpdate
+            // orphanRows já está em ordem decrescente (reversed), garantindo índices corretos
+            val requests = orphanRows.map { rowIndex ->
+                com.google.api.services.sheets.v4.model.Request().setDeleteDimension(
+                    com.google.api.services.sheets.v4.model.DeleteDimensionRequest()
+                        .setRange(
+                            com.google.api.services.sheets.v4.model.DimensionRange()
+                                .setSheetId(sheetId)
+                                .setDimension("ROWS")
+                                .setStartIndex(rowIndex - 1)  // batchUpdate usa 0-indexed
+                                .setEndIndex(rowIndex)
+                        )
+                )
             }
 
-            Log.i(tag, "✅ $sheetName: $deletedCount/${orphanRows.size} linha(s) órfã(s) removida(s)")
+            sheetsService.spreadsheets()
+                .batchUpdate(spreadsheetId,
+                    com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest()
+                        .setRequests(requests))
+                .execute()
+
+            val deletedCount = orphanRows.size
+            Log.i(tag, "✅ $sheetName: $deletedCount linha(s) órfã(s) removida(s) em 1 batchUpdate")
 
             return@withContext deletedCount
 
@@ -170,38 +196,56 @@ class SheetsAuditService(
     }
 
     /**
-     * Deleta uma única linha de uma aba.
-     * @return true se a deleção foi bem-sucedida, false em caso de erro
+     * Deleta múltiplas linhas de uma aba em um único batchUpdate.
+     * Os índices devem estar em ordem DECRESCENTE para evitar deslocamento de linhas.
+     * @param rowIndices Índices 0-based das linhas a deletar (ordem decrescente)
+     * @return true se a operação foi bem-sucedida
      */
-    internal fun deleteSheetRow(sheetName: String, rowIndex: Int): Boolean {
+    internal fun deleteSheetRows(sheetName: String, rowIndices: List<Int>): Boolean {
+        if (rowIndices.isEmpty()) return true
         return try {
+            // Um único GET para obter o sheetId
             val spreadsheet = sheetsService.spreadsheets().get(spreadsheetId).execute()
-            val sheet = spreadsheet.sheets.find { it.properties.title == sheetName }
+            val sheetId = spreadsheet.sheets.find { it.properties.title == sheetName }
+                ?.properties?.sheetId
                 ?: run {
-                    Log.w(tag, "Aba '$sheetName' não encontrada ao tentar deletar linha $rowIndex")
+                    Log.w(tag, "Aba '$sheetName' não encontrada ao tentar deletar linhas")
                     return false
                 }
-            val sheetId = sheet.properties.sheetId
 
-            val request = com.google.api.services.sheets.v4.model.Request().setDeleteDimension(
-                com.google.api.services.sheets.v4.model.DeleteDimensionRequest()
-                    .setRange(
-                        com.google.api.services.sheets.v4.model.DimensionRange()
-                            .setSheetId(sheetId)
-                            .setDimension("ROWS")
-                            .setStartIndex(rowIndex)
-                            .setEndIndex(rowIndex + 1)
-                    )
-            )
+            // Um único batchUpdate com todas as deleções
+            val requests = rowIndices.sortedDescending().map { rowIndex ->
+                com.google.api.services.sheets.v4.model.Request().setDeleteDimension(
+                    com.google.api.services.sheets.v4.model.DeleteDimensionRequest()
+                        .setRange(
+                            com.google.api.services.sheets.v4.model.DimensionRange()
+                                .setSheetId(sheetId)
+                                .setDimension("ROWS")
+                                .setStartIndex(rowIndex)
+                                .setEndIndex(rowIndex + 1)
+                        )
+                )
+            }
 
-            val batchUpdateRequest = com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest()
-                .setRequests(listOf(request))
-            sheetsService.spreadsheets().batchUpdate(spreadsheetId, batchUpdateRequest).execute()
+            sheetsService.spreadsheets()
+                .batchUpdate(spreadsheetId,
+                    com.google.api.services.sheets.v4.model.BatchUpdateSpreadsheetRequest()
+                        .setRequests(requests))
+                .execute()
+
+            Log.d(tag, "✓ $sheetName: ${rowIndices.size} linha(s) deletada(s) em 1 batchUpdate")
             true
 
         } catch (e: Exception) {
-            Log.e(tag, "Erro ao deletar linha $rowIndex de '$sheetName': ${e.message}", e)
+            Log.e(tag, "Erro ao deletar ${rowIndices.size} linha(s) de '$sheetName': ${e.message}", e)
             false
         }
     }
+
+    /**
+     * Deleta uma única linha de uma aba.
+     * Prefira deleteSheetRows() quando houver múltiplas linhas.
+     */
+    internal fun deleteSheetRow(sheetName: String, rowIndex: Int): Boolean =
+        deleteSheetRows(sheetName, listOf(rowIndex))
 }

@@ -9,6 +9,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.example.calculadorahh.R
 import com.example.calculadorahh.services.GoogleSheetsService
+import com.example.calculadorahh.services.SheetsConstants
 import com.example.calculadorahh.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -65,14 +66,7 @@ class DataCleanupWorker(
             AppLogger.i(TAG, "✅ ${validRDOs.size} RDOs válidos encontrados")
 
             // 2. Limpar cada aba relacionada
-            val sheetsToClean = listOf(
-                "Servicos",
-                "Materiais",
-                "Efetivo",
-                "Equipamentos",
-                "HorasImprodutivas",
-                "TransporteSucatas"
-            )
+            val sheetsToClean = SheetsConstants.RELATED_DATA_SHEETS
 
             var totalOrphansRemoved = 0
             val cleanupResults = mutableMapOf<String, Int>()

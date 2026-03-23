@@ -20,7 +20,7 @@ object SheetsConstants {
     const val SHEET_AUDIT = "AuditoriaSync"
 
     // Versão dos headers (incrementar quando mudar estrutura)
-    const val HEADERS_VERSION = 5  // v1: headers originais, v2: HI com categoria e colaboradores, v3: HH Manual em Servicos, v4: Operadores em HI, v5: Causa Não Serviço em RDO
+    const val HEADERS_VERSION = 6  // v1: headers originais, v2: HI com categoria e colaboradores, v3: HH Manual em Servicos, v4: Operadores em HI, v5: Causa Não Serviço em RDO (revertido), v6: removido Causa Não Serviço (redundante)
 
     // Lista de todas as abas que devem existir
     val ALL_SHEETS = listOf(
@@ -40,7 +40,7 @@ object SheetsConstants {
         "ID", "Número RDO", "Data", "Código Turma", "Encarregado",
         "Local", "Número OS", "Status OS", "KM Início", "KM Fim",
         "Horário Início", "Horário Fim", "Clima", "Tema DDS",
-        "Houve Serviço", "Causa Não Serviço", "Houve Transporte", "Nome Colaboradores",
+        "Houve Serviço", "Houve Transporte", "Nome Colaboradores",
         "Observações", "Deletado", "Data Sincronização", "Data Criação",
         "Versão App"
     )

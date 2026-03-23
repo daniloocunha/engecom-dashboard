@@ -127,12 +127,26 @@ class FieldHelper {
     }
 
     /**
-     * Parse de data no formato DD/MM/YYYY
+     * Normaliza data para o formato DD/MM/YYYY.
+     * Converte ISO 8601 (YYYY-MM-DD) automaticamente.
+     */
+    static normalizarData(str) {
+        if (!str) return str;
+        if (/^\d{4}-\d{2}-\d{2}$/.test(str.trim())) {
+            const [ano, mes, dia] = str.trim().split('-');
+            return `${dia}/${mes}/${ano}`;
+        }
+        return str;
+    }
+
+    /**
+     * Parse de data nos formatos DD/MM/YYYY ou YYYY-MM-DD (ISO)
      */
     static parseData(dataStr) {
         if (!dataStr) return null;
 
-        const partes = dataStr.split('/');
+        const normalizado = this.normalizarData(dataStr);
+        const partes = normalizado.split('/');
         if (partes.length !== 3) return null;
 
         const dia = parseInt(partes[0]);
@@ -145,9 +159,18 @@ class FieldHelper {
     }
 
     /**
-     * Verifica se RDO pertence ao período
+     * Retorna true se o RDO não está deletado (Deletado !== "Sim")
+     */
+    static estaAtivo(rdo) {
+        return (rdo['Deletado'] || rdo.deletado || '').toLowerCase() !== 'sim';
+    }
+
+    /**
+     * Verifica se RDO pertence ao período e não está deletado
      */
     static rdoNoPeriodo(rdo, mes, ano) {
+        if (!this.estaAtivo(rdo)) return false;
+
         const dataStr = this.getRDOData(rdo);
         const parsed = this.parseData(dataStr);
 

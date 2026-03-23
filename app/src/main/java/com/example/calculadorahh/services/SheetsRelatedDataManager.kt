@@ -42,14 +42,13 @@ class SheetsRelatedDataManager(
             rdo.clima,                                   // M: Clima
             rdo.temaDDS,                                 // N: Tema DDS
             if (rdo.houveServico) "Sim" else "Não",      // O: Houve Serviço
-            rdo.causaNaoServico,                         // P: Causa Não Serviço ("RUMO", "ENGECOM" ou "")
-            if (rdo.houveTransporte) "Sim" else "Não",   // Q: Houve Transporte
-            rdo.nomeColaboradores,                       // R: Nome Colaboradores
-            rdo.observacoes,                             // S: Observações
-            if (isDelete) "Sim" else "Não",              // T: Deletado
-            currentDateTime,                             // U: Data Sincronização
-            dataCriacao ?: currentDateTime,              // V: Data Criação
-            BuildConfig.VERSION_CODE.toString()          // W: Versão App
+            if (rdo.houveTransporte) "Sim" else "Não",   // P: Houve Transporte
+            rdo.nomeColaboradores,                       // Q: Nome Colaboradores
+            rdo.observacoes,                             // R: Observações
+            if (isDelete) "Sim" else "Não",              // S: Deletado
+            currentDateTime,                             // T: Data Sincronização
+            dataCriacao ?: currentDateTime,              // U: Data Criação
+            BuildConfig.VERSION_CODE.toString()          // V: Versão App
         )
     }
 
@@ -191,12 +190,10 @@ class SheetsRelatedDataManager(
         val rdoVersion = auditService.getRDOAppVersion(numeroRDO)
 
         if (rdoVersion != null && rdoVersion > BuildConfig.VERSION_CODE) {
-            Log.w(
-                tag,
-                "⚠️ RDO $numeroRDO foi criado por versão mais nova (v$rdoVersion > v${BuildConfig.VERSION_CODE}). " +
-                "Pulando deleção para evitar perda de dados."
-            )
-            return
+            val msg = "⚠️ RDO $numeroRDO foi criado por versão mais nova (v$rdoVersion > v${BuildConfig.VERSION_CODE}). " +
+                "Abortando sync para evitar perda de dados."
+            Log.w(tag, msg)
+            throw Exception(msg)
         }
 
         // Coletar TODOS os erros antes de falhar
@@ -221,9 +218,7 @@ class SheetsRelatedDataManager(
                     }
                 }
 
-                rowsToDelete.sortedDescending().forEach { rowIndex ->
-                    auditService.deleteSheetRow(sheetName, rowIndex)
-                }
+                auditService.deleteSheetRows(sheetName, rowsToDelete)
 
                 Log.d(tag, "Deletadas ${rowsToDelete.size} linhas de $sheetName para NumeroRDO: $numeroRDO")
                 deletedSheets.add(sheetName)

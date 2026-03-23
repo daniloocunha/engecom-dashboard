@@ -4,6 +4,8 @@ import android.content.Context
 import android.util.Log
 import com.example.calculadorahh.BuildConfig
 import com.example.calculadorahh.data.models.RDODataCompleto
+import com.example.calculadorahh.data.models.UpdateConfig
+import com.example.calculadorahh.utils.UpdateChecker
 import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport
 import com.google.api.client.json.gson.GsonFactory
 import com.google.api.services.sheets.v4.Sheets
@@ -49,7 +51,7 @@ class GoogleSheetsService(private val context: Context) {
             val httpTransport = GoogleNetHttpTransport.newTrustedTransport()
             val jsonFactory = GsonFactory.getDefaultInstance()
 
-            val credentials = context.assets.open("rdo-engecom-bf9816cce3c2.json").use { inputStream ->
+            val credentials = context.assets.open("rdo-engecom-3cda2be0f303.json").use { inputStream ->
                 GoogleCredentials.fromStream(inputStream)
                     .createScoped(listOf(SheetsScopes.SPREADSHEETS))
             }
@@ -175,11 +177,11 @@ class GoogleSheetsService(private val context: Context) {
 
             Log.d(tag, "Linha encontrada: $rowNumber para numeroRDO: ${numeroRDOAntigo ?: rdo.numeroRDO}")
 
-            // Preservar Data Criação original (coluna V - após adição de "Causa Não Serviço" em P)
+            // Preservar Data Criação original (coluna U)
             var dataCriacaoOriginal: String? = null
             try {
                 val existingDataResult = service.spreadsheets().values()
-                    .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!V${rowNumber}")
+                    .get(spreadsheetId, "${SheetsConstants.SHEET_RDO}!U${rowNumber}")
                     .execute()
                 val values = existingDataResult.getValues()
                 if (values != null && values.isNotEmpty() && values[0].isNotEmpty()) {
@@ -252,6 +254,19 @@ class GoogleSheetsService(private val context: Context) {
             Log.e(tag, "Erro ao inserir RDO: ${e.message}", e)
             throw e
         }
+    }
+
+    /**
+     * Verifica se há uma atualização disponível consultando a aba "Config" do Sheets.
+     * @return UpdateConfig com os dados da nova versão, ou null se não houver ou em caso de erro.
+     */
+    suspend fun verificarAtualizacao(): UpdateConfig? = withContext(Dispatchers.IO) {
+        val service = sheetsService ?: run {
+            if (!initialize()) return@withContext null
+            sheetsService
+        } ?: return@withContext null
+
+        UpdateChecker.fetchUpdateConfig(service, spreadsheetId)
     }
 
     /**

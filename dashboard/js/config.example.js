@@ -169,6 +169,9 @@ const METAS = {
     META_DIARIA_TP: 96,              // 12 × 8 = 96 HH/dia
     LIMITE_FATURAMENTO_TP: 1.10,     // 110% do valor fixo
 
+    // TSs
+    META_DIARIA_TS: 8,               // 1 soldador × 8h = 8 HH/dia
+
     // Improdutivas
     DIVISOR_CHUVA: 2,                // Horas de chuva contam como metade
     MINUTOS_MINIMOS_TREM: 15         // Trens só contam se > 15 min

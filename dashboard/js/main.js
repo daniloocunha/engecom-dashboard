@@ -103,7 +103,7 @@ class DashboardMain {
         }
 
         // Alertas de qualidade de dados: serviços customizados sem HH Manual preenchido
-        const customizadosSemHH = sheetsAPI._customizadosSemHH || [];
+        const customizadosSemHH = sheetsAPI.getCustomizadosSemHH();
         if (customizadosSemHH.length > 0 && typeof alertsSystem !== 'undefined') {
             alertsSystem.adicionarAlertasDados(customizadosSemHH);
         }
@@ -260,21 +260,13 @@ class DashboardMain {
 
         debugLog(`[Dashboard] Filtrando dados: Mês ${mes}/${ano}, Turma: ${turma}, Tipo: ${tipo}`);
 
-        // Primeiro, filtrar RDOs do período
+        // Primeiro, filtrar RDOs do período (exclui deletados e normaliza ISO)
         const rdosFiltrados = this.dados.rdos.filter(rdo => {
-            const data = rdo.Data || rdo.data || '';
-            if (!data) return false;
-
-            const [dia, mesRDO, anoRDO] = data.split('/');
-
-            // Filtrar por mês/ano
-            if (parseInt(mesRDO) !== mes || parseInt(anoRDO) !== ano) {
-                return false;
-            }
+            if (!FieldHelper.rdoNoPeriodo(rdo, mes, ano)) return false;
 
             // Filtrar por turma se especificado
             if (turma && turma !== 'todas') {
-                const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
+                const codigoTurma = (rdo['Código Turma'] || rdo.codigoTurma || '').trim();
                 if (codigoTurma !== turma) return false;
             }
 
@@ -324,7 +316,15 @@ class DashboardMain {
 
         const { mes, ano, turma, tipo } = this.filtros;
 
-        this.estatisticas = this.calculadora.calcularEstatisticasConsolidadas(mes, ano);
+        const cached = this.calculadora.calcularEstatisticasConsolidadas(mes, ano);
+
+        // Deep-clone para não mutar o cache
+        this.estatisticas = {
+            ...cached,
+            tps:  [...cached.tps],
+            tmcs: [...cached.tmcs],
+            tss:  [...cached.tss]
+        };
 
         // Aplicar filtro de turma específica
         if (turma && turma !== 'todas') {
@@ -414,12 +414,16 @@ class DashboardMain {
     atualizarKPIs() {
         const { tmcs, tps, tss, totalGeral } = this.estatisticas;
 
-        // Total de RDOs
+        // Total de RDOs (exclui deletados, respeita filtros de turma/tipo)
         const totalRDOs = this.dados.rdos.filter(rdo => {
-            const data = rdo.Data || rdo.data || '';
-            if (!data) return false;
-            const [dia, mes, ano] = data.split('/');
-            return parseInt(mes) === this.filtros.mes && parseInt(ano) === this.filtros.ano;
+            if (!FieldHelper.rdoNoPeriodo(rdo, this.filtros.mes, this.filtros.ano)) return false;
+            const codigoTurma = (rdo['Código Turma'] || rdo.codigoTurma || '').trim();
+            if (this.filtros.turma && this.filtros.turma !== 'todas' && codigoTurma !== this.filtros.turma) return false;
+            if (this.filtros.tipo && this.filtros.tipo !== 'todos') {
+                const tipoTurma = getTipoTurma(codigoTurma);
+                if (tipoTurma !== this.filtros.tipo) return false;
+            }
+            return true;
         }).length;
 
         document.getElementById('kpiTotalRdos').textContent = totalRDOs;
@@ -636,19 +640,19 @@ class DashboardMain {
 
                     const dayDiv = document.createElement('div');
                     dayDiv.className = `heatmap-day ${dia.status}`;
-                    // ✅ Adicionar observações se existirem
+                    // Adicionar observações se existirem (campos escapados para prevenir XSS)
                     let tooltipObservacoes = '';
                     if (dia.observacoes && dia.observacoes.length > 0) {
                         tooltipObservacoes = '<hr style="margin: 8px 0; border-color: rgba(255,255,255,0.3);">';
                         tooltipObservacoes += '<strong>Observações:</strong><br>';
-                        tooltipObservacoes += dia.observacoes.map(obs => `• ${obs}`).join('<br>');
+                        tooltipObservacoes += dia.observacoes.map(obs => `• ${escapeHtml(obs)}`).join('<br>');
                     }
 
                     dayDiv.innerHTML = `
                         <div class="heatmap-day-number">${d}</div>
                         <div class="heatmap-day-hh">${dia.hhTotal.toFixed(0)} HH</div>
                         <div class="heatmap-tooltip">
-                            ${dia.data}<br>
+                            ${escapeHtml(dia.data)}<br>
                             Serviços: ${dia.hhServicos.toFixed(1)} HH<br>
                             Improdutivas: ${dia.hhImprodutivas.toFixed(1)} HH<br>
                             Total: ${dia.hhTotal.toFixed(1)} HH<br>

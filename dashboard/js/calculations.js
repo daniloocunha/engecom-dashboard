@@ -92,12 +92,16 @@ class CalculadoraMedicao {
         // Indexar efetivos por numeroRDO
         this.efetivos.forEach(efetivo => {
             const numeroRDO = FieldHelper.getRDONumeroRDO(efetivo);
-            this.indices.efetivosPorRDO.set(numeroRDO, efetivo);
+            if (this.indices.efetivosPorRDO.has(numeroRDO)) {
+                console.warn(`[Indices] ⚠️ Efetivo duplicado para RDO ${numeroRDO} — mantendo primeiro registro`);
+            } else {
+                this.indices.efetivosPorRDO.set(numeroRDO, efetivo);
+            }
         });
 
         // Indexar RDOs por turma
         this.rdos.forEach(rdo => {
-            const turma = FieldHelper.getRDOCodigoTurma(rdo);
+            const turma = FieldHelper.getRDOCodigoTurma(rdo).trim();
             if (!this.indices.rdosPorTurma.has(turma)) {
                 this.indices.rdosPorTurma.set(turma, []);
             }
@@ -276,22 +280,18 @@ class CalculadoraMedicao {
         };
 
         rdos.forEach(rdo => {
-            const numeroOS = rdo['Número OS'] || rdo.numeroOS || '';
-            const data = rdo.Data || rdo.data || '';
-
-            // Buscar efetivo correspondente ao RDO
-            const efetivo = this.efetivos.find(e => {
-                const numOS = e['Número OS'] || e.numeroOS || '';
-                const dataEfetivo = e['Data RDO'] || e.data || '';
-                return numOS === numeroOS && dataEfetivo === data;
-            });
+            // ⚡ Lookup O(1) via índice por Número RDO (preciso e rápido)
+            const numeroRDO = rdo['Número RDO'] || rdo.numeroRDO || rdo.numeroRdo || '';
+            const efetivo = this.indices.efetivosPorRDO.get(numeroRDO);
 
             if (efetivo) {
                 const operadores = parseInt(efetivo['Operadores'] || efetivo.operadores || 0);
                 const encarregado = parseInt(efetivo['Encarregado Qtd'] || efetivo.encarregadoQtd || 0);
                 const motoristas = parseInt(efetivo['Motoristas'] || efetivo.motoristas || 0);
                 const soldadores = parseInt(efetivo['Soldador'] || efetivo.soldador || 0);
-                const total = operadores + encarregado + motoristas + soldadores;
+                const operadorEGP = parseInt(efetivo['Operador EGP'] || efetivo.operadorEGP || efetivo.operadorEgp || 0);
+                const tecSeguranca = parseInt(efetivo['Técnico Segurança'] || efetivo.tecnicoSeguranca || efetivo['Tecnico Seguranca'] || 0);
+                const total = operadores + encarregado + motoristas + soldadores + operadorEGP + tecSeguranca;
 
                 totalEfetivoDia.total += total;
                 totalEfetivoDia.operadores += operadores;
@@ -613,59 +613,47 @@ class CalculadoraMedicao {
             let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
             if (operadores <= 0) operadores = operadoresDefault;
 
+            // Pré-filtro: trens < 15 min são descartados (baseado no intervalo original)
+            if (tipo.includes('trem') && (endMin - startMin) < METAS.MINUTOS_MINIMOS_TREM) return;
+
             intervals.push({ startMin, endMin, tipo, operadores });
         });
 
         if (intervals.length === 0) return 0;
 
-        // 2. Ordenar por startMin
-        intervals.sort((a, b) => a.startMin - b.startMin);
+        // 2. Sweep line: criar breakpoints para cada segmento único
+        const breakpoints = new Set();
+        intervals.forEach(iv => {
+            breakpoints.add(iv.startMin);
+            breakpoints.add(iv.endMin);
+        });
+        const timeline = [...breakpoints].sort((a, b) => a - b);
 
-        // 3. Mesclar sobrepostos — só desconta o trecho em comum, não o evento inteiro
-        const merged = [{
-            startMin:   intervals[0].startMin,
-            endMin:     intervals[0].endMin,
-            tipos:      [intervals[0].tipo],
-            operadores: intervals[0].operadores
-        }];
-
-        for (let i = 1; i < intervals.length; i++) {
-            const cur  = intervals[i];
-            const last = merged[merged.length - 1];
-            if (cur.startMin <= last.endMin) {
-                last.endMin     = Math.max(last.endMin, cur.endMin);
-                last.tipos.push(cur.tipo);
-                last.operadores = Math.max(last.operadores, cur.operadores);
-            } else {
-                merged.push({
-                    startMin:   cur.startMin,
-                    endMin:     cur.endMin,
-                    tipos:      [cur.tipo],
-                    operadores: cur.operadores
-                });
-            }
-        }
-
-        // 4. Calcular HH por segmento mesclado com regras de tipo
+        // 3. Para cada segmento entre breakpoints, calcular HH
         let totalHH = 0;
-        merged.forEach(seg => {
-            const duracaoHoras = (seg.endMin - seg.startMin) / 60;
-            const soTrens  = seg.tipos.every(t => t.includes('trem'));
-            const hasChuva = seg.tipos.some(t  => t.includes('chuva'));
+        for (let i = 0; i < timeline.length - 1; i++) {
+            const segStart = timeline[i];
+            const segEnd   = timeline[i + 1];
+            const duracaoHoras = (segEnd - segStart) / 60;
+            if (duracaoHoras <= 0) continue;
+
+            // Encontrar intervalos ativos durante este segmento
+            const active = intervals.filter(iv => iv.startMin <= segStart && iv.endMin >= segEnd);
+            if (active.length === 0) continue;
+
+            // Max operadores entre intervalos ativos (evita somar operadores de intervalos independentes)
+            const operadores = Math.max(...active.map(iv => iv.operadores));
+            const tipos = active.map(iv => iv.tipo);
+            const hasChuva = tipos.some(t => t.includes('chuva'));
 
             let hh;
-            if (soTrens && duracaoHoras < (METAS.MINUTOS_MINIMOS_TREM / 60)) {
-                hh = 0;
-            } else if (hasChuva) {
-                hh = (duracaoHoras * seg.operadores) / METAS.DIVISOR_CHUVA;
+            if (hasChuva) {
+                hh = (duracaoHoras * operadores) / METAS.DIVISOR_CHUVA;
             } else {
-                hh = duracaoHoras * seg.operadores;
+                hh = duracaoHoras * operadores;
             }
             totalHH += hh;
-            if (hh > 0) {
-                debugLog(`  [HI merged] tipos=[${seg.tipos}] ${seg.endMin - seg.startMin}min × ${seg.operadores}op = ${hh.toFixed(2)} HH`);
-            }
-        });
+        }
 
         return totalHH;
     }
@@ -683,11 +671,8 @@ class CalculadoraMedicao {
             // ⚡ Lookup O(1) via índice Map (Sprint 3)
             const hisRDO = this.indices.hiPorRDO.get(numeroRDO) || [];
 
-            // Obter operadores do efetivo como fallback
-            const efetivo = this.efetivos.find(e => {
-                const eNumeroRDO = e['Número RDO'] || e.numeroRDO || '';
-                return eNumeroRDO === numeroRDO;
-            });
+            // ⚡ Lookup O(1) via índice
+            const efetivo = this.indices.efetivosPorRDO.get(numeroRDO);
             const opDefault = efetivo
                 ? parseInt(efetivo.Operadores || efetivo.operadores || 12)
                 : 12;
@@ -707,7 +692,8 @@ class CalculadoraMedicao {
         const hhPorDia = {};
 
         rdos.forEach(rdo => {
-            const data = rdo.Data || rdo.data || '';
+            const dataRaw = rdo.Data || rdo.data || '';
+            const data = FieldHelper.normalizarData(dataRaw) || dataRaw;
             const numeroRDO = rdo['Número RDO'] || rdo.numeroRDO || rdo.numeroRdo || '';
 
             if (!data) return;
@@ -743,11 +729,8 @@ class CalculadoraMedicao {
             // ⚡ Lookup O(1) via índice Map (Sprint 3)
             const hisDia = this.indices.hiPorRDO.get(numeroRDO) || [];
 
-            // Obter operadores do efetivo como fallback
-            const efetivoDia = this.efetivos.find(e => {
-                const eNumeroRDO = e['Número RDO'] || e.numeroRDO || '';
-                return eNumeroRDO === numeroRDO;
-            });
+            // ⚡ Lookup O(1) via índice
+            const efetivoDia = this.indices.efetivosPorRDO.get(numeroRDO);
             const opDefaultDia = efetivoDia
                 ? parseInt(efetivoDia.Operadores || efetivoDia.operadores || 12)
                 : 12;
@@ -769,7 +752,12 @@ class CalculadoraMedicao {
             }
         });
 
-        return Object.values(hhPorDia).sort((a, b) => a.data.localeCompare(b.data));
+        return Object.values(hhPorDia).sort((a, b) => {
+            const da = FieldHelper.parseData(a.data);
+            const db = FieldHelper.parseData(b.data);
+            if (!da || !db) return a.data.localeCompare(b.data);
+            return (da.ano - db.ano) || (da.mes - db.mes) || (da.dia - db.dia);
+        });
     }
 
     // ====================================
@@ -781,18 +769,9 @@ class CalculadoraMedicao {
      */
     filtrarRDOsPorTurma(turma, mes, ano) {
         return this.rdos.filter(rdo => {
-            // Normalizar nome do campo (pode vir como "Data" ou "data")
-            const data = rdo.Data || rdo.data || '';
-            if (!data) return false;
-
-            const [dia, mesRDO, anoRDO] = data.split('/');
-
-            // Normalizar código da turma
-            const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
-
-            return codigoTurma === turma &&
-                   parseInt(mesRDO) === mes &&
-                   parseInt(anoRDO) === ano;
+            if (!FieldHelper.rdoNoPeriodo(rdo, mes, ano)) return false;
+            const codigoTurma = (rdo['Código Turma'] || rdo.codigoTurma || '').trim();
+            return codigoTurma === turma;
         });
     }
 
@@ -800,7 +779,10 @@ class CalculadoraMedicao {
      * Conta dias únicos trabalhados
      */
     contarDiasUnicos(rdos) {
-        const datasUnicas = new Set(rdos.map(rdo => rdo.Data || rdo.data || ''));
+        const datasUnicas = new Set(rdos.map(rdo => {
+            const d = rdo.Data || rdo.data || '';
+            return FieldHelper.normalizarData(d) || d;
+        }));
         return datasUnicas.size;
     }
 
@@ -811,18 +793,13 @@ class CalculadoraMedicao {
         const turmasSet = new Set();
 
         this.rdos.forEach(rdo => {
-            const data = rdo.Data || rdo.data || '';
-            if (!data) return;
+            if (!FieldHelper.rdoNoPeriodo(rdo, mes, ano)) return;
 
-            const [dia, mesRDO, anoRDO] = data.split('/');
+            const codigoTurma = (rdo['Código Turma'] || rdo.codigoTurma || '').trim();
+            const tipoTurma = getTipoTurma(codigoTurma);
 
-            if (parseInt(mesRDO) === mes && parseInt(anoRDO) === ano) {
-                const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
-                const tipoTurma = getTipoTurma(codigoTurma);
-
-                if (tipoTurma === tipo) {
-                    turmasSet.add(codigoTurma);
-                }
+            if (tipoTurma === tipo) {
+                turmasSet.add(codigoTurma);
             }
         });
 
@@ -1070,11 +1047,7 @@ class CalculadoraMedicao {
         resultados.totalGeral = resultados.totalEngecom + resultados.totalEncogel;
 
         // Adicionar metadados úteis
-        resultados.totalRDOs = this.rdos.filter(rdo => {
-            const rdoMes = parseInt((rdo.Data || rdo.data || '').split('/')[1]);
-            const rdoAno = parseInt((rdo.Data || rdo.data || '').split('/')[2]);
-            return rdoMes === mes && rdoAno === ano;
-        }).length;
+        resultados.totalRDOs = this.rdos.filter(rdo => FieldHelper.rdoNoPeriodo(rdo, mes, ano)).length;
 
         resultados.totalHH = [...resultados.tps, ...resultados.tss].reduce((sum, t) => {
             return sum + ((t.hh && t.hh.total) || t.hhSoldador || 0);

@@ -43,7 +43,7 @@ function doPost(e) {
         }
 
         if (dados.acao === 'salvarGestaoOS') {
-            return _resposta(salvarGestaoOS(dados.numeroOS, dados.status, dados.gevia, dados.nota, dados.mediu));
+            return _resposta(salvarGestaoOS(dados.numeroOS, dados.status, dados.gevia, dados.nota, dados.mediu, dados.anexos));
         }
 
         if (dados.acao === 'uploadAnexo') {
@@ -142,6 +142,7 @@ function listarGestaoOS() {
     var colNt  = _findCol(header, 'Nota');
     var colAt  = _findCol(header, 'Atualizado Em');
     var colMd  = _findColSafe(header, 'Mediu');
+    var colAnx = _findColSafe(header, 'Anexos');
 
     var resultado = {};
     for (var i = 1; i < dados.length; i++) {
@@ -153,7 +154,8 @@ function listarGestaoOS() {
             status:       (row[colSt] || '').toString().trim() || null,
             gevia:        (row[colGV] || '').toString().trim() || null,
             nota:         (row[colNt] || '').toString(),
-            mediu:        colMd >= 0 ? (row[colMd] || '').toString().trim() || null : null,
+            mediu:        colMd  >= 0 ? (row[colMd]  || '').toString().trim() || null : null,
+            anexos:       colAnx >= 0 ? (row[colAnx] || '').toString().trim() || '[]' : '[]',
             atualizadoEm: (row[colAt] || '').toString()
         };
     }
@@ -169,7 +171,7 @@ function listarGestaoOS() {
  * Colunas: Numero OS | Status | GE/Via | Nota | Atualizado Em
  * Usa LockService para evitar linhas duplicadas quando dois PCs salvam simultaneamente.
  */
-function salvarGestaoOS(numeroOS, status, gevia, nota, mediu) {
+function salvarGestaoOS(numeroOS, status, gevia, nota, mediu, anexos) {
     if (!numeroOS) {
         return { sucesso: false, erro: 'Parametro obrigatorio: numeroOS' };
     }
@@ -183,13 +185,13 @@ function salvarGestaoOS(numeroOS, status, gevia, nota, mediu) {
     }
 
     try {
-        return _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu);
+        return _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos);
     } finally {
         lock.releaseLock();
     }
 }
 
-function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu) {
+function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos) {
     var ss    = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = _obterOuCriarAbaGestaoOS(ss);
 
@@ -200,9 +202,10 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu) {
     var colGV  = _findCol(header, 'GE/Via');
     var colNt  = _findCol(header, 'Nota');
     var colAt  = _findCol(header, 'Atualizado Em');
-    // Mediu column may not exist in older sheets — find safely
     var colMediu = _findColSafe(header, 'Mediu');
+    var colAnx   = _findColSafe(header, 'Anexos');
     var agora  = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
+    var anexosStr = (typeof anexos === 'string') ? anexos : (anexos ? JSON.stringify(anexos) : '[]');
 
     // Procurar linha existente com esse Numero OS
     for (var i = 1; i < dados.length; i++) {
@@ -212,9 +215,8 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu) {
             sheet.getRange(row, colSt + 1).setValue(status || '');
             sheet.getRange(row, colGV + 1).setValue(gevia  || '');
             sheet.getRange(row, colNt + 1).setValue(nota !== undefined ? nota : '');
-            if (colMediu >= 0) {
-                sheet.getRange(row, colMediu + 1).setValue(mediu !== undefined ? mediu : '');
-            }
+            if (colMediu >= 0) sheet.getRange(row, colMediu + 1).setValue(mediu !== undefined ? mediu : '');
+            if (colAnx   >= 0) sheet.getRange(row, colAnx   + 1).setValue(anexosStr);
             sheet.getRange(row, colAt + 1).setValue(agora);
             SpreadsheetApp.flush();
             Logger.log('[GestaoOS] Atualizado: OS ' + numeroOS + ' (linha ' + row + ')');
@@ -229,6 +231,7 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu) {
         gevia  || '',
         nota !== undefined ? nota : '',
         mediu !== undefined ? mediu : '',
+        anexosStr,
         agora
     ]);
     SpreadsheetApp.flush();
@@ -353,9 +356,9 @@ function _obterOuCriarAbaGestaoOS(ss) {
     var sheet = ss.getSheetByName('GestaoOS');
     if (!sheet) {
         sheet = ss.insertSheet('GestaoOS');
-        sheet.appendRow(['N\u00famero OS', 'Status', 'GE/Via', 'Nota', 'Mediu', 'Atualizado Em']);
+        sheet.appendRow(['N\u00famero OS', 'Status', 'GE/Via', 'Nota', 'Mediu', 'Anexos', 'Atualizado Em']);
 
-        var headerRange = sheet.getRange(1, 1, 1, 6);
+        var headerRange = sheet.getRange(1, 1, 1, 7);
         headerRange.setFontWeight('bold');
         headerRange.setBackground('#f3f3f3');
 
@@ -364,7 +367,8 @@ function _obterOuCriarAbaGestaoOS(ss) {
         sheet.setColumnWidth(3, 120);
         sheet.setColumnWidth(4, 350);
         sheet.setColumnWidth(5, 100);
-        sheet.setColumnWidth(6, 160);
+        sheet.setColumnWidth(6, 400);
+        sheet.setColumnWidth(7, 160);
 
         Logger.log('[GestaoOS] Aba "GestaoOS" criada automaticamente');
     }
@@ -408,9 +412,23 @@ function _resposta(obj) {
 function atualizarOSCascata(antigaOS, novaOS) {
     if (!antigaOS || !novaOS) return { sucesso: false, erro: 'Parametros obrigatorios: antigaOS e novaOS' };
 
+    // Lock para evitar cascatas simultâneas
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(15000)) {
+        return { sucesso: false, erro: 'Servidor ocupado. Tente novamente em alguns segundos.' };
+    }
+
+    try {
+    return _atualizarOSCascataInterno(antigaOS, novaOS);
+    } finally {
+        lock.releaseLock();
+    }
+}
+
+function _atualizarOSCascataInterno(antigaOS, novaOS) {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
     var abas = ['RDO', 'Servicos', 'HorasImprodutivas', 'Efetivo',
-                'Equipamentos', 'Materiais', 'Transportes'];
+                'Equipamentos', 'Materiais', 'TransporteSucatas', 'Acompanhamento'];
     var resultado = { sucesso: true, abas: {} };
 
     abas.forEach(function(nomeAba) {
@@ -516,7 +534,17 @@ function _dividirOSInterno(numeroRDO, os1, os2, servicosOS2, hiOS2, movimentacao
     if (colDataCriacao >= 0) {
         novaLinhaRDO[colDataCriacao] = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
     }
-    abaRDO.appendRow(novaLinhaRDO);
+    // Inserir sem acionar validacao de dados (a nova OS pode nao estar na lista dropdown)
+    // Limpa validacao da coluna OS inteira antes de inserir — regras de range nao sao
+    // anuladas por clearDataValidations() numa unica celula.
+    if (colOS >= 0) {
+        abaRDO.getRange(1, colOS + 1, abaRDO.getMaxRows(), 1).clearDataValidations();
+        SpreadsheetApp.flush();
+    }
+    var novaPosicao = abaRDO.getLastRow() + 1;
+    abaRDO.insertRowAfter(abaRDO.getLastRow());
+    var novaLinhRange = abaRDO.getRange(novaPosicao, 1, 1, novaLinhaRDO.length);
+    novaLinhRange.setValues([novaLinhaRDO]);
     SpreadsheetApp.flush();
 
     // 4. Mover servicos e HI para o novo RDO
@@ -605,7 +633,7 @@ function _moverLinhasParaNovoRDO(ss, nomeAba, rdoOriginal, novoRDO, novaOS, chav
     if (colRDONum < 0) { Logger.log('[_moverLinhasParaNovoRDO] Sem coluna Numero RDO em ' + nomeAba); return; }
 
     // Pre-calcular indices de coluna fora do loop
-    var colDesc = colQty = colCoef = colDataRDO = colTipo = colIni = colFim = colOps = -1;
+    var colDesc = -1, colQty = -1, colCoef = -1, colDataRDO = -1, colTipo = -1, colIni = -1, colFim = -1, colOps = -1;
     if (tipo === 'servico') {
         colDesc = _findColSafe(hdr, 'Descri\u00e7\u00e3o');
         colQty  = _findColSafe(hdr, 'Quantidade');

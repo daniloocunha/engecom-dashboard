@@ -32,6 +32,7 @@ class AlertsSystem {
             id: 'dados-customizado-sem-hh',
             severity: 'alerta',
             type: 'DADOS',
+            source: 'dados',
             turma: '',
             tipoTurma: '',
             message: `${customizadosSemHH.length} serviço(s) customizado(s) sem HH Manual`,
@@ -46,7 +47,9 @@ class AlertsSystem {
      * Analisa estatísticas e gera alertas
      */
     analisarEstatisticas(estatisticas) {
-        this.alerts = [];
+        // Preservar alertas de dados (adicionados por adicionarAlertasDados antes deste método)
+        const alertasDados = this.alerts.filter(a => a.source === 'dados');
+        this.alerts = [...alertasDados];
 
         if (!estatisticas) return this.alerts;
 
@@ -292,10 +295,10 @@ class AlertsSystem {
                         <i class="fas ${alert.icon} me-3 mt-1" style="font-size: 1.2rem;"></i>
                         <div class="flex-grow-1">
                             <h6 class="alert-heading mb-1">
-                                <strong>${alert.tipoTurma} ${alert.turma}</strong> - ${alert.message}
+                                <strong>${escapeHtml(alert.tipoTurma)} ${escapeHtml(alert.turma)}</strong> - ${escapeHtml(alert.message)}
                             </h6>
-                            <p class="mb-1 small">${alert.details}</p>
-                            <small class="text-muted"><strong>Ação:</strong> ${alert.action}</small>
+                            <p class="mb-1 small">${escapeHtml(alert.details)}</p>
+                            <small class="text-muted"><strong>Ação:</strong> ${escapeHtml(alert.action)}</small>
                         </div>
                     </div>
                     <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
