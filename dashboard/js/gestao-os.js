@@ -1,5 +1,5 @@
 /**
- * Gestão de O.S Trabalhadas — v3.0.19
+ * Gestão de O.S Trabalhadas — v3.0.20
  * Lista compacta por turma (somente TPs/TSs — TMCs excluídas)
  * Status, GeVia, Notas múltiplas, Já Mediu e Anexos salvos em localStorage + servidor
  *
@@ -62,7 +62,7 @@ function _mostrarToastErro(msg) {
 
 function _parseData(str) {
     if (!str) return null;
-    const parts = str.split('/');
+    const parts = String(str).split('/');   // String() evita crash se vier não-string
     if (parts.length < 3) return null; // formato inválido (ex: ISO 2026-03-23)
     const [d, m, y] = parts;
     if (!y) return null;
@@ -1136,6 +1136,39 @@ class GestaoOS {
         return 0;
     }
 
+    // ── Cálculo de HH prod / HI por grupo de OS ───────────────────────────
+
+    /** Soma HH produtivas (qtd × coef) para um Set de Números RDO */
+    _calcularHHProd(rdoIds) {
+        let total = 0;
+        this.dados.servicos.forEach(s => {
+            const sRDO = (s['Número RDO'] || s.numeroRDO || s.numeroRdo || '').trim();
+            if (!rdoIds.has(sRDO)) return;
+            const qtd  = parseFloat(s.Quantidade  || s.quantidade  || 0);
+            const coef = parseFloat(s.Coeficiente || s.coeficiente || 0);
+            total += qtd * coef;
+        });
+        return total;
+    }
+
+    /** Soma HH improdutivas (com resolução de sobreposição) para um Set de Números RDO */
+    _calcularHHImpr(rdoIds) {
+        const hiEntries = [];
+        this.dados.horasImprodutivas.forEach(hi => {
+            const hRDO = (hi['Número RDO'] || hi.numeroRDO || hi.numeroRdo || '').trim();
+            if (!rdoIds.has(hRDO)) return;
+            const tipo       = (hi.Tipo    || hi.tipo    || '-').trim();
+            const data       = (hi['Data RDO'] || hi.dataRDO || hi.data || '').trim();
+            const operadores = parseInt(hi.operadores || hi['Operadores'] || 0) || 0;
+            const horaInicio = (hi.horaInicio || hi['Hora Início'] || hi['Hora Inicio'] || '').trim();
+            const horaFim    = (hi.horaFim    || hi['Hora Fim']    || '').trim();
+            const hhOriginal = this._getHHImprodutivas(hi);
+            hiEntries.push({ tipo, data, operadores, horaInicio, horaFim, hhOriginal });
+        });
+        const { totalHH } = this._resolverSobreposicaoHI(hiEntries);
+        return totalHH;
+    }
+
     // ── Agrupamento (two-pass: filtra por último RDO no mês) ──────────────
 
     _agrupar() {
@@ -1229,6 +1262,15 @@ class GestaoOS {
             if (gt.ordens.size === 0) turmasParaDeletar.push(turma);
         });
         turmasParaDeletar.forEach(t => turmas.delete(t));
+
+        // ── PASSO 3: Calcular HH produtivas e HI para cada grupo remanescente
+        turmas.forEach(gt => {
+            gt.ordens.forEach(go => {
+                const rdoIdsSet = new Set(go.rdoIds);
+                go.hhProd = this._calcularHHProd(rdoIdsSet);
+                go.hhImpr = this._calcularHHImpr(rdoIdsSet);
+            });
+        });
 
         return turmas;
     }
@@ -1661,6 +1703,7 @@ class GestaoOS {
         this._limparLocalStorageOrfao();
 
         let totalOS = 0, totalConcluidas = 0, totalReprovadas = 0, totalGevia = 0, totalMediu = 0;
+        let grandHHProdAprov = 0, grandHHImprAprov = 0; // somatório geral só das APROVADAS
         const blocos = [];
         const turmasOrdenadas = Array.from(turmas.entries()).sort((a, b) => a[0].localeCompare(b[0]));
 
@@ -1689,9 +1732,23 @@ class GestaoOS {
             totalGevia         += ordens.filter(o => this.getGeVia(o.numeroOS) === 'Lançado').length;
             totalMediu         += ordens.filter(o => this.getMediu(o.numeroOS)).length;
 
+            // Somatório de HH e HI somente para APROVADAS desta turma
+            let turmaHHProdAprov = 0, turmaHHImprAprov = 0, turmaQtdAprov = 0;
+            ordens.forEach(o => {
+                if (this.getStatus(o) === 'Aprovada') {
+                    turmaHHProdAprov += (o.hhProd || 0);
+                    turmaHHImprAprov += (o.hhImpr || 0);
+                    turmaQtdAprov++;
+                }
+            });
+            grandHHProdAprov += turmaHHProdAprov;
+            grandHHImprAprov += turmaHHImprAprov;
+
             const rows = ordens.map(o => {
                 const status = this.getStatus(o);
                 const rowBg  = STATUS_ROW_COLORS[status] || '';
+                const hhProd = (o.hhProd || 0).toFixed(2);
+                const hhImpr = (o.hhImpr || 0).toFixed(2);
 
                 return `<tr style="cursor:pointer;background-color:${rowBg};transition:background-color 0.2s;"
                             onclick="gestaoOS.abrirModal('${_escAttr(o.numeroOS)}')">
@@ -1701,12 +1758,31 @@ class GestaoOS {
                   <td class="text-nowrap">${_fmtData(o.dataUltimoRDO)}</td>
                   <td class="text-center small text-nowrap text-muted">${_esc(o.kmInicio) || '—'} / ${_esc(o.kmFim) || '—'}</td>
                   <td class="text-muted small" title="${_escAttr(o.local)}" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(o.local)}</td>
+                  <td class="text-end text-nowrap fw-bold text-primary" style="min-width:68px;">${hhProd}</td>
+                  <td class="text-end text-nowrap fw-bold text-warning" style="min-width:58px;">${hhImpr}</td>
                   <td class="text-center" id="mediu-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._mediuHTML(o.numeroOS)}</td>
                   <td id="status-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._statusSelectHTML(o)}</td>
                   <td id="gevia-cel-${CSS.escape(o.numeroOS)}"  onclick="event.stopPropagation();">${this._geviaHTML(o.numeroOS)}</td>
                   <td class="text-center" id="nota-cel-${CSS.escape(o.numeroOS)}"   onclick="event.stopPropagation();">${this._notaHTML(o.numeroOS)}</td>
                 </tr>`;
             }).join('');
+
+            // Linha de somatório das APROVADAS no rodapé da tabela
+            const tfootAprov = turmaQtdAprov > 0
+                ? `<tfoot>
+                     <tr class="table-light fw-bold" style="border-top:2px solid #0d6efd22;">
+                       <td colspan="6" class="text-end text-muted small pe-2" style="font-size:0.8rem;">
+                         <i class="fas fa-check-circle text-primary me-1"></i>
+                         Σ Aprovadas (${turmaQtdAprov} O.S)
+                       </td>
+                       <td class="text-end text-primary">${turmaHHProdAprov.toFixed(2)}</td>
+                       <td class="text-end text-warning">${turmaHHImprAprov.toFixed(2)}</td>
+                       <td colspan="4" class="text-muted small">
+                         Total: <strong>${(turmaHHProdAprov + turmaHHImprAprov).toFixed(2)} HH</strong>
+                       </td>
+                     </tr>
+                   </tfoot>`
+                : '';
 
             blocos.push(`
             <div class="card mb-4 shadow-sm border-0">
@@ -1726,6 +1802,8 @@ class GestaoOS {
                         <th class="text-nowrap" style="min-width:100px;">Último RDO</th>
                         <th class="text-center text-nowrap" style="min-width:120px;">KM Início / Fim</th>
                         <th class="text-nowrap" style="min-width:110px;">Local</th>
+                        <th class="text-end text-nowrap text-primary" style="min-width:68px;" title="HH Produtivas (Σ qtd × coef)">HH Prod</th>
+                        <th class="text-end text-nowrap text-warning" style="min-width:58px;" title="HH Improdutivas">HI</th>
                         <th class="text-center text-nowrap" style="min-width:82px;">Já Medida</th>
                         <th class="text-nowrap" style="min-width:130px;">Status</th>
                         <th class="text-nowrap" style="min-width:100px;">GeVia</th>
@@ -1733,6 +1811,7 @@ class GestaoOS {
                       </tr>
                     </thead>
                     <tbody>${rows}</tbody>
+                    ${tfootAprov}
                   </table>
                 </div>
               </div>
@@ -1786,7 +1865,32 @@ class GestaoOS {
           </div>
         </div>`;
 
-        container.innerHTML = resumo + blocos.join('') + this._renderizarSemOS();
+        // Bloco de somatório geral das APROVADAS (todas as turmas)
+        const grandTotal = grandHHProdAprov + grandHHImprAprov;
+        const grandTotalHTML = grandTotal > 0 ? `
+        <div class="card border-primary mb-4 shadow-sm">
+          <div class="card-header fw-bold text-primary py-2" style="background:#e8f4ff;">
+            <i class="fas fa-calculator me-2"></i>Somatório Geral — O.S Aprovadas
+          </div>
+          <div class="card-body py-2">
+            <div class="row g-2 text-center">
+              <div class="col-4">
+                <div class="text-muted small">HH Produtivas</div>
+                <h4 class="mb-0 text-primary">${grandHHProdAprov.toFixed(2)}</h4>
+              </div>
+              <div class="col-4">
+                <div class="text-muted small">HH Improdutivas</div>
+                <h4 class="mb-0 text-warning">${grandHHImprAprov.toFixed(2)}</h4>
+              </div>
+              <div class="col-4">
+                <div class="text-muted small">HH Total</div>
+                <h4 class="mb-0 text-success">${grandTotal.toFixed(2)}</h4>
+              </div>
+            </div>
+          </div>
+        </div>` : '';
+
+        container.innerHTML = resumo + blocos.join('') + grandTotalHTML + this._renderizarSemOS();
     }
 }
 
