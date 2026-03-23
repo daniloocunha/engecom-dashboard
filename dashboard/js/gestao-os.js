@@ -62,7 +62,10 @@ function _mostrarToastErro(msg) {
 
 function _parseData(str) {
     if (!str) return null;
-    const [d, m, y] = str.split('/');
+    const parts = str.split('/');
+    if (parts.length < 3) return null; // formato inválido (ex: ISO 2026-03-23)
+    const [d, m, y] = parts;
+    if (!y) return null;
     const year = y.length === 2 ? 2000 + +y : +y;
     return new Date(year, +m - 1, +d);
 }
