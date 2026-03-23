@@ -366,7 +366,8 @@ class CalendarioTS {
                 html += `
                     <div class="calendario-dia trabalhado ${dadosDia.status}"
                          style="border-left: 4px solid ${corStatus}; cursor: pointer;"
-                         onclick="calendarioTS.mostrarDetalhesDia('${turma.replace(/'/g, "\\'")}', ${dia}, ${this.mesAtual}, ${this.anoAtual})">
+                         data-turma="${escapeHtml(turma)}" data-dia="${dia}" data-mes="${this.mesAtual}" data-ano="${this.anoAtual}"
+                         onclick="calendarioTS.mostrarDetalhesDia(this.dataset.turma, +this.dataset.dia, +this.dataset.mes, +this.dataset.ano)">
                         <div class="dia-numero">${dia}</div>
                         <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:2px;">
                             <span style="font-size:1.05em; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:55%;">${escapeHtml(dadosDia.numeroOS)}</span>
