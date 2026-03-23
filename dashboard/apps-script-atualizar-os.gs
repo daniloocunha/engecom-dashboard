@@ -377,33 +377,19 @@ function _escreverIgnorandoValidacao(spreadsheetId, sheetName, startRow, startCo
     var rangeNotation = sheetName + '!' + colToLetter(startCol) + startRow
                       + ':' + colToLetter(endCol) + endRow;
 
-    var token = ScriptApp.getOAuthToken();
-    var url = 'https://sheets.googleapis.com/v4/spreadsheets/'
-              + spreadsheetId + '/values/'
-              + encodeURIComponent(rangeNotation)
-              + '?valueInputOption=RAW';
-
-    var options = {
-        method: 'PUT',
-        headers: {
-            'Authorization': 'Bearer ' + token,
-            'Content-Type': 'application/json'
-        },
-        payload: JSON.stringify({
+    // Usar o Servico Avancado do Sheets (Google Sheets API v4 adicionada em Servicos).
+    // Este metodo escreve com valueInputOption=RAW e NAO obedece validacao de dados.
+    // Para habilitar: no editor do Apps Script, clique "+" em Servicos > Google Sheets API v4.
+    Sheets.Spreadsheets.Values.update(
+        {
             range: rangeNotation,
             majorDimension: 'ROWS',
             values: valoresMatrix
-        }),
-        muteHttpExceptions: true
-    };
-
-    var response = UrlFetchApp.fetch(url, options);
-    var code = response.getResponseCode();
-    if (code !== 200) {
-        var errBody = response.getContentText();
-        try { errBody = JSON.parse(errBody).error.message; } catch (_) {}
-        throw new Error('Sheets API (' + code + '): ' + errBody);
-    }
+        },
+        spreadsheetId,
+        rangeNotation,
+        { valueInputOption: 'RAW' }
+    );
     Logger.log('[_escreverIgnorandoValidacao] Escrito em ' + rangeNotation);
 }
 
