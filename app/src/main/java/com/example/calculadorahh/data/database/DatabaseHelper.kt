@@ -189,8 +189,9 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
 
                 it.rawQuery(duplicadosQuery, null).use { cursor ->
                     val numerosDuplicados = mutableListOf<String>()
+                    val colIdx = cursor.getColumnIndexOrThrow(COLUMN_NUMERO_RDO)
                     while (cursor.moveToNext()) {
-                        val numeroRDO = cursor.getString(0)
+                        val numeroRDO = cursor.getString(colIdx)
                         numerosDuplicados.add(numeroRDO)
                     }
 
@@ -220,6 +221,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao limpar duplicados: ${e.message}", e)
+                throw e  // Propagar para que onUpgrade aborte a criação do UNIQUE index
             }
         }
     }

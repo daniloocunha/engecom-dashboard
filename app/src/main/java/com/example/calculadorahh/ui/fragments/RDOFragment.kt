@@ -693,22 +693,40 @@ class RDOFragment : Fragment() {
 
     /**
      * Mapeia nome de campo (string do RDOValidator) para a View correspondente.
+     * Cobre todos os campos que podem ser retornados como erro pelo RDOValidator.
      */
     private fun findFieldByName(name: String): View? {
         return when (name) {
-            "btnData" -> btnData
-            "spinnerCodigoTurma" -> spinnerCodigoTurma
-            "spinnerEncarregado" -> spinnerEncarregado
-            "etLocal" -> etLocal
-            "etNumeroOS" -> etNumeroOS
-            "etKmInicio" -> etKmInicio
-            "etKmFim" -> etKmFim
-            "etHorarioInicio" -> etHorarioInicio
-            "etHorarioFim" -> etHorarioFim
-            "etTemaDDS" -> etTemaDDS
+            "btnData"             -> btnData
+            "spinnerCodigoTurma"  -> spinnerCodigoTurma
+            "spinnerEncarregado"  -> spinnerEncarregado
+            "etLocal"             -> etLocal
+            "etNumeroOS"          -> etNumeroOS
+            "etKmInicio"          -> etKmInicio
+            "etKmFim"             -> etKmFim
+            "etHorarioInicio"     -> etHorarioInicio
+            "etHorarioFim"        -> etHorarioFim
+            "etTemaDDS"           -> etTemaDDS
             "etNomeColaboradores" -> etNomeColaboradores
-            "etObservacoes" -> etObservacoes
-            else -> null
+            "etObservacoes"       -> etObservacoes
+            "servicos"            -> sectionServicos
+            "materiais"           -> sectionMateriais
+            "equipamentos"        -> containerEquipamentos
+            "transportes"         -> containerTransportes
+            else                  -> null
+        }
+    }
+
+    /**
+     * Define a seleção do spinnerHouveServico de forma silenciosa (sem disparar o diálogo).
+     * Usa try-finally para garantir que o listener seja sempre reativado.
+     */
+    private fun setHouveServicoSilently(position: Int) {
+        spinnerHouveServicoListenerAtivo = false
+        try {
+            spinnerHouveServico.setSelection(position)
+        } finally {
+            spinnerHouveServicoListenerAtivo = true
         }
     }
 
@@ -795,9 +813,7 @@ class RDOFragment : Fragment() {
 
         // Carregar houve serviço (desativa listener para evitar diálogo durante carga)
         causaNaoServico = rdoCompleto.causaNaoServico
-        spinnerHouveServicoListenerAtivo = false
-        spinnerHouveServico.setSelection(if (rdoCompleto.houveServico) 0 else 1) // 0=SIM, 1=NÃO
-        spinnerHouveServicoListenerAtivo = true
+        setHouveServicoSilently(if (rdoCompleto.houveServico) 0 else 1) // 0=SIM, 1=NÃO
 
         // Carregar houve transporte
         spinnerHouveTransporte.setSelection(if (rdoCompleto.houveTransporte) 0 else 1)
@@ -942,9 +958,7 @@ class RDOFragment : Fragment() {
         spinnerClima.setSelection(0)
         etTemaDDS.text.clear()
         causaNaoServico = ""
-        spinnerHouveServicoListenerAtivo = false
-        spinnerHouveServico.setSelection(0)
-        spinnerHouveServicoListenerAtivo = true
+        setHouveServicoSilently(0)
         mostrarSecoesPorHouveServico(houveServico = true, causa = "")
 
         // Limpar efetivo
@@ -1010,9 +1024,7 @@ class RDOFragment : Fragment() {
             }
             .setNeutralButton("Cancelar") { _, _ ->
                 // Reverter spinner para SIM
-                spinnerHouveServicoListenerAtivo = false
-                spinnerHouveServico.setSelection(0)
-                spinnerHouveServicoListenerAtivo = true
+                setHouveServicoSilently(0)
                 causaNaoServico = ""
                 mostrarSecoesPorHouveServico(houveServico = true, causa = "")
             }
@@ -1203,8 +1215,7 @@ class RDOFragment : Fragment() {
         selecionarSpinnerRascunho(spinnerClima, climaOpcoes, rascunho.clima)
 
         // Houve serviço — silencia o listener para não abrir o diálogo de causa
-        spinnerHouveServicoListenerAtivo = false
-        spinnerHouveServico.setSelection(if (rascunho.houveServico) 0 else 1)
+        setHouveServicoSilently(if (rascunho.houveServico) 0 else 1)
         causaNaoServico = rascunho.causaNaoServico
         mostrarSecoesPorHouveServico(rascunho.houveServico, causaNaoServico)
         spinnerHouveServicoListenerAtivo = true

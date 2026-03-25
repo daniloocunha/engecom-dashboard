@@ -156,17 +156,19 @@ class SheetsRelatedDataManager(
 
                 } catch (e: Exception) {
                     Log.e(tag, "❌ ERRO CRÍTICO: Falha ao inserir dados em ${insertedRanges.size}/${updates.size} abas", e)
-                    Log.e(tag, "Tentando rollback dos dados já inseridos para NumeroRDO: $numeroRDO...")
 
-                    try {
-                        deleteRelatedDataByNumeroRDO(numeroRDO)
-                        Log.w(tag, "⚠️ Rollback executado: dados parciais removidos")
-                    } catch (rollbackError: Exception) {
-                        // 🔥 FIX Bug 6: Log detalhado quando rollback falha para rastreamento
-                        Log.e(tag, "❌ ROLLBACK_FAILED para NumeroRDO: $numeroRDO " +
-                            "| Abas inseridas antes do erro: ${insertedRanges.joinToString(", ")} " +
-                            "| Total abas: ${updates.size} " +
-                            "| Erro rollback: ${rollbackError.message}", rollbackError)
+                    // Rollback cirúrgico: apagar APENAS as abas que foram inseridas com sucesso.
+                    // Evita tentar deletar de abas que nunca foram tocadas (falha em cascata de cota).
+                    if (insertedRanges.isNotEmpty()) {
+                        Log.w(tag, "Rollback cirúrgico: apagando ${insertedRanges.size} aba(s) inseridas: ${insertedRanges.joinToString(", ")}")
+                        try {
+                            deleteRelatedDataByNumeroRDOInSheets(numeroRDO, insertedRanges)
+                            Log.w(tag, "⚠️ Rollback cirúrgico executado com sucesso")
+                        } catch (rollbackError: Exception) {
+                            Log.e(tag, "❌ ROLLBACK_FAILED para NumeroRDO: $numeroRDO " +
+                                "| Abas com dados órfãos: ${insertedRanges.joinToString(", ")} " +
+                                "| Erro rollback: ${rollbackError.message}", rollbackError)
+                        }
                     }
 
                     throw e
@@ -240,6 +242,41 @@ class SheetsRelatedDataManager(
 
             Log.e(tag, errorMessage)
             throw Exception(errorMessage)
+        }
+    }
+
+    /**
+     * Rollback cirúrgico: deleta dados do numeroRDO APENAS nas abas especificadas em [ranges].
+     * Usado após falha parcial de insertRelatedData para não tocar abas que nunca foram inseridas.
+     * [ranges] contém os range notation strings (ex: "Servicos!A:K") das abas já inseridas.
+     */
+    private fun deleteRelatedDataByNumeroRDOInSheets(numeroRDO: String, ranges: List<String>) {
+        // Extrair nomes de aba a partir dos range notation ("Servicos!A:K" → "Servicos")
+        val sheetNames = ranges.mapNotNull { it.substringBefore("!").takeIf { n -> n.isNotBlank() } }.distinct()
+
+        sheetNames.forEach { sheetName ->
+            try {
+                val response = sheetsService.spreadsheets().values()
+                    .get(spreadsheetId, "${sheetName}!A:A")
+                    .execute()
+
+                val values = response.getValues() ?: return@forEach
+                val rowsToDelete = mutableListOf<Int>()
+
+                values.forEachIndexed { index, row ->
+                    if (index > 0 && row.isNotEmpty() && row[0].toString() == numeroRDO) {
+                        rowsToDelete.add(index)
+                    }
+                }
+
+                if (rowsToDelete.isNotEmpty()) {
+                    auditService.deleteSheetRows(sheetName, rowsToDelete)
+                    Log.d(tag, "Rollback: deletadas ${rowsToDelete.size} linhas de $sheetName para NumeroRDO: $numeroRDO")
+                }
+            } catch (e: Exception) {
+                Log.e(tag, "Rollback falhou em $sheetName: ${e.message}", e)
+                throw e
+            }
         }
     }
 }
