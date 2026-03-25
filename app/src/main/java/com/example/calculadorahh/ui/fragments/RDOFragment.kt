@@ -213,6 +213,7 @@ class RDOFragment : Fragment() {
         configurarSpinners()
         configurarListeners()
         configurarFormatadores()
+        configurarSecoesColapsaveis()
         // Ativar listener do spinner depois da configuração inicial para evitar diálogo falso
         spinnerHouveServicoListenerAtivo = true
         verificarModoEdicao()
@@ -397,9 +398,11 @@ class RDOFragment : Fragment() {
                 return@setOnClickListener
             }
 
-            // Desabilitar botão durante processamento
+            // Desabilitar botão durante processamento e mostrar estado de loading
             btnGerarRelatorio.isEnabled = false
             btnCompartilhar.isEnabled = false
+            val textoOriginalSalvar = btnGerarRelatorio.text.toString()
+            btnGerarRelatorio.text = if (isEditMode) "Atualizando..." else "Salvando..."
 
             lifecycleScope.launch {
                 try {
@@ -482,9 +485,10 @@ class RDOFragment : Fragment() {
                     Toast.makeText(requireContext(), mensagem, Toast.LENGTH_LONG).show()
                     e.printStackTrace()
                 } finally {
-                    // Re-habilitar botões
+                    // Re-habilitar botões e restaurar texto
                     btnGerarRelatorio.isEnabled = true
                     btnCompartilhar.isEnabled = true
+                    btnGerarRelatorio.text = textoOriginalSalvar
                 }
             }
         }
@@ -598,6 +602,68 @@ class RDOFragment : Fragment() {
         KmInputMask.apply(etKmFim)
     }
 
+    /**
+     * Configura as seções do formulário como colapsáveis.
+     * Serviços e Efetivo ficam expandidos por padrão (campos importantes).
+     * Materiais, HI, Equipamentos e Transportes ficam colapsados.
+     */
+    private fun configurarSecoesColapsaveis() {
+        configurarCardColapsavel(sectionServicos as ViewGroup,       "servicos",      expandido = true)
+        configurarCardColapsavel(sectionMateriais as ViewGroup,      "materiais",     expandido = false)
+        configurarCardColapsavel(containerEfetivo as ViewGroup,      "efetivo",       expandido = true)
+        configurarCardColapsavel(containerEquipamentos as ViewGroup, "equipamentos",  expandido = false)
+        configurarCardColapsavel(containerHI as ViewGroup,           "hi",            expandido = false)
+        configurarCardColapsavel(containerTransportes as ViewGroup,  "transportes",   expandido = false)
+    }
+
+    /**
+     * Transforma um card em seção colapsável.
+     * Usa a estrutura: MaterialCardView → LinearLayout → [TitleView, ...content]
+     * O clique no TitleView alterna a visibilidade do restante do conteúdo.
+     */
+    private fun configurarCardColapsavel(card: ViewGroup, chave: String, expandido: Boolean) {
+        val innerLayout = card.getChildAt(0) as? ViewGroup ?: return
+        val titleView   = innerLayout.getChildAt(0) ?: return
+
+        // Aplicar estado inicial (sem animação)
+        for (i in 1 until innerLayout.childCount) {
+            innerLayout.getChildAt(i).visibility = if (expandido) View.VISIBLE else View.GONE
+        }
+        atualizarChevron(titleView, expandido)
+
+        // Tornar título clicável para colapsar/expandir
+        titleView.isClickable = true
+        titleView.isFocusable = true
+        titleView.setPadding(
+            titleView.paddingLeft,
+            titleView.paddingTop,
+            8.dpToPx(),
+            titleView.paddingBottom
+        )
+
+        var estaExpandido = expandido
+        titleView.setOnClickListener {
+            estaExpandido = !estaExpandido
+            androidx.transition.TransitionManager.beginDelayedTransition(card, androidx.transition.AutoTransition().apply { duration = 220 })
+            for (i in 1 until innerLayout.childCount) {
+                innerLayout.getChildAt(i).visibility = if (estaExpandido) View.VISIBLE else View.GONE
+            }
+            atualizarChevron(titleView, estaExpandido)
+        }
+    }
+
+    private fun atualizarChevron(view: View, expandido: Boolean) {
+        if (view !is android.widget.TextView) return
+        if (expandido) {
+            view.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0)
+        } else {
+            view.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.ic_chevron_down, 0)
+        }
+        view.compoundDrawablePadding = 0
+    }
+
+    private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density).toInt()
+
     @SuppressLint("DefaultLocale")
     private fun mostrarDatePicker() {
         val calendar = Calendar.getInstance()
@@ -656,12 +722,36 @@ class RDOFragment : Fragment() {
             is RDOValidationResult.Valid -> true
 
             is RDOValidationResult.Error -> {
-                Toast.makeText(requireContext(), result.mensagem, Toast.LENGTH_SHORT).show()
                 val campo = findFieldByName(result.campo)
                 if (result.setFieldError && campo is EditText) {
                     campo.error = result.mensagem
                 }
-                campo?.requestFocus()
+                val snackbar = Snackbar.make(requireView(), result.mensagem, Snackbar.LENGTH_INDEFINITE)
+                if (campo != null) {
+                    snackbar.setAction("Ver campo") {
+                        campo.requestFocus()
+                        // Expandir a seção se estiver colapsada (encontrar o card pai)
+                        var pai = campo.parent
+                        while (pai != null) {
+                            if (pai is ViewGroup && pai.id != View.NO_ID) {
+                                val titleView = (pai.getChildAt(0) as? ViewGroup)?.getChildAt(0)
+                                if (titleView != null) {
+                                    val innerLayout = pai.getChildAt(0) as? ViewGroup
+                                    if (innerLayout != null) {
+                                        val estaOculto = (1 until innerLayout.childCount).any {
+                                            innerLayout.getChildAt(it).visibility == View.GONE
+                                        }
+                                        if (estaOculto) titleView.performClick()
+                                    }
+                                }
+                                break
+                            }
+                            pai = pai.parent
+                        }
+                        campo.requestFocus()
+                    }
+                }
+                snackbar.show()
                 false
             }
 

@@ -14,6 +14,7 @@ import androidx.lifecycle.lifecycleScope
 import com.example.calculadorahh.BuildConfig
 import com.example.calculadorahh.data.database.DatabaseHelper
 import com.example.calculadorahh.data.models.RDODataCompleto
+import com.example.calculadorahh.data.models.SyncStatus
 import com.example.calculadorahh.data.models.UpdateConfig
 import com.example.calculadorahh.data.models.UpdateStatus
 import com.example.calculadorahh.databinding.ActivityHomeBinding
@@ -25,6 +26,7 @@ import com.example.calculadorahh.utils.getParcelableCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.util.Calendar
 
 class HomeActivity : AppCompatActivity() {
 
@@ -83,6 +85,7 @@ class HomeActivity : AppCompatActivity() {
             pendingUpdateConfig = null
             iniciarDownload(config)
         }
+        carregarEstatisticas()
     }
 
     // ──────────────────────────────────────────────────────────────────────────
@@ -108,6 +111,50 @@ class HomeActivity : AppCompatActivity() {
 
         binding.btnSyncAllRDOs.setOnClickListener {
             sincronizarTodosRDOs()
+        }
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Estatísticas rápidas
+    // ──────────────────────────────────────────────────────────────────────────
+
+    @SuppressLint("SetTextI18n")
+    private fun carregarEstatisticas() {
+        lifecycleScope.launch {
+            val db = DatabaseHelper.getInstance(this@HomeActivity)
+
+            // Queries de banco em IO
+            val hoje = withContext(Dispatchers.IO) {
+                val cal = Calendar.getInstance()
+                val dia = "%02d".format(cal.get(Calendar.DAY_OF_MONTH))
+                val mes = "%02d".format(cal.get(Calendar.MONTH) + 1)
+                val ano = cal.get(Calendar.YEAR)
+                val dataHoje = "$dia/$mes/$ano"
+                db.obterRDOsPorData(dataHoje).size
+            }
+
+            val pendentes = withContext(Dispatchers.IO) {
+                db.obterRDOsNaoSincronizados().size
+            }
+
+            val totalMes = withContext(Dispatchers.IO) {
+                val cal = Calendar.getInstance()
+                val mes = "%02d".format(cal.get(Calendar.MONTH) + 1)
+                val ano = cal.get(Calendar.YEAR)
+                val prefixoMes = "/$mes/$ano"
+                db.obterTodosRDOs().count { it.data.endsWith(prefixoMes) }
+            }
+
+            // Atualizar UI na main thread
+            binding.tvStatHoje.text = hoje.toString()
+            binding.tvStatPendentes.text = pendentes.toString()
+            binding.tvStatMes.text = totalMes.toString()
+
+            if (pendentes > 0) {
+                binding.chipSyncStatus.text = "↑ $pendentes pendentes de sync"
+            } else {
+                binding.chipSyncStatus.text = "✓ Tudo sincronizado"
+            }
         }
     }
 
