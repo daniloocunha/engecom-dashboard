@@ -61,12 +61,14 @@ object UpdateDownloader {
             var redirectCount = 0
 
             while (redirectCount < 10) {
+                val isRedirectUrl = redirectCount > 0  // URLs após o 1º redirect são do CDN/Azure
                 val conn = (URL(currentUrl).openConnection() as HttpURLConnection).apply {
                     connectTimeout = 15_000
                     readTimeout = TIMEOUT_DOWNLOAD_APK_MS.toInt()
                     instanceFollowRedirects = false  // gerenciamos manualmente
                     setRequestProperty("User-Agent", "ControledeCampo-UpdateChecker")
-                    setRequestProperty("Accept", "application/octet-stream")
+                    // Accept: */* no CDN (Azure Blob rejeita application/octet-stream)
+                    setRequestProperty("Accept", if (isRedirectUrl) "*/*" else "application/octet-stream")
                 }
                 responseCode = conn.responseCode
                 if (responseCode == HttpURLConnection.HTTP_MOVED_TEMP ||
