@@ -160,17 +160,20 @@ class RDOFragment : Fragment() {
     )
 
     private val nomesEncarregado = listOf(
+        "Ângelo Sávio Alves",
         "Adalton Trindade da Paixão",
-        "Ilson Soares de Oliveira",
-        "Leandro Morais da Silva",
-        "Tharlleson M. Sobrinho",
-        "Werbet Santos dos Santos",
-        "Wilson Puff",
-        "Sergio de Almeida Oliveira Bispo",
-        "Marcos Jorge Marinho",
-        "Weividy Fernandes",
         "Carlos Alexandre Heupa",
-        "Odair José Miranda da Silva"
+        "Ilson Soares de Oliveira",
+        "José Rodrigo Vieira",
+        "Leandro Morais da Silva",
+        "Marcos Jorge Marinho",
+        "Markson Antônio dos Santos",
+        "Odair José Miranda da Silva",
+        "Sergio de Almeida Oliveira Bispo",
+        "Tharlleson M. Sobrinho",
+        "Weividy Fernandes",
+        "Werbet Santos dos Santos",
+        "Wilson Puff"
     )
 
     private val statusOSOpcoes = listOf("Em Andamento", "Concluída", "Parada", "Cancelada")
