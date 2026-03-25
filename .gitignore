@@ -19,7 +19,10 @@ local.properties
 *.jks
 keystore.properties
 app/calculadorahh-release.keystore
-app/src/main/assets/rdo-engecom-*.json
+app/src/main/assets/*.json
+
+# APKs — contêm credenciais nos assets, usar GitHub Releases
+app/release/*.apk
 
 # Dashboard — config com secrets (gerado pelo build do Netlify)
 dashboard/js/config.js
