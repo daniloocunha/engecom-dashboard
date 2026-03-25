@@ -51,7 +51,7 @@ class GoogleSheetsService(private val context: Context) {
             val httpTransport = GoogleNetHttpTransport.newTrustedTransport()
             val jsonFactory = GsonFactory.getDefaultInstance()
 
-            val credentials = context.assets.open("rdo-engecom-3cda2be0f303.json").use { inputStream ->
+            val credentials = context.assets.open("rdo-engecom-0cdcc15ed168.json").use { inputStream ->
                 GoogleCredentials.fromStream(inputStream)
                     .createScoped(listOf(SheetsScopes.SPREADSHEETS))
             }
@@ -257,15 +257,29 @@ class GoogleSheetsService(private val context: Context) {
     }
 
     /**
+     * Inicialização leve: autentica e constrói o serviço Sheets sem chamar ensureSheetsExist().
+     * Usada apenas para verificarAtualizacao(), evitando falhas de cota/estrutura das abas.
+     * Propaga a exceção para que o chamador possa exibir a mensagem real de erro.
+     */
+    private suspend fun inicializarLeve(): Sheets = withContext(Dispatchers.IO) {
+        val httpTransport = GoogleNetHttpTransport.newTrustedTransport()
+        val jsonFactory = GsonFactory.getDefaultInstance()
+        val credentials = context.assets.open("rdo-engecom-0cdcc15ed168.json").use { inputStream ->
+            GoogleCredentials.fromStream(inputStream)
+                .createScoped(listOf(SheetsScopes.SPREADSHEETS))
+        }
+        Sheets.Builder(httpTransport, jsonFactory, HttpCredentialsAdapter(credentials))
+            .setApplicationName(SheetsConstants.APPLICATION_NAME)
+            .build()
+    }
+
+    /**
      * Verifica se há uma atualização disponível consultando a aba "Config" do Sheets.
-     * @return UpdateConfig com os dados da nova versão, ou null se não houver ou em caso de erro.
+     * Usa inicialização leve (sem ensureSheetsExist) para máxima confiabilidade.
+     * Propaga exceções para que o chamador possa diagnosticar falhas.
      */
     suspend fun verificarAtualizacao(): UpdateConfig? = withContext(Dispatchers.IO) {
-        val service = sheetsService ?: run {
-            if (!initialize()) return@withContext null
-            sheetsService
-        } ?: return@withContext null
-
+        val service = sheetsService ?: inicializarLeve()
         UpdateChecker.fetchUpdateConfig(service, spreadsheetId)
     }
 

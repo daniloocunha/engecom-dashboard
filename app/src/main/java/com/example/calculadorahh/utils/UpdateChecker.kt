@@ -52,51 +52,50 @@ object UpdateChecker {
      * Lê a aba Config do Sheets e retorna UpdateConfig, ou null em caso de erro.
      * Deve ser chamado em Dispatchers.IO.
      */
+    /**
+     * Lê a aba Config do Sheets e retorna UpdateConfig.
+     * Propaga exceções — o chamador é responsável por tratar erros.
+     */
     fun fetchUpdateConfig(sheetsService: Sheets, spreadsheetId: String): UpdateConfig? {
-        return try {
-            val response = sheetsService.spreadsheets().values()
-                .get(spreadsheetId, "${SheetsConstants.SHEET_CONFIG}!A:B")
-                .execute()
+        val response = sheetsService.spreadsheets().values()
+            .get(spreadsheetId, "${SheetsConstants.SHEET_CONFIG}!A:B")
+            .execute()
 
-            val values = response.getValues() ?: return null
+        val values = response.getValues() ?: return null
 
-            // Montar mapa chave → valor
-            val config = mutableMapOf<String, String>()
-            for (row in values) {
-                if (row.size >= 2) {
-                    val chave = row[0].toString().trim().lowercase()
-                    val valor = row[1].toString().trim()
-                    config[chave] = valor
-                }
+        // Montar mapa chave → valor
+        val config = mutableMapOf<String, String>()
+        for (row in values) {
+            if (row.size >= 2) {
+                val chave = row[0].toString().trim().lowercase()
+                val valor = row[1].toString().trim()
+                config[chave] = valor
             }
+        }
 
-            val versaoMinima = config[KEY_VERSAO_MINIMA]?.toIntOrNull() ?: 0
-            val versaoRecomendada = config[KEY_VERSAO_RECOMENDADA]?.toIntOrNull() ?: 0
-            val urlDownload = config[KEY_URL_DOWNLOAD] ?: ""
-            val hashMd5 = config[KEY_HASH_MD5] ?: ""
-            val forcarUpdate = config[KEY_FORCAR_UPDATE]?.uppercase() == "SIM"
-            val mensagemAviso = config[KEY_MENSAGEM_AVISO] ?: "Nova versão disponível!"
-            val mensagemBloqueio = config[KEY_MENSAGEM_BLOQUEIO] ?: "Atualize para continuar usando o app."
+        val versaoMinima = config[KEY_VERSAO_MINIMA]?.toIntOrNull() ?: 0
+        val versaoRecomendada = config[KEY_VERSAO_RECOMENDADA]?.toIntOrNull() ?: 0
+        val urlDownload = config[KEY_URL_DOWNLOAD] ?: ""
+        val hashMd5 = config[KEY_HASH_MD5] ?: ""
+        val forcarUpdate = config[KEY_FORCAR_UPDATE]?.uppercase() == "SIM"
+        val mensagemAviso = config[KEY_MENSAGEM_AVISO] ?: "Nova versão disponível!"
+        val mensagemBloqueio = config[KEY_MENSAGEM_BLOQUEIO] ?: "Atualize para continuar usando o app."
 
-            if (urlDownload.isBlank()) {
-                Log.w(TAG, "url_download não configurada na aba Config")
-                return null
-            }
+        if (urlDownload.isBlank()) {
+            Log.w(TAG, "url_download não configurada na aba Config")
+            return null
+        }
 
-            UpdateConfig(
-                versaoMinima = versaoMinima,
-                versaoRecomendada = versaoRecomendada,
-                urlDownload = urlDownload,
-                hashMd5 = hashMd5,
-                forcarUpdate = forcarUpdate,
-                mensagemAviso = mensagemAviso,
-                mensagemBloqueio = mensagemBloqueio
-            ).also {
-                Log.d(TAG, "Config lida: versaoMinima=${it.versaoMinima}, versaoRecomendada=${it.versaoRecomendada}")
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Erro ao ler config de update: ${e.message}", e)
-            null
+        return UpdateConfig(
+            versaoMinima = versaoMinima,
+            versaoRecomendada = versaoRecomendada,
+            urlDownload = urlDownload,
+            hashMd5 = hashMd5,
+            forcarUpdate = forcarUpdate,
+            mensagemAviso = mensagemAviso,
+            mensagemBloqueio = mensagemBloqueio
+        ).also {
+            Log.d(TAG, "Config lida: versaoMinima=${it.versaoMinima}, versaoRecomendada=${it.versaoRecomendada}")
         }
     }
 
