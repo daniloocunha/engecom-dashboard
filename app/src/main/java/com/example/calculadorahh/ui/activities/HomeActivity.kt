@@ -86,6 +86,25 @@ class HomeActivity : AppCompatActivity() {
             iniciarDownload(config)
         }
         carregarEstatisticas()
+        verificarUpdateEmBackground()
+    }
+
+    /**
+     * Consulta a aba Config do Sheets em background toda vez que o app abre.
+     * Não bloqueia a UI — exibe o banner apenas se houver update disponível.
+     */
+    private fun verificarUpdateEmBackground() {
+        lifecycleScope.launch {
+            val updateConfig = withContext(Dispatchers.IO) {
+                try { GoogleSheetsService(this@HomeActivity).verificarAtualizacao() }
+                catch (e: Exception) { null }
+            }
+            if (updateConfig != null) {
+                val status = UpdateChecker.checkUpdate(updateConfig)
+                UpdateChecker.salvarStatusUpdate(this@HomeActivity, status)
+                verificarStatusUpdate()
+            }
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────
