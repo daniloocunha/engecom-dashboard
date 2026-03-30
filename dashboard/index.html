@@ -279,40 +279,33 @@
                     </div>
                 </div>
 
-                <div class="row">
-                    <!-- Gráfico de Evolução -->
-                    <div class="col-md-8 mb-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Evolução de Faturamento</h5>
-                            </div>
-                            <div class="card-body">
-                                <canvas id="chartEvolucao"></canvas>
-                            </div>
+                <!-- Sub-abas TPS / TS -->
+                <ul class="nav nav-pills mb-4" id="vgTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="btn-vg-tp"
+                                data-bs-toggle="pill" data-bs-target="#vg-tp" type="button" role="tab">
+                            <i class="fas fa-hard-hat me-2"></i>TPs (Produção)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="btn-vg-ts"
+                                data-bs-toggle="pill" data-bs-target="#vg-ts" type="button" role="tab">
+                            <i class="fas fa-fire me-2"></i>TSs (Solda)
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="vgTabContent">
+                    <!-- Conteúdo TPS — preenchido por visao-geral.js -->
+                    <div class="tab-pane fade show active" id="vg-tp" role="tabpanel">
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-spinner fa-spin me-2"></i>Carregando análise de produtividade...
                         </div>
                     </div>
-
-                    <!-- Distribuição Engecom/Encogel -->
-                    <div class="col-md-4 mb-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Distribuição</h5>
-                            </div>
-                            <div class="card-body">
-                                <canvas id="chartDistribuicao"></canvas>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Ranking de Turmas -->
-                    <div class="col-md-12 mb-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="fas fa-trophy me-2"></i>Ranking de Turmas</h5>
-                            </div>
-                            <div class="card-body">
-                                <canvas id="chartRanking"></canvas>
-                            </div>
+                    <!-- Conteúdo TS — preenchido por visao-geral.js -->
+                    <div class="tab-pane fade" id="vg-ts" role="tabpanel">
+                        <div class="text-center text-muted py-5">
+                            <i class="fas fa-spinner fa-spin me-2"></i>Carregando análise de solda...
                         </div>
                     </div>
                 </div>
@@ -1055,6 +1048,7 @@
     <script src="js/period-comparison.js?v=3.0.13"></script>
     <script src="js/gestao-os.js?v=3.0.20"></script>
     <script src="js/os-auditoria.js?v=3.0.20"></script>
+    <script src="js/visao-geral.js?v=3.0.21"></script>
     <script src="js/main.js?v=3.0.13"></script>
 
     <script>

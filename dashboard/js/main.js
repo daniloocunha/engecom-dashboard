@@ -406,6 +406,11 @@ class DashboardMain {
         // 9. Renderizar gestão de O.S
         gestaoOS.setFiltros(this.filtros.mes, this.filtros.ano);
         gestaoOS.renderizar();
+
+        // 10. Visão Geral — análise de produtividade PDM/Correlato
+        if (typeof visaoGeral !== 'undefined') {
+            visaoGeral.renderizar(this.estatisticas, this.calculadora, this.filtros);
+        }
     }
 
     /**
