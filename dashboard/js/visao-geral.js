@@ -253,7 +253,10 @@ class VisaoGeral {
             <div class="row mb-4"><div class="col-12">
                 <div class="card border-0 shadow-sm">
                     <div class="card-header bg-white">
-                        <h6 class="mb-0"><i class="fas fa-layer-group me-2 text-primary"></i>Composição das Horas — Onde foi a Meta?</h6>
+                        <div class="d-flex justify-content-between align-items-center flex-wrap gap-1">
+                            <h6 class="mb-0"><i class="fas fa-layer-group me-2 text-primary"></i>Composição das Horas — Onde foi a Meta?</h6>
+                            <small class="text-muted fst-italic">A barra soma 100% da meta mensal. Blocos cinzas = horas não alocadas (meta não atingida).</small>
+                        </div>
                     </div>
                     <div class="card-body" style="position:relative; min-height:90px;">
                         <canvas id="chart-vg-comp-${s}" height="80"></canvas>
@@ -321,8 +324,14 @@ class VisaoGeral {
 
             <!-- 8. Perdas controláveis vs não controláveis -->
             <div class="mb-3">
-                <p class="text-muted small fw-semibold text-uppercase mb-2" style="letter-spacing:.05em;">
+                <p class="text-muted small fw-semibold text-uppercase mb-1" style="letter-spacing:.05em;">
                     <i class="fas fa-exclamation-triangle me-1 text-danger"></i>Análise de Perdas (HI)
+                    <span class="badge bg-secondary bg-opacity-50 small fw-normal ms-1" title="HI = Horas Improdutivas: períodos registrados em que a equipe estava presente mas não realizou serviços produtivos.">O que é HI?</span>
+                </p>
+                <p class="text-muted mb-2" style="font-size:.75rem;">
+                    <i class="fas fa-ban text-danger me-1"></i><strong>Não Controláveis</strong>: passagem de trem e chuva — inerentes à operação ferrroviária &nbsp;·&nbsp;
+                    <i class="fas fa-tools text-warning me-1"></i><strong>Controláveis</strong>: fatores que a gestão pode reduzir (deslocamento, aguardando liberação, etc.)
+                    &nbsp;·&nbsp; HI Chuva conta como <strong>metade</strong> das horas na fórmula de medição.
                 </p>
             </div>
             <div class="row mb-2" id="vg-perdas-split-${s}"></div>
@@ -349,7 +358,22 @@ class VisaoGeral {
 
             <!-- 9. Outros + 10. Qualidade -->
             <div class="row mb-4" id="vg-outros-container-${s}"></div>
-            <div id="vg-qualidade-${s}" class="mb-4"></div>`;
+            <div id="vg-qualidade-${s}" class="mb-4"></div>
+
+            <!-- 11. Mini-glossário -->
+            <div class="card border-0 bg-light mb-2">
+                <div class="card-body py-2 px-3">
+                    <p class="small text-muted mb-1 fw-semibold"><i class="fas fa-info-circle me-1"></i>Glossário rápido</p>
+                    <div class="row g-1" style="font-size:.72rem; color:#666;">
+                        <div class="col-6 col-md-4"><strong>HH</strong> — Homem·Hora (quantidade × coeficiente)</div>
+                        <div class="col-6 col-md-4"><strong>PDM</strong> — Produto Direto de Manutenção (atividade principal de via)</div>
+                        <div class="col-6 col-md-4"><strong>Correlato</strong> — Atividade de apoio / manutenção geral</div>
+                        <div class="col-6 col-md-4"><strong>HI</strong> — Horas Improdutivas (equipe presente, sem serviço)</div>
+                        <div class="col-6 col-md-4"><strong>Meta</strong> — ${s === 'tp' ? '12 operadores × 8h × dias úteis do mês' : '1 soldador × 8h × dias úteis do mês'}</div>
+                        <div class="col-6 col-md-4"><strong>Taxa Prod</strong> — HH produtivo ÷ (produtivo + improdutivo)</div>
+                    </div>
+                </div>
+            </div>`;
 
         // Renderizar todas as seções
         this._renderizarInsights(`vg-insights-${s}`, dados);
@@ -360,9 +384,9 @@ class VisaoGeral {
         this._renderizarGraficoEvolucao(s, dados);
         this._renderizarGraficoClassificacao(s, dados);
         this._renderizarTopServicos(`vg-top-servicos-${s}`, dados, s);
-        this._renderizarPerdasSplit(`vg-perdas-split-${s}`, dados);
+        this._renderizarPerdasSplit(`vg-perdas-split-${s}`, dados, s);
         this._renderizarGraficoPerdas(s, dados);
-        this._renderizarResumoPerdas(`vg-resumo-perdas-${s}`, dados);
+        this._renderizarResumoPerdas(`vg-resumo-perdas-${s}`, dados, s);
         this._renderizarAnaliseOutros(`vg-outros-container-${s}`, dados);
         this._renderizarQualidadeDados(`vg-qualidade-${s}`, dados);
     }
@@ -499,9 +523,13 @@ class VisaoGeral {
         const restoC = perdasC.slice(3).reduce((a, p) => a + p.hh, 0);
         if (restoC > 0) datasets.push({ label: `Outras Control. (${restoC.toFixed(0)} HH)`, data: [+restoC.toFixed(1)], backgroundColor: '#FFE0B2' });
 
-        // Gap até a meta (horas não trabalhadas)
-        if (totais.hhNaoTrabalhado > 0) {
-            datasets.push({ label: `Abaixo da Meta (${totais.hhNaoTrabalhado.toFixed(0)} HH)`, data: [+totais.hhNaoTrabalhado.toFixed(1)], backgroundColor: '#E0E0E0' });
+        // Gap até a meta (horas não alocadas — meta não atingida)
+        if (totais.hhNaoTrabalhado > 0.5) {
+            datasets.push({
+                label: `Não Trabalhado / Gap (${totais.hhNaoTrabalhado.toFixed(0)} HH)`,
+                data: [+totais.hhNaoTrabalhado.toFixed(1)],
+                backgroundColor: '#BDBDBD',
+            });
         }
 
         this._charts[id] = new Chart(canvas, {
@@ -576,35 +604,36 @@ class VisaoGeral {
 
         el.innerHTML = `
             <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center flex-wrap gap-2">
                     <h6 class="mb-0"><i class="fas fa-table me-2 text-primary"></i>Scorecard Comparativo de Turmas</h6>
+                    <span class="badge bg-secondary bg-opacity-75 small">Global — todas as turmas do período</span>
                 </div>
                 <div class="card-body p-0">
                     <div class="table-responsive">
                         <table class="table table-sm table-hover mb-0 align-middle">
                             <thead class="table-light">
                                 <tr>
-                                    <th>Turma</th>
-                                    <th class="text-end">HH Prod</th>
-                                    <th class="text-end">HH/dia</th>
-                                    <th class="text-center">Taxa Prod</th>
-                                    <th class="text-center">% Meta</th>
-                                    <th class="text-center" title="Quantidade de RDOs com HH produtivo ≥ meta diária">Dias ≥ meta</th>
-                                    <th class="text-center">% Improd</th>
-                                    <th class="text-center">PDM%</th>
+                                    <th title="Código identificador da turma">Turma</th>
+                                    <th class="text-center" style="background:rgba(25,118,210,.07);" title="Percentual de HH produtivo em relação à meta mensal da turma (${isTP?'12 op × 8h × dias úteis':'1 soldador × 8h × dias úteis'})">% Meta ↑</th>
+                                    <th class="text-end" title="HH produtivo médio por dia trabalhado (registros com serviços)">HH/dia</th>
+                                    <th class="text-center" title="Taxa de produtividade = HH produtivo ÷ (HH produtivo + HH improdutivo). Indica eficiência do tempo presente.">Taxa Prod</th>
+                                    <th class="text-center" title="Número de RDOs (registros diários) em que o HH produtivo atingiu ou superou a meta diária de ${metaDia} HH. Não são 'dias de calendário'.">RDOs ≥ meta</th>
+                                    <th class="text-center" title="Percentual de PDM (Produtos Diretos de Manutenção) sobre o HH produtivo total. Maior = mais atividades de alta prioridade.">PDM%</th>
+                                    <th class="text-center" title="Percentual de HH improdutivo sobre o total (produtivo + improdutivo). Menor = melhor.">% Improd</th>
+                                    <th class="text-end" title="Total de HH produtivo no período">HH Prod</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 ${linhas.map(({ t, taxaProd, pctMeta, hhDia, pctDias, pctPDM, pctImprod }) => `
                                 <tr>
                                     <td class="fw-semibold">${escapeHtml(t.turma)}</td>
-                                    <td class="text-end">${t.hhServicos.toFixed(0)}</td>
+                                    <td class="text-center fw-bold" style="background:rgba(25,118,210,.05);">${sem(pctMeta, 80, 50)} <span class="small">${pctMeta.toFixed(1)}%</span></td>
                                     <td class="text-end">${hhDia.toFixed(1)}</td>
                                     <td class="text-center">${sem(taxaProd, 70, 55)} <span class="small">${taxaProd.toFixed(1)}%</span></td>
-                                    <td class="text-center">${sem(pctMeta, 80, 50)}  <span class="small">${pctMeta.toFixed(1)}%</span></td>
-                                    <td class="text-center">${sem(pctDias, 60, 30)}  <span class="small">${t.diasBateuMeta}/${t.numRDOs} <span class="text-muted">(${pctDias.toFixed(0)}%)</span></span></td>
-                                    <td class="text-center">${sem(100-pctImprod, 70, 55)} <span class="small">${pctImprod.toFixed(1)}%</span></td>
+                                    <td class="text-center">${sem(pctDias, 60, 30)} <span class="small">${t.diasBateuMeta}/${t.numRDOs} <span class="text-muted">(${pctDias.toFixed(0)}%)</span></span></td>
                                     <td class="text-center"><span class="small">${pctPDM.toFixed(0)}%</span></td>
+                                    <td class="text-center">${sem(100-pctImprod, 70, 55)} <span class="small">${pctImprod.toFixed(1)}%</span></td>
+                                    <td class="text-end small text-muted">${t.hhServicos.toFixed(0)}</td>
                                 </tr>`).join('')}
                             </tbody>
                         </table>
@@ -614,7 +643,9 @@ class VisaoGeral {
                             <i class="fas fa-circle text-success me-1"></i>Bom &nbsp;
                             <i class="fas fa-circle text-warning me-1"></i>Atenção &nbsp;
                             <i class="fas fa-circle text-danger me-1"></i>Crítico &nbsp;·&nbsp;
-                            "Dias ≥ meta" = RDOs com HH produtivo ≥ ${metaDia} HH
+                            <strong>"RDOs ≥ meta"</strong> = registros diários com HH produtivo ≥ ${metaDia} HH (não são dias corridos) &nbsp;·&nbsp;
+                            <strong>"% Meta"</strong> = HH produtivo ÷ meta mensal &nbsp;·&nbsp;
+                            Passe o mouse nos cabeçalhos para mais detalhes
                         </small>
                     </div>
                 </div>
@@ -638,6 +669,9 @@ class VisaoGeral {
         this._renderizarChipFiltro(suffix);
         this._renderizarTopServicos(`vg-top-servicos-${suffix}`, dados, suffix);
         this._renderizarGraficoPerdas(suffix, dados);
+        // Atualizar também o split e resumo de perdas com dados da turma filtrada
+        this._renderizarPerdasSplit(`vg-perdas-split-${suffix}`, dados, suffix);
+        this._renderizarResumoPerdas(`vg-resumo-perdas-${suffix}`, dados, suffix);
         const lbl = document.getElementById(`vg-filtro-label-${suffix}`);
         if (lbl) lbl.textContent = this._filtroTurma[suffix] ? `Filtro: ${this._filtroTurma[suffix]}` : '';
     }
@@ -790,7 +824,7 @@ class VisaoGeral {
         if (!el) return;
         const turmaAtiva = this._filtroTurma[suffix];
         const sort       = this._sortServicos[suffix] || { col: 'hh', dir: 'desc' };
-        let lista = turmaAtiva
+        const fullLista  = turmaAtiva
             ? (dados.turmas.find(t => t.turma === turmaAtiva)?.servicos || dados.servicos)
             : dados.servicos;
         const fns = {
@@ -798,11 +832,12 @@ class VisaoGeral {
             qty:         (a,b) => sort.dir==='desc' ? b.qty-a.qty : a.qty-b.qty,
             ocorrencias: (a,b) => sort.dir==='desc' ? b.ocorrencias-a.ocorrencias : a.ocorrencias-b.ocorrencias,
         };
-        lista = [...lista].sort(fns[sort.col] || fns.hh).slice(0,15);
+        const lista = [...fullLista].sort(fns[sort.col] || fns.hh).slice(0,15);
         if (!lista.length) { el.innerHTML = '<p class="text-muted text-center py-3 small">Nenhum serviço encontrado.</p>'; return; }
 
-        const totalHH = lista.reduce((a,s) => a+s.hh, 0) || 1;
-        const maxHH   = lista[0].hh || 1;
+        // % calculado sobre o total REAL do período (não apenas o Top 15)
+        const totalHH = fullLista.reduce((a,s) => a+s.hh, 0) || 1;
+        const maxHH   = lista[0]?.hh || 1;
         const isTP    = dados.tipoTurma === 'TP';
         const suf     = escAttr(suffix);
         const ico = col => sort.col !== col
@@ -819,7 +854,7 @@ class VisaoGeral {
                         <th>Serviço</th>
                         <th class="text-center" style="width:58px;">Tipo</th>
                         <th class="text-end" style="width:68px;${th}" onclick="visaoGeral._sortTopServicos('${suf}','hh')">HH${ico('hh')}</th>
-                        <th class="text-end" style="width:48px;">%</th>
+                        <th class="text-end" style="width:52px;" title="Percentual sobre o total de HH produtivo do período (todos os serviços, não apenas os exibidos)">% Total</th>
                         <th class="text-end" style="width:52px;${th}" onclick="visaoGeral._sortTopServicos('${suf}','qty')">Qtd${ico('qty')}</th>
                         <th class="text-end" style="width:52px;${th}" onclick="visaoGeral._sortTopServicos('${suf}','ocorrencias')">Ocorr${ico('ocorrencias')}</th>
                     </tr>
@@ -851,17 +886,26 @@ class VisaoGeral {
 
     // ── 8a. Perdas: Controláveis vs Não Controláveis ──────────────────────────
 
-    _renderizarPerdasSplit(containerId, dados) {
+    _renderizarPerdasSplit(containerId, dados, suffix = null) {
         const el = document.getElementById(containerId);
         if (!el) return;
-        const { perdas, totais } = dados;
+
+        // Usar perdas da turma filtrada, quando aplicável
+        const turmaAtiva = suffix ? this._filtroTurma[suffix] : null;
+        const perdas = turmaAtiva
+            ? (dados.turmas.find(t => t.turma === turmaAtiva)?.perdas || dados.perdas)
+            : dados.perdas;
+        const escopoLabel = turmaAtiva ? turmaAtiva : 'Global';
+        const escopoClass = turmaAtiva ? 'bg-primary' : 'bg-secondary';
+
         if (!perdas.length) { el.innerHTML = ''; return; }
 
         const nc     = perdas.filter(p => !p.controlavel);
         const c      = perdas.filter(p =>  p.controlavel);
         const hhNC   = nc.reduce((a,p) => a+p.hh, 0);
         const hhC    = c.reduce((a,p) => a+p.hh, 0);
-        const hhTot  = totais.hhImprodutivas || 1;
+        // % calculado sobre a soma das perdas do escopo atual (NC + C)
+        const hhTot  = (hhNC + hhC) || 1;
 
         const lista = (arr, cor) => arr.slice(0,4).map(p => {
             const pct = (p.hh / hhTot * 100).toFixed(1);
@@ -878,6 +922,13 @@ class VisaoGeral {
         }).join('');
 
         el.innerHTML = `
+            <div class="col-12 mb-2">
+                <div class="d-flex align-items-center gap-2">
+                    <span class="small fw-semibold text-muted text-uppercase" style="letter-spacing:.05em;">Escopo:</span>
+                    <span class="badge ${escopoClass}">${escapeHtml(escopoLabel)}</span>
+                    ${turmaAtiva ? `<span class="text-muted small">— Clique na turma no gráfico acima para remover o filtro</span>` : ''}
+                </div>
+            </div>
             <div class="col-md-6 mb-3">
                 <div class="card border-0 shadow-sm h-100" style="border-left:4px solid #C62828 !important;">
                     <div class="card-header d-flex justify-content-between align-items-center" style="background:rgba(198,40,40,.07);">
@@ -968,13 +1019,27 @@ class VisaoGeral {
 
     // ── 8c. Resumo de perdas ──────────────────────────────────────────────────
 
-    _renderizarResumoPerdas(containerId, dados) {
+    _renderizarResumoPerdas(containerId, dados, suffix = null) {
         const el = document.getElementById(containerId);
         if (!el) return;
-        const { perdas, totais } = dados;
+        const { totais } = dados;
+
+        // Usar perdas da turma filtrada, quando aplicável (consistente com o split)
+        const turmaAtiva = suffix ? this._filtroTurma[suffix] : null;
+        const perdas = turmaAtiva
+            ? (dados.turmas.find(t => t.turma === turmaAtiva)?.perdas || dados.perdas)
+            : dados.perdas;
+
         if (!perdas.length) { el.innerHTML = '<p class="text-muted text-center py-3 small">Nenhuma perda registrada.</p>'; return; }
+
+        // NC e C calculados localmente sobre o escopo atual (global ou turma)
+        const hhNC = perdas.filter(p => !p.controlavel).reduce((a,p) => a+p.hh, 0);
+        const hhC  = perdas.filter(p =>  p.controlavel).reduce((a,p) => a+p.hh, 0);
         const totPerdas = perdas.reduce((a,p) => a+p.hh, 0);
-        const pct = (totais.hhServicos + totPerdas) > 0 ? (totPerdas/(totais.hhServicos+totPerdas)*100) : 0;
+        const hhServ = turmaAtiva
+            ? (dados.turmas.find(t => t.turma === turmaAtiva)?.hhServicos || totais.hhServicos)
+            : totais.hhServicos;
+        const pct = (hhServ + totPerdas) > 0 ? (totPerdas/(hhServ+totPerdas)*100) : 0;
         el.innerHTML = `
             <div class="mb-3 p-3 rounded d-flex justify-content-between align-items-center" style="background:rgba(239,83,80,.09);">
                 <div><p class="small text-muted mb-0">Total HH perdido</p><h4 class="text-danger fw-bold mb-0">${totPerdas.toFixed(1)} HH</h4></div>
@@ -983,13 +1048,13 @@ class VisaoGeral {
             <div class="d-flex gap-2 mb-3">
                 <div class="flex-fill p-2 rounded text-center" style="background:rgba(198,40,40,.08);border-left:3px solid #C62828;">
                     <p class="small text-muted mb-0">Não Controla.</p>
-                    <strong class="text-danger">${totais.hhNC.toFixed(0)} HH</strong>
-                    <p class="small text-muted mb-0">${totPerdas > 0 ? (totais.hhNC/totPerdas*100).toFixed(0) : 0}%</p>
+                    <strong class="text-danger">${hhNC.toFixed(0)} HH</strong>
+                    <p class="small text-muted mb-0">${totPerdas > 0 ? (hhNC/totPerdas*100).toFixed(0) : 0}%</p>
                 </div>
                 <div class="flex-fill p-2 rounded text-center" style="background:rgba(230,81,0,.08);border-left:3px solid #E65100;">
                     <p class="small text-muted mb-0">Controláveis</p>
-                    <strong class="text-warning">${totais.hhC.toFixed(0)} HH</strong>
-                    <p class="small text-muted mb-0">${totPerdas > 0 ? (totais.hhC/totPerdas*100).toFixed(0) : 0}%</p>
+                    <strong class="text-warning">${hhC.toFixed(0)} HH</strong>
+                    <p class="small text-muted mb-0">${totPerdas > 0 ? (hhC/totPerdas*100).toFixed(0) : 0}%</p>
                 </div>
             </div>
             <p class="small text-muted fw-bold mb-2">Top causas:</p>
