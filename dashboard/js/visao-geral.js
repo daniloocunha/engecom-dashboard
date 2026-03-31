@@ -1154,10 +1154,11 @@ class VisaoGeral {
         el.className = 'offcanvas offcanvas-end';
         el.id = 'vg-offcanvas';
         el.setAttribute('tabindex', '-1');
-        // Largura inicial: salva preferência do usuário
+        // Forçar largura com !important para sobrescrever CSS estático do Bootstrap build
         const savedW = parseInt(localStorage.getItem('vg_oc_width') || '0');
-        const initW  = savedW > 0 ? `${savedW}px` : 'min(760px, 96vw)';
-        el.style.cssText = `width:${initW}; max-width:96vw; transition:none;`;
+        const initW  = savedW > 0 ? savedW : Math.min(760, Math.round(window.innerWidth * 0.9));
+        el.style.setProperty('width', `${initW}px`, 'important');
+        el.style.transition = 'none';
 
         el.innerHTML = `
             <!-- Alça de redimensionamento -->
@@ -1193,8 +1194,8 @@ class VisaoGeral {
     _redimensionarOffcanvas(px) {
         const el = document.getElementById('vg-offcanvas');
         if (!el) return;
-        const w = Math.min(px, window.innerWidth * 0.96);
-        el.style.width = `${w}px`;
+        const w = Math.max(340, Math.min(px, Math.round(window.innerWidth * 0.96)));
+        el.style.setProperty('width', `${w}px`, 'important');
         localStorage.setItem('vg_oc_width', w);
     }
 
@@ -1214,7 +1215,7 @@ class VisaoGeral {
         resizer.addEventListener('mousedown', e => {
             e.preventDefault();
             startX = e.clientX;
-            startW = ocEl.getBoundingClientRect().width;
+            startW = ocEl.getBoundingClientRect().width;  // largura real renderizada
             resizer.style.borderLeftColor = '#fff';
             document.body.style.userSelect = 'none';
             document.body.style.cursor = 'ew-resize';
@@ -1222,7 +1223,7 @@ class VisaoGeral {
             const onMove = e => {
                 const delta = startX - e.clientX;          // arrastar para a esquerda = alargar
                 const newW  = Math.max(340, Math.min(startW + delta, window.innerWidth * 0.96));
-                ocEl.style.width = `${newW}px`;
+                ocEl.style.setProperty('width', `${newW}px`, 'important');
             };
 
             const onUp = () => {
@@ -1231,7 +1232,8 @@ class VisaoGeral {
                 document.body.style.userSelect = '';
                 document.body.style.cursor = '';
                 resizer.style.borderLeftColor = 'rgba(255,255,255,0.25)';
-                localStorage.setItem('vg_oc_width', parseInt(ocEl.style.width));
+                const w = Math.round(ocEl.getBoundingClientRect().width);
+                if (w > 0) localStorage.setItem('vg_oc_width', w);
             };
 
             document.addEventListener('mousemove', onMove);
@@ -1247,12 +1249,13 @@ class VisaoGeral {
             const onMove = e => {
                 const delta = startX - e.touches[0].clientX;
                 const newW  = Math.max(340, Math.min(startW + delta, window.innerWidth * 0.96));
-                ocEl.style.width = `${newW}px`;
+                ocEl.style.setProperty('width', `${newW}px`, 'important');
             };
             const onUp = () => {
                 document.removeEventListener('touchmove', onMove);
                 document.removeEventListener('touchend', onUp);
-                localStorage.setItem('vg_oc_width', parseInt(ocEl.style.width));
+                const w = Math.round(ocEl.getBoundingClientRect().width);
+                if (w > 0) localStorage.setItem('vg_oc_width', w);
             };
             document.addEventListener('touchmove', onMove, { passive: false });
             document.addEventListener('touchend', onUp);
