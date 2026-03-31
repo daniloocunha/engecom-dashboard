@@ -1149,21 +1149,114 @@ class VisaoGeral {
 
     _criarOffcanvas() {
         if (document.getElementById('vg-offcanvas')) return;
+
         const el = document.createElement('div');
         el.className = 'offcanvas offcanvas-end';
         el.id = 'vg-offcanvas';
         el.setAttribute('tabindex', '-1');
-        el.style.cssText = 'width:min(720px,96vw);';
+        // Largura inicial: salva preferência do usuário
+        const savedW = parseInt(localStorage.getItem('vg_oc_width') || '0');
+        const initW  = savedW > 0 ? `${savedW}px` : 'min(760px, 96vw)';
+        el.style.cssText = `width:${initW}; max-width:96vw; transition:none;`;
+
         el.innerHTML = `
-            <div class="offcanvas-header border-bottom py-2" style="background:linear-gradient(135deg,#1565C0,#1976D2);">
-                <div class="d-flex flex-column">
+            <!-- Alça de redimensionamento -->
+            <div id="vg-oc-resizer" style="
+                position:absolute; left:0; top:0; bottom:0; width:6px;
+                cursor:ew-resize; z-index:10;
+                background:transparent;
+                border-left:3px solid rgba(255,255,255,0.25);
+                transition:border-color .2s;
+            " title="Arraste para redimensionar"></div>
+
+            <div class="offcanvas-header border-bottom py-2" style="background:linear-gradient(135deg,#1565C0,#1976D2); padding-left:14px;">
+                <div class="d-flex flex-column flex-grow-1 overflow-hidden">
                     <h5 class="offcanvas-title text-white mb-0" id="vg-oc-title"></h5>
-                    <small class="text-white text-opacity-75" id="vg-oc-subtitle"></small>
+                    <small class="text-white text-opacity-75 text-truncate" id="vg-oc-subtitle"></small>
                 </div>
-                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+                <div class="d-flex align-items-center gap-2 ms-2 flex-shrink-0">
+                    <!-- Botões de tamanho rápido -->
+                    <div class="btn-group btn-group-sm" title="Tamanho rápido">
+                        <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:.65rem;" onclick="visaoGeral._redimensionarOffcanvas(480)"  title="Estreito">◀◀</button>
+                        <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:.65rem;" onclick="visaoGeral._redimensionarOffcanvas(760)"  title="Médio">◀▶</button>
+                        <button class="btn btn-sm btn-outline-light py-0 px-1" style="font-size:.65rem;" onclick="visaoGeral._redimensionarOffcanvas(1100)" title="Largo">▶▶</button>
+                    </div>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+                </div>
             </div>
             <div class="offcanvas-body p-0" id="vg-oc-body" style="overflow-y:auto;"></div>`;
+
         document.body.appendChild(el);
+        this._inicializarResizer(el);
+    }
+
+    _redimensionarOffcanvas(px) {
+        const el = document.getElementById('vg-offcanvas');
+        if (!el) return;
+        const w = Math.min(px, window.innerWidth * 0.96);
+        el.style.width = `${w}px`;
+        localStorage.setItem('vg_oc_width', w);
+    }
+
+    _inicializarResizer(ocEl) {
+        const resizer = document.getElementById('vg-oc-resizer');
+        if (!resizer) return;
+
+        resizer.addEventListener('mouseenter', () => {
+            resizer.style.borderLeftColor = 'rgba(255,255,255,0.8)';
+        });
+        resizer.addEventListener('mouseleave', () => {
+            resizer.style.borderLeftColor = 'rgba(255,255,255,0.25)';
+        });
+
+        let startX, startW;
+
+        resizer.addEventListener('mousedown', e => {
+            e.preventDefault();
+            startX = e.clientX;
+            startW = ocEl.getBoundingClientRect().width;
+            resizer.style.borderLeftColor = '#fff';
+            document.body.style.userSelect = 'none';
+            document.body.style.cursor = 'ew-resize';
+
+            const onMove = e => {
+                const delta = startX - e.clientX;          // arrastar para a esquerda = alargar
+                const newW  = Math.max(340, Math.min(startW + delta, window.innerWidth * 0.96));
+                ocEl.style.width = `${newW}px`;
+            };
+
+            const onUp = () => {
+                document.removeEventListener('mousemove', onMove);
+                document.removeEventListener('mouseup', onUp);
+                document.body.style.userSelect = '';
+                document.body.style.cursor = '';
+                resizer.style.borderLeftColor = 'rgba(255,255,255,0.25)';
+                localStorage.setItem('vg_oc_width', parseInt(ocEl.style.width));
+            };
+
+            document.addEventListener('mousemove', onMove);
+            document.addEventListener('mouseup', onUp);
+        });
+
+        // Touch support
+        resizer.addEventListener('touchstart', e => {
+            e.preventDefault();
+            startX = e.touches[0].clientX;
+            startW = ocEl.getBoundingClientRect().width;
+
+            const onMove = e => {
+                const delta = startX - e.touches[0].clientX;
+                const newW  = Math.max(340, Math.min(startW + delta, window.innerWidth * 0.96));
+                ocEl.style.width = `${newW}px`;
+            };
+            const onUp = () => {
+                document.removeEventListener('touchmove', onMove);
+                document.removeEventListener('touchend', onUp);
+                localStorage.setItem('vg_oc_width', parseInt(ocEl.style.width));
+            };
+            document.addEventListener('touchmove', onMove, { passive: false });
+            document.addEventListener('touchend', onUp);
+        }, { passive: false });
     }
 
     _abrirDetalhesTurma(turmaId, suffix) {
