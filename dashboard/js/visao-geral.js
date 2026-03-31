@@ -43,9 +43,10 @@ class VisaoGeral {
         return re.some(r => r.test(d)) ? 'PDM_TPS' : 'CORRELATO_TPS';
     }
 
-    /** Perdas não controláveis = passagem de trem + chuva */
-    _isNaoControlavel(tipo) {
-        const t = (tipo || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    /** Perdas não controláveis = passagem de trem + chuva. Verifica tipo e descrição. */
+    _isNaoControlavel(tipo, descricao = '') {
+        const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        const t = norm(tipo) + ' ' + norm(descricao);
         return t.includes('trem') || t.includes('chuva');
     }
 
@@ -55,7 +56,7 @@ class VisaoGeral {
         const turmas    = calc.getTurmasPorTipo(tipoTurma, mes, ano);
         const diasUteis = calc.getDiasUteis(mes, ano);
         const classPDM  = tipoTurma === 'TP' ? 'PDM_TPS'       : 'PDM_SOLDA';
-        const metaDia   = tipoTurma === 'TP' ? 96              : 8;
+        const metaDia   = tipoTurma === 'TP' ? 72              : 8;  // 12 op × 6h
 
         let totalHHServ = 0, totalHHPDM = 0, totalHHCorr = 0, totalHHImprod = 0;
         const dadosTurmas = [], servicosGlobal = {}, perdasGlobal = {}, evolucaoDiaria = {};
@@ -69,18 +70,28 @@ class VisaoGeral {
             const servicosTurma = {}, perdasTurma = {};
             let diasBateuMeta = 0;
 
+            const encarregadosSet = new Set();
+            let totalOps = 0, countOps = 0;
+
             rdosTurma.forEach(rdo => {
                 const numRDO   = rdo['Número RDO'] || rdo.numeroRDO || '';
                 const dataNorm = FieldHelper.normalizarData(rdo['Data'] || rdo.data || '');
+                const enc = rdo['Encarregado'] || rdo.encarregado || '';
+                if (enc) encarregadosSet.add(enc);
+                const efRDO = calc.indices.efetivosPorRDO.get(numRDO);
+                if (efRDO) {
+                    const ops = parseInt(efRDO['Operadores'] || efRDO.operadores || 0);
+                    if (ops > 0) { totalOps += ops; countOps++; }
+                }
                 if (!calc.indices.efetivosPorRDO.has(numRDO)) rdosSemEfetivo++;
 
                 // ── Serviços ──
                 let hhServDia = 0;
                 (calc.indices.servicosPorRDO.get(numRDO) || []).forEach(s => {
                     const desc = s['Descrição'] || s.descricao || '';
-                    const qty  = parseFloat(s['Quantidade'] || s.quantidade || 0);
-                    const coef = parseFloat(s.coeficiente || s.Coeficiente || 0);
-                    const hh   = qty * coef;
+                    const qty  = parseFloat(s['Quantidade'] || s.quantidade || 0) || 0;
+                    const coef = parseFloat(s.coeficiente || s.Coeficiente || 0) || 0;
+                    const hh   = (Number.isFinite(qty) && Number.isFinite(coef)) ? qty * coef : 0;
                     const cls  = this.classificarServicoV2(desc, tipoTurma);
                     if (coef === 0 && (s['É Customizado?'] || s.eCustomizado || '') !== 'SIM') servicosSemCoef++;
                     hhServ += hh; hhServDia += hh;
@@ -115,8 +126,9 @@ class VisaoGeral {
                     let hh = (dur / 60) * op;
                     if (tl.includes('chuva')) hh /= 2;
                     hhHIDia += hh;
-                    const chave = tipo || (hi['Descrição'] || hi.descricao || '') || 'Outros';
-                    const nc    = this._isNaoControlavel(tipo);
+                    const hiDesc = hi['Descrição'] || hi.descricao || '';
+                    const chave = tipo || hiDesc || 'Outros';
+                    const nc    = this._isNaoControlavel(tipo, hiDesc);
                     [perdasGlobal, perdasTurma].forEach(m => {
                         if (!m[chave]) m[chave] = { hh: 0, count: 0, tipo, controlavel: !nc };
                         m[chave].hh += hh; m[chave].count++;
@@ -140,6 +152,8 @@ class VisaoGeral {
                 diasTrabalhados: calc.contarDiasUnicos(rdosTurma),
                 diasBateuMeta,
                 diasUteis,
+                encarregados: [...encarregadosSet],
+                mediaOperadores: countOps > 0 ? totalOps / countOps : 0,
                 hhServicos: hhServ, hhPDM, hhCorrelato: hhCorr,
                 hhImprodutivas: hhImprodOficial,
                 servicos: toArr(servicosTurma),
@@ -169,7 +183,7 @@ class VisaoGeral {
         const hhTotal            = totalHHServ + totalHHImprod;
         const taxaProdutividade  = hhTotal > 0 ? (totalHHServ / hhTotal) * 100 : 0;
         const n                  = dadosTurmas.length;
-        const metaMensal         = tipoTurma === 'TP' ? n * 12 * 8 * diasUteis : n * 8 * diasUteis;
+        const metaMensal         = tipoTurma === 'TP' ? n * 12 * 6 * diasUteis : n * 8 * diasUteis;
         const percentualMeta     = metaMensal > 0 ? (totalHHServ / metaMensal) * 100 : 0;
         const hhNaoTrabalhado    = Math.max(0, metaMensal - totalHHServ - totalHHImprod);
         const hhNC               = perdasOrdenadas.filter(p => !p.controlavel).reduce((a, p) => a + p.hh, 0);
@@ -369,7 +383,7 @@ class VisaoGeral {
                         <div class="col-6 col-md-4"><strong>PDM</strong> — Produto Direto de Manutenção (atividade principal de via)</div>
                         <div class="col-6 col-md-4"><strong>Correlato</strong> — Atividade de apoio / manutenção geral</div>
                         <div class="col-6 col-md-4"><strong>HI</strong> — Horas Improdutivas (equipe presente, sem serviço)</div>
-                        <div class="col-6 col-md-4"><strong>Meta</strong> — ${s === 'tp' ? '12 operadores × 8h × dias úteis do mês' : '1 soldador × 8h × dias úteis do mês'}</div>
+                        <div class="col-6 col-md-4"><strong>Meta TP</strong> — 12 operadores × 6h × dias úteis = ${72} HH/dia &nbsp;·&nbsp; <strong>Meta TS</strong> — 1 soldador × 8h × dias úteis</div>
                         <div class="col-6 col-md-4"><strong>Taxa Prod</strong> — HH produtivo ÷ (produtivo + improdutivo)</div>
                     </div>
                 </div>
@@ -563,7 +577,7 @@ class VisaoGeral {
                 },
                 scales: {
                     x: { stacked: true, display: true, title: { display: true, text: 'HH' },
-                         max: Math.ceil(totais.metaMensal * 1.05) },
+                         max: Math.ceil(Math.max(totais.metaMensal, totais.hhServicos + totais.hhImprodutivas) * 1.05) },
                     y: { stacked: true, display: false },
                 },
             },
@@ -578,8 +592,9 @@ class VisaoGeral {
         if (!el) return;
         if (dados.turmas.length < 2) { el.innerHTML = ''; return; } // só faz sentido com ≥2 turmas
 
-        const isTP   = dados.tipoTurma === 'TP';
-        const metaDia = isTP ? 96 : 8;
+        const isTP        = dados.tipoTurma === 'TP';
+        const metaDia     = isTP ? 72 : 8;  // 12 op × 6h
+        const painelSuffix = containerId.endsWith('-tp') ? 'tp' : 'ts';
 
         // Funções de semáforo
         const sem = (v, g, y) => {
@@ -592,7 +607,7 @@ class VisaoGeral {
         const linhas = dados.turmas.map(t => {
             const taxaProd   = (t.hhServicos + t.hhImprodutivas) > 0
                 ? t.hhServicos / (t.hhServicos + t.hhImprodutivas) * 100 : 0;
-            const metaTurma  = isTP ? 12 * 8 * t.diasUteis : 8 * t.diasUteis;
+            const metaTurma  = isTP ? 12 * 6 * t.diasUteis : 8 * t.diasUteis;
             const pctMeta    = metaTurma > 0 ? t.hhServicos / metaTurma * 100 : 0;
             const hhDia      = t.diasTrabalhados > 0 ? t.hhServicos / t.diasTrabalhados : 0;
             const pctDias    = t.numRDOs > 0 ? t.diasBateuMeta / t.numRDOs * 100 : 0;
@@ -614,7 +629,7 @@ class VisaoGeral {
                             <thead class="table-light">
                                 <tr>
                                     <th title="Código identificador da turma">Turma</th>
-                                    <th class="text-center" style="background:rgba(25,118,210,.07);" title="Percentual de HH produtivo em relação à meta mensal da turma (${isTP?'12 op × 8h × dias úteis':'1 soldador × 8h × dias úteis'})">% Meta ↑</th>
+                                    <th class="text-center" style="background:rgba(25,118,210,.07);" title="Percentual de HH produtivo em relação à meta mensal da turma (${isTP?'12 op × 6h × dias úteis':'1 soldador × 8h × dias úteis'})">% Meta ↑</th>
                                     <th class="text-end" title="HH produtivo médio por dia trabalhado (registros com serviços)">HH/dia</th>
                                     <th class="text-center" title="Taxa de produtividade = HH produtivo ÷ (HH produtivo + HH improdutivo). Indica eficiência do tempo presente.">Taxa Prod</th>
                                     <th class="text-center" title="Número de RDOs (registros diários) em que o HH produtivo atingiu ou superou a meta diária de ${metaDia} HH. Não são 'dias de calendário'.">RDOs ≥ meta</th>
@@ -625,8 +640,8 @@ class VisaoGeral {
                             </thead>
                             <tbody>
                                 ${linhas.map(({ t, taxaProd, pctMeta, hhDia, pctDias, pctPDM, pctImprod }) => `
-                                <tr>
-                                    <td class="fw-semibold">${escapeHtml(t.turma)}</td>
+                                <tr style="cursor:pointer;" onclick="visaoGeral._abrirDetalhesTurma('${escAttr(t.turma)}', '${escAttr(painelSuffix)}')">
+                                    <td class="fw-semibold text-primary text-decoration-underline" style="cursor:pointer;">${escapeHtml(t.turma)}<i class="fas fa-external-link-alt ms-1" style="font-size:.6rem; opacity:.5;"></i></td>
                                     <td class="text-center fw-bold" style="background:rgba(25,118,210,.05);">${sem(pctMeta, 80, 50)} <span class="small">${pctMeta.toFixed(1)}%</span></td>
                                     <td class="text-end">${hhDia.toFixed(1)}</td>
                                     <td class="text-center">${sem(taxaProd, 70, 55)} <span class="small">${taxaProd.toFixed(1)}%</span></td>
@@ -644,8 +659,8 @@ class VisaoGeral {
                             <i class="fas fa-circle text-warning me-1"></i>Atenção &nbsp;
                             <i class="fas fa-circle text-danger me-1"></i>Crítico &nbsp;·&nbsp;
                             <strong>"RDOs ≥ meta"</strong> = registros diários com HH produtivo ≥ ${metaDia} HH (não são dias corridos) &nbsp;·&nbsp;
-                            <strong>"% Meta"</strong> = HH produtivo ÷ meta mensal &nbsp;·&nbsp;
-                            Passe o mouse nos cabeçalhos para mais detalhes
+                            <strong>"% Meta"</strong> = HH produtivo ÷ meta mensal (${isTP ? '12 op × 6h' : '1 soldador × 8h'} × dias úteis) &nbsp;·&nbsp;
+                            <i class="fas fa-hand-pointer text-primary me-1"></i>Clique em uma turma para ver detalhes completos
                         </small>
                     </div>
                 </div>
@@ -1128,6 +1143,270 @@ class VisaoGeral {
                 <p class="small text-muted mt-2 mb-0"><i class="fas fa-info-circle me-1"></i>Inconsistências podem afetar cálculos de HH e médias de efetivo.</p>
             </div>
         </div>`;
+    }
+
+    // ── Detalhe de Turma (offcanvas) ──────────────────────────────────────────
+
+    _criarOffcanvas() {
+        if (document.getElementById('vg-offcanvas')) return;
+        const el = document.createElement('div');
+        el.className = 'offcanvas offcanvas-end';
+        el.id = 'vg-offcanvas';
+        el.setAttribute('tabindex', '-1');
+        el.style.cssText = 'width:min(720px,96vw);';
+        el.innerHTML = `
+            <div class="offcanvas-header border-bottom py-2" style="background:linear-gradient(135deg,#1565C0,#1976D2);">
+                <div class="d-flex flex-column">
+                    <h5 class="offcanvas-title text-white mb-0" id="vg-oc-title"></h5>
+                    <small class="text-white text-opacity-75" id="vg-oc-subtitle"></small>
+                </div>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="offcanvas"></button>
+            </div>
+            <div class="offcanvas-body p-0" id="vg-oc-body" style="overflow-y:auto;"></div>`;
+        document.body.appendChild(el);
+    }
+
+    _abrirDetalhesTurma(turmaId, suffix) {
+        this._criarOffcanvas();
+        const dados   = suffix === 'tp' ? this._dadosTPS : this._dadosTS;
+        const turma   = dados?.turmas.find(t => t.turma === turmaId);
+        if (!turma || !dados) return;
+
+        const isTP     = dados.tipoTurma === 'TP';
+        const metaDia  = isTP ? 72 : 8;
+        const metaTurma = metaDia * turma.diasUteis;
+        const hhTotal  = turma.hhServicos + turma.hhImprodutivas;
+        const taxaProd = hhTotal > 0 ? turma.hhServicos / hhTotal * 100 : 0;
+        const pctMeta  = metaTurma > 0 ? turma.hhServicos / metaTurma * 100 : 0;
+        const hhDia    = turma.diasTrabalhados > 0 ? turma.hhServicos / turma.diasTrabalhados : 0;
+        const gap      = Math.max(0, metaTurma - turma.hhServicos - turma.hhImprodutivas);
+        const pctDias  = turma.numRDOs > 0 ? turma.diasBateuMeta / turma.numRDOs * 100 : 0;
+
+        const enc   = turma.encarregados?.join(', ') || '—';
+        const medOp = turma.mediaOperadores > 0 ? turma.mediaOperadores.toFixed(1) : '—';
+
+        const sem = (v, g, y) => {
+            if (v >= g) return 'text-success';
+            if (v >= y) return 'text-warning';
+            return 'text-danger';
+        };
+
+        // Colorir barra de composição da meta
+        const barPDM    = metaTurma > 0 ? (turma.hhPDM / metaTurma * 100) : 0;
+        const barCorr   = metaTurma > 0 ? (turma.hhCorrelato / metaTurma * 100) : 0;
+        const barNC     = metaTurma > 0 ? (turma.perdas.filter(p=>!p.controlavel).reduce((a,p)=>a+p.hh,0) / metaTurma * 100) : 0;
+        const barC      = metaTurma > 0 ? (turma.perdas.filter(p=>p.controlavel).reduce((a,p)=>a+p.hh,0) / metaTurma * 100) : 0;
+        const barGap    = metaTurma > 0 ? (gap / metaTurma * 100) : 0;
+
+        const topServicos = turma.servicos.slice(0, 8);
+        const topPerdas   = turma.perdas.slice(0, 8);
+        const maxSHH = topServicos[0]?.hh || 1;
+        const maxPHH = topPerdas[0]?.hh || 1;
+        const classPDM = isTP ? 'PDM_TPS' : 'PDM_SOLDA';
+
+        document.getElementById('vg-oc-title').textContent = `${turmaId}`;
+        document.getElementById('vg-oc-subtitle').textContent =
+            `${turma.numRDOs} RDOs · ${turma.diasTrabalhados} dias trabalhados · ${turma.diasUteis} dias úteis no mês`;
+
+        document.getElementById('vg-oc-body').innerHTML = `
+            <!-- Info operacional -->
+            <div class="px-3 py-2 border-bottom bg-light">
+                <div class="row g-2 align-items-center">
+                    <div class="col-auto"><i class="fas fa-user-tie text-primary me-1"></i><strong>Encarregado(a):</strong> ${escapeHtml(enc)}</div>
+                    <div class="col-auto text-muted">|</div>
+                    <div class="col-auto"><i class="fas fa-users text-secondary me-1"></i><strong>Méd. Operadores:</strong> ${escapeHtml(medOp)}</div>
+                    <div class="col-auto text-muted">|</div>
+                    <div class="col-auto"><i class="fas fa-calendar-check text-success me-1"></i><strong>RDOs ≥ meta:</strong> ${turma.diasBateuMeta}/${turma.numRDOs} <span class="text-muted">(${pctDias.toFixed(0)}%)</span></div>
+                </div>
+            </div>
+
+            <!-- KPIs -->
+            <div class="row g-0 border-bottom text-center">
+                <div class="col border-end py-3">
+                    <p class="small text-muted mb-1">HH Produtivo</p>
+                    <h5 class="fw-bold text-success mb-0">${turma.hhServicos.toFixed(0)}</h5>
+                    <small class="text-muted">${hhDia.toFixed(1)} HH/dia</small>
+                </div>
+                <div class="col border-end py-3">
+                    <p class="small text-muted mb-1">% da Meta</p>
+                    <h5 class="fw-bold ${sem(pctMeta,80,50)} mb-0">${pctMeta.toFixed(1)}%</h5>
+                    <small class="text-muted">meta: ${metaTurma.toFixed(0)} HH</small>
+                </div>
+                <div class="col border-end py-3">
+                    <p class="small text-muted mb-1">Taxa Produt.</p>
+                    <h5 class="fw-bold ${sem(taxaProd,70,55)} mb-0">${taxaProd.toFixed(1)}%</h5>
+                    <small class="text-muted">prod/(prod+impr)</small>
+                </div>
+                <div class="col py-3">
+                    <p class="small text-muted mb-1">HH Improdut.</p>
+                    <h5 class="fw-bold text-danger mb-0">${turma.hhImprodutivas.toFixed(0)}</h5>
+                    <small class="text-muted">${hhTotal > 0 ? (turma.hhImprodutivas/hhTotal*100).toFixed(1) : 0}% do total</small>
+                </div>
+            </div>
+
+            <!-- Barra de composição da meta -->
+            <div class="px-3 py-2 border-bottom">
+                <p class="small text-muted mb-2 fw-semibold">Composição da Meta (${metaTurma.toFixed(0)} HH = 100%)</p>
+                <div class="d-flex rounded overflow-hidden mb-2" style="height:22px;">
+                    ${barPDM  > 0.5 ? `<div style="width:${barPDM.toFixed(1)}%;background:#1565C0;" title="PDM: ${turma.hhPDM.toFixed(0)} HH"></div>` : ''}
+                    ${barCorr > 0.5 ? `<div style="width:${barCorr.toFixed(1)}%;background:#42A5F5;" title="Correlato: ${turma.hhCorrelato.toFixed(0)} HH"></div>` : ''}
+                    ${barNC   > 0.5 ? `<div style="width:${barNC.toFixed(1)}%;background:#C62828;" title="NC: ${(barNC/100*metaTurma).toFixed(0)} HH"></div>` : ''}
+                    ${barC    > 0.5 ? `<div style="width:${barC.toFixed(1)}%;background:#FF7043;" title="Controláveis: ${(barC/100*metaTurma).toFixed(0)} HH"></div>` : ''}
+                    ${barGap  > 0.5 ? `<div style="width:${barGap.toFixed(1)}%;background:#BDBDBD;" title="Gap/Não trabalhado: ${gap.toFixed(0)} HH"></div>` : ''}
+                </div>
+                <div class="d-flex flex-wrap gap-3" style="font-size:.72rem;">
+                    <span><span style="display:inline-block;width:10px;height:10px;background:#1565C0;border-radius:2px;"></span> PDM ${turma.hhPDM.toFixed(0)} HH</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;background:#42A5F5;border-radius:2px;"></span> Correlato ${turma.hhCorrelato.toFixed(0)} HH</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;background:#C62828;border-radius:2px;"></span> Perdas NC ${(barNC/100*metaTurma).toFixed(0)} HH</span>
+                    <span><span style="display:inline-block;width:10px;height:10px;background:#FF7043;border-radius:2px;"></span> Controláveis ${(barC/100*metaTurma).toFixed(0)} HH</span>
+                    ${gap > 0 ? `<span><span style="display:inline-block;width:10px;height:10px;background:#BDBDBD;border-radius:2px;"></span> Gap ${gap.toFixed(0)} HH</span>` : ''}
+                </div>
+            </div>
+
+            <!-- Gráficos -->
+            <div class="row g-0 border-bottom">
+                <div class="col-md-5 border-end p-3">
+                    <p class="small text-muted fw-semibold mb-2"><i class="fas fa-chart-pie me-1 text-warning"></i>Composição das Horas</p>
+                    <canvas id="vg-oc-chart-comp" height="200"></canvas>
+                </div>
+                <div class="col-md-7 p-3">
+                    <p class="small text-muted fw-semibold mb-2"><i class="fas fa-chart-bar me-1 text-primary"></i>Top Serviços por HH</p>
+                    <canvas id="vg-oc-chart-serv" height="200"></canvas>
+                </div>
+            </div>
+
+            <!-- Listas lado a lado -->
+            <div class="row g-0">
+                <!-- Lista serviços -->
+                <div class="col-md-6 border-end p-3">
+                    <p class="small text-muted fw-semibold mb-2"><i class="fas fa-list-ul me-1 text-success"></i>Serviços Realizados (${turma.servicos.length})</p>
+                    <div style="max-height:280px;overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light" style="position:sticky;top:0;z-index:1;"><tr>
+                                <th style="font-size:.72rem;">Serviço</th>
+                                <th class="text-center" style="font-size:.72rem;width:44px;">Tipo</th>
+                                <th class="text-end" style="font-size:.72rem;width:54px;">HH</th>
+                                <th class="text-end" style="font-size:.72rem;width:40px;">Ocr</th>
+                            </tr></thead>
+                            <tbody>${turma.servicos.map(s => {
+                                const isPDM = s.classificacao === classPDM;
+                                return `<tr>
+                                    <td style="font-size:.75rem;max-width:150px;" class="text-truncate" title="${escAttr(s.descricao)}">
+                                        <div style="height:2px;width:${(s.hh/maxSHH*100).toFixed(0)}%;background:${isPDM?'#1976D2':'#90CAF9'};border-radius:2px;margin-bottom:1px;"></div>
+                                        ${escapeHtml(s.descricao)}
+                                    </td>
+                                    <td class="text-center">${isPDM?'<span class="badge bg-primary bg-opacity-75" style="font-size:.6rem;">PDM</span>':'<span class="badge bg-secondary bg-opacity-50" style="font-size:.6rem;">Corr</span>'}</td>
+                                    <td class="text-end fw-bold" style="font-size:.75rem;">${s.hh.toFixed(1)}</td>
+                                    <td class="text-end text-muted" style="font-size:.75rem;">${s.ocorrencias}</td>
+                                </tr>`;
+                            }).join('')}</tbody>
+                        </table>
+                    </div>
+                </div>
+                <!-- Lista perdas -->
+                <div class="col-md-6 p-3">
+                    <p class="small text-muted fw-semibold mb-2"><i class="fas fa-exclamation-triangle me-1 text-danger"></i>Horas Improdutivas (${turma.perdas.length} tipos)</p>
+                    <div style="max-height:280px;overflow-y:auto;">
+                        ${turma.perdas.length ? `<table class="table table-sm table-hover mb-0">
+                            <thead class="table-light" style="position:sticky;top:0;z-index:1;"><tr>
+                                <th style="font-size:.72rem;">Tipo / Causa</th>
+                                <th class="text-center" style="font-size:.72rem;width:44px;"></th>
+                                <th class="text-end" style="font-size:.72rem;width:54px;">HH</th>
+                                <th class="text-end" style="font-size:.72rem;width:40px;">Ocr</th>
+                            </tr></thead>
+                            <tbody>${turma.perdas.map(p => {
+                                const isNC = !p.controlavel;
+                                return `<tr>
+                                    <td style="font-size:.75rem;max-width:150px;" class="text-truncate" title="${escAttr(p.chave)}">
+                                        <div style="height:2px;width:${(p.hh/maxPHH*100).toFixed(0)}%;background:${isNC?'#C62828':'#FF7043'};border-radius:2px;margin-bottom:1px;"></div>
+                                        ${escapeHtml(p.chave)}
+                                    </td>
+                                    <td class="text-center">${isNC?'<span class="badge bg-danger bg-opacity-75" style="font-size:.6rem;">NC</span>':'<span class="badge bg-warning text-dark bg-opacity-75" style="font-size:.6rem;">Ctrl</span>'}</td>
+                                    <td class="text-end fw-bold text-danger" style="font-size:.75rem;">${p.hh.toFixed(1)}</td>
+                                    <td class="text-end text-muted" style="font-size:.75rem;">${p.count}</td>
+                                </tr>`;
+                            }).join('')}</tbody>
+                        </table>` : '<p class="text-muted small text-center py-3">Nenhuma HI registrada.</p>'}
+                    </div>
+                </div>
+            </div>`;
+
+        // Renderizar gráficos
+        this._renderizarGraficoDetalheComp(turma, dados, gap, metaTurma);
+        this._renderizarGraficoDetalheServ(turma, dados);
+
+        // Abrir offcanvas
+        const ocEl = document.getElementById('vg-offcanvas');
+        const oc   = bootstrap.Offcanvas.getOrCreateInstance(ocEl);
+        oc.show();
+    }
+
+    _renderizarGraficoDetalheComp(turma, dados, gap, metaTurma) {
+        this._destroyChart('vg-oc-chart-comp');
+        const canvas = document.getElementById('vg-oc-chart-comp');
+        if (!canvas) return;
+        const isTP = dados.tipoTurma === 'TP';
+        const nc   = turma.perdas.filter(p => !p.controlavel).reduce((a,p) => a+p.hh, 0);
+        const c    = turma.perdas.filter(p =>  p.controlavel).reduce((a,p) => a+p.hh, 0);
+        const labels = [isTP ? 'PDM TPS' : 'PDM Solda', isTP ? 'Correlato TPS' : 'Correlato Solda', 'Perdas NC', 'Controláveis'];
+        const vals   = [turma.hhPDM, turma.hhCorrelato, nc, c];
+        const colors = ['#1565C0', '#42A5F5', '#C62828', '#FF7043'];
+        if (gap > 0.5) { labels.push('Gap/Meta não atingida'); vals.push(gap); colors.push('#BDBDBD'); }
+        this._charts['vg-oc-chart-comp'] = new Chart(canvas, {
+            type: 'doughnut',
+            data: { labels, datasets: [{ data: vals, backgroundColor: colors, borderWidth: 2 }] },
+            options: {
+                responsive: true, maintainAspectRatio: true,
+                plugins: {
+                    legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } },
+                    tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw.toFixed(0)} HH (${(ctx.raw/(metaTurma||1)*100).toFixed(1)}% da meta)` } },
+                    datalabels: {
+                        color: ctx => ['#1565C0','#C62828'].includes(colors[ctx.dataIndex]) ? '#fff' : '#333',
+                        font: { size: 10, weight: 'bold' },
+                        formatter: (v, ctx) => {
+                            const tot = ctx.chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
+                            return tot > 0 && v/tot > 0.05 ? `${(v/tot*100).toFixed(0)}%` : '';
+                        },
+                    },
+                },
+            },
+            plugins: [ChartDataLabels],
+        });
+    }
+
+    _renderizarGraficoDetalheServ(turma, dados) {
+        this._destroyChart('vg-oc-chart-serv');
+        const canvas = document.getElementById('vg-oc-chart-serv');
+        if (!canvas) return;
+        const isTP   = dados.tipoTurma === 'TP';
+        const classPDM = isTP ? 'PDM_TPS' : 'PDM_SOLDA';
+        const top8   = turma.servicos.slice(0, 8);
+        if (!top8.length) return;
+        const labels = top8.map(s => s.descricao.length > 25 ? s.descricao.substring(0,23)+'…' : s.descricao);
+        const vals   = top8.map(s => +s.hh.toFixed(1));
+        const colors = top8.map(s => s.classificacao === classPDM ? '#1976D2' : '#64B5F6');
+        canvas.height = Math.max(160, top8.length * 32);
+        this._charts['vg-oc-chart-serv'] = new Chart(canvas, {
+            type: 'bar',
+            data: { labels, datasets: [{ data: vals, backgroundColor: colors, borderWidth: 0 }] },
+            options: {
+                indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: { callbacks: { label: ctx => ` ${ctx.raw.toFixed(1)} HH` } },
+                    datalabels: {
+                        anchor: 'end', align: 'right', color: '#333', font: { size: 10 },
+                        formatter: v => v.toFixed(0),
+                    },
+                },
+                scales: {
+                    x: { beginAtZero: true, title: { display: true, text: 'HH' } },
+                    y: { ticks: { font: { size: 10 } } },
+                },
+                layout: { padding: { right: 30 } },
+            },
+            plugins: [ChartDataLabels],
+        });
     }
 
     // ── Utilitário ────────────────────────────────────────────────────────────
