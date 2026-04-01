@@ -31,3 +31,32 @@ dashboard/js/config.js
 coef
 normalized
 nul
+
+# Cloudflare Wrangler — cache de build local
+.wrangler/
+
+# Credenciais Google Service Account — NUNCA COMITAR!
+rdo-engecom-*.json
+
+# Logs e arquivos de diagnóstico temporários
+logcat.txt
+sheets_data.json
+sheets_output.txt
+
+# Relatórios de análise gerados automaticamente (não são código)
+ANALISE_SHEETS_RESULTADO.txt
+RELATORIO_ANALISE_APP.txt
+RELATORIO_ANALISE_APP_COMPLETO.txt
+dashboard/relatorio-analise-dashboard.txt
+dashboard/relatorio-gestao-os.txt
+dashboard/relatorio-tps.txt
+dashboard/RELATORIO_ANALISE_VISAO_GERAL_ATUAL.md
+dashboard/RELATORIO_INTEGRIDADE_SYNC.md
+dashboard/RELATORIO_MELHORIAS_VISAO_GERAL.md
+dashboard/RELATORIO_PONTOS_CONFUSAO_VISAO_GERAL.md
+
+# Settings locais do Claude Code (pessoal, não é configuração do projeto)
+.claude/settings.local.json
+dashboard/.claude/settings.local.json
+.claude/launch.json
+.claude/worktrees/
