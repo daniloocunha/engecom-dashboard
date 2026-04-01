@@ -1228,3 +1228,26 @@ canvas {
     border-left-width: 5px;
     transform: translateX(2px);
 }
+
+/* ============================================
+   VISÃO GERAL — tamanhos de fonte ampliados
+   ============================================ */
+#vg-tp, #vg-ts {
+    font-size: .9rem;
+}
+#vg-tp table, #vg-ts table {
+    font-size: .85rem;
+}
+#vg-tp .small, #vg-ts .small {
+    font-size: .82rem !important;
+}
+#vg-tp .kpi-card .card-body,
+#vg-ts .kpi-card .card-body {
+    font-size: .9rem;
+}
+#vg-offcanvas table {
+    font-size: .84rem;
+}
+#vg-offcanvas .small {
+    font-size: .82rem !important;
+}

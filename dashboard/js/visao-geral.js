@@ -129,9 +129,11 @@ class VisaoGeral {
                     const hiDesc = hi['Descrição'] || hi.descricao || '';
                     const chave = tipo || hiDesc || 'Outros';
                     const nc    = this._isNaoControlavel(tipo, hiDesc);
+                    const reg   = { numRDO, data: dataNorm, horaInicio: inicio, horaFim: fim, operadores: op, hh, descricao: hiDesc };
                     [perdasGlobal, perdasTurma].forEach(m => {
-                        if (!m[chave]) m[chave] = { hh: 0, count: 0, tipo, controlavel: !nc };
+                        if (!m[chave]) m[chave] = { hh: 0, count: 0, tipo, controlavel: !nc, registros: [] };
                         m[chave].hh += hh; m[chave].count++;
+                        m[chave].registros.push(reg);
                     });
                 });
 
@@ -272,8 +274,8 @@ class VisaoGeral {
                             <small class="text-muted fst-italic">A barra soma 100% da meta mensal. Blocos cinzas = horas não alocadas (meta não atingida).</small>
                         </div>
                     </div>
-                    <div class="card-body" style="position:relative; min-height:90px;">
-                        <canvas id="chart-vg-comp-${s}" height="80"></canvas>
+                    <div class="card-body" style="position:relative; height:170px;">
+                        <canvas id="chart-vg-comp-${s}"></canvas>
                     </div>
                 </div>
             </div></div>
@@ -297,18 +299,6 @@ class VisaoGeral {
                     </div>
                     <div class="card-body" style="position:relative; min-height:200px;">
                         <canvas id="chart-vg-prod-${s}"></canvas>
-                    </div>
-                </div>
-            </div></div>
-
-            <!-- 6. Evolução diária -->
-            <div class="row mb-4"><div class="col-12">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-white">
-                        <h6 class="mb-0"><i class="fas fa-chart-line me-2 text-success"></i>Evolução Diária de HH</h6>
-                    </div>
-                    <div class="card-body" style="position:relative; min-height:200px;">
-                        <canvas id="chart-vg-evolucao-${s}"></canvas>
                     </div>
                 </div>
             </div></div>
@@ -395,7 +385,6 @@ class VisaoGeral {
         this._renderizarGraficoComposicao(s, dados);
         this._renderizarScorecard(`vg-scorecard-${s}`, dados);
         this._renderizarGraficoProdutividade(s, dados);
-        this._renderizarGraficoEvolucao(s, dados);
         this._renderizarGraficoClassificacao(s, dados);
         this._renderizarTopServicos(`vg-top-servicos-${s}`, dados, s);
         this._renderizarPerdasSplit(`vg-perdas-split-${s}`, dados, s);
@@ -461,23 +450,23 @@ class VisaoGeral {
         const fmtPct = n => Number.isFinite(n) ? n.toFixed(1) + '%' : '-%';
 
         const kpis = isTP ? [
-            { label: 'HH Produtivo Total',   value: `${fmt(totais.hhServicos)} HH`,     icon: 'fa-clock',        color: 'success',
+            { label: 'HH Produtivo Total',        value: `${fmt(totais.hhServicos)} HH`,     icon: 'fa-clock',        color: 'success',
               sub: `${fmt(totais.hhPDM)} PDM + ${fmt(totais.hhCorrelato)} Correlato` },
-            { label: 'HH Improdutivo Total', value: `${fmt(totais.hhImprodutivas)} HH`, icon: 'fa-pause-circle', color: 'danger',
+            { label: 'HH Improdutivo Total',      value: `${fmt(totais.hhImprodutivas)} HH`, icon: 'fa-pause-circle', color: 'danger',
               sub: `${fmt(totais.hhNC)} não control. + ${fmt(totais.hhC)} control.` },
-            { label: 'Taxa de Produtividade',value: fmtPct(totais.taxaProdutividade),   icon: 'fa-percentage',   color: totais.taxaProdutividade >= 70 ? 'primary' : 'warning',
-              sub: 'Produtivo / (Produtivo + Improdutivo)' },
-            { label: 'Meta vs Realizado',     value: fmtPct(totais.percentualMeta),      icon: 'fa-bullseye',     color: totais.percentualMeta >= 80 ? 'info' : 'warning',
+            { label: 'Total de Horas Entregues',  value: `${fmt(totais.hhTotal)} HH`,        icon: 'fa-layer-group',  color: 'info',
+              sub: 'Produtivo + Improdutivo' },
+            { label: 'Meta vs Realizado',          value: fmtPct(totais.percentualMeta),      icon: 'fa-bullseye',     color: totais.percentualMeta >= 80 ? 'info' : 'warning',
               sub: `Meta ${fmt(totais.metaMensal)} HH no mês` },
         ] : [
-            { label: 'HH Soldador Total',        value: `${fmt(totais.hhServicos)} HH`,     icon: 'fa-fire',         color: 'warning',
+            { label: 'HH Soldador Total',         value: `${fmt(totais.hhServicos)} HH`,     icon: 'fa-fire',         color: 'warning',
               sub: `${fmt(totais.hhPDM)} PDM + ${fmt(totais.hhCorrelato)} Correlato` },
-            { label: 'Soldas Aluminotérmicas',   value: dados.servicos.filter(s => s.classificacao === 'PDM_SOLDA').reduce((a,s) => a+s.qty,0).toFixed(0),
+            { label: 'Soldas Aluminotérmicas',    value: dados.servicos.filter(s => s.classificacao === 'PDM_SOLDA').reduce((a,s) => a+s.qty,0).toFixed(0),
               icon: 'fa-certificate', color: 'success', sub: 'Quantidade total de soldas PDM' },
-            { label: 'HH Improdutivo TS',        value: `${fmt(totais.hhImprodutivas)} HH`, icon: 'fa-pause-circle', color: 'danger',
+            { label: 'HH Improdutivo TS',         value: `${fmt(totais.hhImprodutivas)} HH`, icon: 'fa-pause-circle', color: 'danger',
               sub: `${fmt(totais.hhImprodutivas / (dados.turmas.length||1))} HH/turma` },
-            { label: 'Taxa de Produtividade',    value: fmtPct(totais.taxaProdutividade),   icon: 'fa-percentage',   color: totais.taxaProdutividade >= 70 ? 'primary' : 'warning',
-              sub: 'Soldador / (Soldador + Improdutivo)' },
+            { label: 'Total de Horas Entregues',  value: `${fmt(totais.hhTotal)} HH`,        icon: 'fa-layer-group',  color: 'info',
+              sub: 'Soldador + Improdutivo' },
         ];
 
         el.innerHTML = kpis.map(k => `
@@ -546,6 +535,8 @@ class VisaoGeral {
             });
         }
 
+        datasets.forEach(ds => { ds.barThickness = 60; });
+
         this._charts[id] = new Chart(canvas, {
             type: 'bar',
             data: { labels: [''], datasets },
@@ -554,7 +545,7 @@ class VisaoGeral {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+                    legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 12 } } },
                     tooltip: {
                         callbacks: {
                             label: ctx => {
@@ -605,16 +596,14 @@ class VisaoGeral {
 
         // Calcular métricas por turma
         const linhas = dados.turmas.map(t => {
-            const taxaProd   = (t.hhServicos + t.hhImprodutivas) > 0
-                ? t.hhServicos / (t.hhServicos + t.hhImprodutivas) * 100 : 0;
-            const metaTurma  = isTP ? 12 * 6 * t.diasUteis : 8 * t.diasUteis;
-            const pctMeta    = metaTurma > 0 ? t.hhServicos / metaTurma * 100 : 0;
-            const hhDia      = t.diasTrabalhados > 0 ? t.hhServicos / t.diasTrabalhados : 0;
-            const pctDias    = t.numRDOs > 0 ? t.diasBateuMeta / t.numRDOs * 100 : 0;
-            const pctPDM     = t.hhServicos > 0 ? t.hhPDM / t.hhServicos * 100 : 0;
-            const pctImprod  = (t.hhServicos + t.hhImprodutivas) > 0
-                ? t.hhImprodutivas / (t.hhServicos + t.hhImprodutivas) * 100 : 0;
-            return { t, taxaProd, pctMeta, hhDia, pctDias, pctPDM, pctImprod };
+            const hhEntregues = t.hhServicos + t.hhImprodutivas;
+            const metaTurma   = isTP ? 12 * 6 * t.diasUteis : 8 * t.diasUteis;
+            const pctMeta     = metaTurma > 0 ? hhEntregues / metaTurma * 100 : 0;
+            const hhDia       = t.diasTrabalhados > 0 ? t.hhServicos / t.diasTrabalhados : 0;
+            const pctDias     = t.numRDOs > 0 ? t.diasBateuMeta / t.numRDOs * 100 : 0;
+            const pctPDM      = t.hhServicos > 0 ? t.hhPDM / t.hhServicos * 100 : 0;
+            const pctImprod   = hhEntregues > 0 ? t.hhImprodutivas / hhEntregues * 100 : 0;
+            return { t, hhEntregues, pctMeta, hhDia, pctDias, pctPDM, pctImprod };
         });
 
         el.innerHTML = `
@@ -629,22 +618,22 @@ class VisaoGeral {
                             <thead class="table-light">
                                 <tr>
                                     <th title="Código identificador da turma">Turma</th>
-                                    <th class="text-center" style="background:rgba(25,118,210,.07);" title="Percentual de HH produtivo em relação à meta mensal da turma (${isTP?'12 op × 6h × dias úteis':'1 soldador × 8h × dias úteis'})">% Meta ↑</th>
+                                    <th class="text-center" style="background:rgba(25,118,210,.07);" title="(HH Produtivo + HH Improdutivo) ÷ meta mensal da turma (${isTP?'12 op × 6h × dias úteis':'1 soldador × 8h × dias úteis'})">% Meta ↑</th>
                                     <th class="text-end" title="HH produtivo médio por dia trabalhado (registros com serviços)">HH/dia</th>
-                                    <th class="text-center" title="Taxa de produtividade = HH produtivo ÷ (HH produtivo + HH improdutivo). Indica eficiência do tempo presente.">Taxa Prod</th>
-                                    <th class="text-center" title="Número de RDOs (registros diários) em que o HH produtivo atingiu ou superou a meta diária de ${metaDia} HH. Não são 'dias de calendário'.">RDOs ≥ meta</th>
+                                    <th class="text-center" title="Total de HH entregues = HH Produtivo + HH Improdutivo">Total Entregues</th>
+                                    <th class="text-center" title="Número de dias em que o HH produtivo atingiu ou superou a meta diária de ${metaDia} HH.">Dias ≥ META</th>
                                     <th class="text-center" title="Percentual de PDM (Produtos Diretos de Manutenção) sobre o HH produtivo total. Maior = mais atividades de alta prioridade.">PDM%</th>
                                     <th class="text-center" title="Percentual de HH improdutivo sobre o total (produtivo + improdutivo). Menor = melhor.">% Improd</th>
                                     <th class="text-end" title="Total de HH produtivo no período">HH Prod</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${linhas.map(({ t, taxaProd, pctMeta, hhDia, pctDias, pctPDM, pctImprod }) => `
+                                ${linhas.map(({ t, hhEntregues, pctMeta, hhDia, pctDias, pctPDM, pctImprod }) => `
                                 <tr style="cursor:pointer;" onclick="visaoGeral._abrirDetalhesTurma('${escAttr(t.turma)}', '${escAttr(painelSuffix)}')">
                                     <td class="fw-semibold text-primary text-decoration-underline" style="cursor:pointer;">${escapeHtml(t.turma)}<i class="fas fa-external-link-alt ms-1" style="font-size:.6rem; opacity:.5;"></i></td>
                                     <td class="text-center fw-bold" style="background:rgba(25,118,210,.05);">${sem(pctMeta, 80, 50)} <span class="small">${pctMeta.toFixed(1)}%</span></td>
                                     <td class="text-end">${hhDia.toFixed(1)}</td>
-                                    <td class="text-center">${sem(taxaProd, 70, 55)} <span class="small">${taxaProd.toFixed(1)}%</span></td>
+                                    <td class="text-center fw-semibold"><span class="small">${hhEntregues.toFixed(0)} HH</span></td>
                                     <td class="text-center">${sem(pctDias, 60, 30)} <span class="small">${t.diasBateuMeta}/${t.numRDOs} <span class="text-muted">(${pctDias.toFixed(0)}%)</span></span></td>
                                     <td class="text-center"><span class="small">${pctPDM.toFixed(0)}%</span></td>
                                     <td class="text-center">${sem(100-pctImprod, 70, 55)} <span class="small">${pctImprod.toFixed(1)}%</span></td>
@@ -658,7 +647,7 @@ class VisaoGeral {
                             <i class="fas fa-circle text-success me-1"></i>Bom &nbsp;
                             <i class="fas fa-circle text-warning me-1"></i>Atenção &nbsp;
                             <i class="fas fa-circle text-danger me-1"></i>Crítico &nbsp;·&nbsp;
-                            <strong>"RDOs ≥ meta"</strong> = registros diários com HH produtivo ≥ ${metaDia} HH (não são dias corridos) &nbsp;·&nbsp;
+                            <strong>"Dias ≥ META"</strong> = dias com HH produtivo ≥ ${metaDia} HH &nbsp;·&nbsp;
                             <strong>"% Meta"</strong> = HH produtivo ÷ meta mensal (${isTP ? '12 op × 6h' : '1 soldador × 8h'} × dias úteis) &nbsp;·&nbsp;
                             <i class="fas fa-hand-pointer text-primary me-1"></i>Clique em uma turma para ver detalhes completos
                         </small>
@@ -720,84 +709,40 @@ class VisaoGeral {
         const hhImprod = dados.turmas.map(t => +this._transformarHH(t.hhImprodutivas,  t, escala).toFixed(2));
         const totais   = labels.map((_, i) => hhPDM[i] + hhCorr[i] + hhImprod[i]);
 
-        canvas.height = Math.max(200, labels.length * 48);
+        const chartH = Math.max(300, labels.length * 80);
+        canvas.parentElement.style.height = `${chartH}px`;
 
         this._charts[id] = new Chart(canvas, {
             type: 'bar',
             data: { labels, datasets: [
-                { label: isTP ? 'PDM TPS'      : 'PDM Solda',       data: hhPDM,    backgroundColor: '#1976D2', stack: 'hh' },
-                { label: isTP ? 'Correlato TPS' : 'Correlato Solda', data: hhCorr,   backgroundColor: '#64B5F6', stack: 'hh' },
-                { label: 'HI (Improdutivas)',                         data: hhImprod, backgroundColor: '#EF5350', stack: 'hh' },
+                { label: isTP ? 'PDM TPS'       : 'PDM Solda',       data: hhPDM,    backgroundColor: '#1976D2', stack: 'hh', barThickness: 32 },
+                { label: isTP ? 'Correlato TPS' : 'Correlato Solda', data: hhCorr,   backgroundColor: '#64B5F6', stack: 'hh', barThickness: 32 },
+                { label: 'HI (Improdutivas)',                          data: hhImprod, backgroundColor: '#EF5350', stack: 'hh', barThickness: 32 },
             ]},
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                 onClick: (_, els) => { if (els.length) this._aplicarFiltroTurma(suffix, labels[els[0].index]); },
                 plugins: {
-                    legend: { position: 'top' },
+                    legend: { position: 'top', labels: { font: { size: 13 } } },
                     tooltip: { callbacks: {
                         label: ctx => ` ${ctx.dataset.label}: ${ctx.raw.toFixed(1)} ${unit} (${totais[ctx.dataIndex] > 0 ? (ctx.raw/totais[ctx.dataIndex]*100).toFixed(1) : 0}%)`,
                         footer: ctx => ctx.length ? `Total: ${totais[ctx[0].dataIndex].toFixed(1)} ${unit}` : '',
                     }},
                     datalabels: {
                         display: ctx => ctx.dataset.data[ctx.dataIndex] >= (escala==='total' ? 10 : 0.5),
-                        color: '#fff', font: { size: 10, weight: 'bold' },
+                        color: '#fff', font: { size: 11, weight: 'bold' },
                         formatter: v => v > 0 ? v.toFixed(escala==='total' ? 0 : 1) : '',
                     },
                 },
                 scales: {
-                    x: { stacked: true, title: { display: true, text: unit } },
-                    y: { stacked: true, ticks: { font: { size: 11 } } },
+                    x: { stacked: true, title: { display: true, text: unit }, ticks: { font: { size: 12 } } },
+                    y: { stacked: true, ticks: { font: { size: 13 } } },
                 },
             },
             plugins: [ChartDataLabels],
         });
     }
 
-    // ── 6. Evolução diária ────────────────────────────────────────────────────
-
-    _renderizarGraficoEvolucao(suffix, dados) {
-        const id = `chart-vg-evolucao-${suffix}`;
-        this._destroyChart(id);
-        const canvas = document.getElementById(id);
-        if (!canvas || !dados.evolucao.length) return;
-
-        const labels   = dados.evolucao.map(e => e.data);
-        const hhProd   = dados.evolucao.map(e => +e.hhServicos.toFixed(2));
-        const hhImprod = dados.evolucao.map(e => +e.hhImprod.toFixed(2));
-        const meta     = dados.totais.metaDiaria;
-
-        this._charts[id] = new Chart(canvas, {
-            type: 'line',
-            data: { labels, datasets: [
-                { label: 'HH Produtivo',   data: hhProd,   borderColor: '#43A047', backgroundColor: 'rgba(67,160,71,.12)',  fill: true, tension: .3, pointRadius: 3 },
-                { label: 'HH Improdutivo', data: hhImprod, borderColor: '#EF5350', backgroundColor: 'rgba(239,83,80,.08)', fill: true, tension: .3, pointRadius: 3 },
-                { label: `Meta diária (${meta.toFixed(0)} HH)`,
-                  data: Array(labels.length).fill(meta),
-                  borderColor: '#FF9800', borderDash: [8,4], borderWidth: 2, fill: false, pointRadius: 0 },
-            ]},
-            options: {
-                responsive: true, maintainAspectRatio: true,
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: { callbacks: {
-                        label: ctx => ctx.datasetIndex === 2 ? ` ${ctx.dataset.label}` : ` ${ctx.dataset.label}: ${ctx.raw.toFixed(1)} HH`,
-                        afterBody: ctx => {
-                            const prod = ctx.find(c => c.datasetIndex===0)?.raw || 0;
-                            const imp  = ctx.find(c => c.datasetIndex===1)?.raw || 0;
-                            const tot  = prod + imp;
-                            return tot > 0 ? ['', `Total: ${tot.toFixed(1)} HH`, `Produtividade: ${(prod/tot*100).toFixed(1)}%`] : [];
-                        },
-                    }},
-                    datalabels: { display: false },
-                },
-                scales: {
-                    x: { ticks: { maxTicksLimit: 15, maxRotation: 45 } },
-                    y: { title: { display: true, text: 'HH' }, beginAtZero: true },
-                },
-            },
-            plugins: [ChartDataLabels],
-        });
-    }
 
     // ── 7a. Classificação (doughnut) ──────────────────────────────────────────
 
@@ -878,7 +823,7 @@ class VisaoGeral {
                     const isPDM = s.classificacao === (isTP ? 'PDM_TPS' : 'PDM_SOLDA');
                     const cor   = isPDM ? '#1976D2' : '#90CAF9';
                     return `<tr>
-                        <td class="text-truncate" style="max-width:190px;font-size:.8rem;" title="${escAttr(s.descricao)}">
+                        <td style="max-width:150px;font-size:.82rem;word-break:break-word;white-space:normal;">
                             <div style="height:2px;width:${(s.hh/maxHH*100).toFixed(0)}%;background:${cor};border-radius:2px;margin-bottom:2px;"></div>
                             ${escapeHtml(s.descricao)}
                         </td>
@@ -1005,17 +950,24 @@ class VisaoGeral {
         const colors = top10.map(p => p.controlavel ? '#FF7043' : '#C62828');
 
         canvas.height = Math.max(180, top10.length * 36);
+        canvas.style.cursor = 'pointer';
+        canvas.title = 'Clique em uma barra para ver os apontamentos';
 
         this._charts[id] = new Chart(canvas, {
             type: 'bar',
             data: { labels, datasets: [{ label: 'HH perdido', data: vals, backgroundColor: colors, borderWidth: 0 }] },
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                onClick: (evt, elements) => {
+                    if (!elements.length) return;
+                    const perda = top10[elements[0].index];
+                    if (perda?.registros?.length) this._abrirDetalhePerda(perda.chave, perda);
+                },
                 plugins: {
                     legend: { display: false },
                     tooltip: { callbacks: {
                         label: ctx => ` ${ctx.raw.toFixed(1)} HH (${totHH > 0 ? (ctx.raw/totHH*100).toFixed(1) : 0}% das perdas)`,
-                        afterLabel: ctx => top10[ctx.dataIndex].controlavel ? ' ⚠ Controlável' : ' 🚫 Não controlável',
+                        afterLabel: ctx => (top10[ctx.dataIndex].controlavel ? ' ⚠ Controlável' : ' 🚫 Não controlável') + ' · clique para detalhes',
                     }},
                     datalabels: {
                         anchor: 'end', align: 'right', color: '#333', font: { size: 11 },
@@ -1267,13 +1219,14 @@ class VisaoGeral {
         const dados   = suffix === 'tp' ? this._dadosTPS : this._dadosTS;
         const turma   = dados?.turmas.find(t => t.turma === turmaId);
         if (!turma || !dados) return;
+        this._offcanvasTurmaAtual = turma;
 
         const isTP     = dados.tipoTurma === 'TP';
         const metaDia  = isTP ? 72 : 8;
         const metaTurma = metaDia * turma.diasUteis;
         const hhTotal  = turma.hhServicos + turma.hhImprodutivas;
-        const taxaProd = hhTotal > 0 ? turma.hhServicos / hhTotal * 100 : 0;
-        const pctMeta  = metaTurma > 0 ? turma.hhServicos / metaTurma * 100 : 0;
+        const hhEntregues = turma.hhServicos + turma.hhImprodutivas;
+        const pctMeta  = metaTurma > 0 ? hhEntregues / metaTurma * 100 : 0;
         const hhDia    = turma.diasTrabalhados > 0 ? turma.hhServicos / turma.diasTrabalhados : 0;
         const gap      = Math.max(0, metaTurma - turma.hhServicos - turma.hhImprodutivas);
         const pctDias  = turma.numRDOs > 0 ? turma.diasBateuMeta / turma.numRDOs * 100 : 0;
@@ -1312,7 +1265,7 @@ class VisaoGeral {
                     <div class="col-auto text-muted">|</div>
                     <div class="col-auto"><i class="fas fa-users text-secondary me-1"></i><strong>Méd. Operadores:</strong> ${escapeHtml(medOp)}</div>
                     <div class="col-auto text-muted">|</div>
-                    <div class="col-auto"><i class="fas fa-calendar-check text-success me-1"></i><strong>RDOs ≥ meta:</strong> ${turma.diasBateuMeta}/${turma.numRDOs} <span class="text-muted">(${pctDias.toFixed(0)}%)</span></div>
+                    <div class="col-auto"><i class="fas fa-calendar-check text-success me-1"></i><strong>Dias ≥ META:</strong> ${turma.diasBateuMeta}/${turma.numRDOs} <span class="text-muted">(${pctDias.toFixed(0)}%)</span></div>
                 </div>
             </div>
 
@@ -1324,19 +1277,19 @@ class VisaoGeral {
                     <small class="text-muted">${hhDia.toFixed(1)} HH/dia</small>
                 </div>
                 <div class="col border-end py-3">
+                    <p class="small text-muted mb-1">HH Improdut.</p>
+                    <h5 class="fw-bold text-danger mb-0">${turma.hhImprodutivas.toFixed(0)}</h5>
+                    <small class="text-muted">${hhEntregues > 0 ? (turma.hhImprodutivas/hhEntregues*100).toFixed(1) : 0}% do total</small>
+                </div>
+                <div class="col border-end py-3">
+                    <p class="small text-muted mb-1">Total Entregues</p>
+                    <h5 class="fw-bold text-info mb-0">${hhEntregues.toFixed(0)}</h5>
+                    <small class="text-muted">prod + improdut.</small>
+                </div>
+                <div class="col py-3">
                     <p class="small text-muted mb-1">% da Meta</p>
                     <h5 class="fw-bold ${sem(pctMeta,80,50)} mb-0">${pctMeta.toFixed(1)}%</h5>
                     <small class="text-muted">meta: ${metaTurma.toFixed(0)} HH</small>
-                </div>
-                <div class="col border-end py-3">
-                    <p class="small text-muted mb-1">Taxa Produt.</p>
-                    <h5 class="fw-bold ${sem(taxaProd,70,55)} mb-0">${taxaProd.toFixed(1)}%</h5>
-                    <small class="text-muted">prod/(prod+impr)</small>
-                </div>
-                <div class="col py-3">
-                    <p class="small text-muted mb-1">HH Improdut.</p>
-                    <h5 class="fw-bold text-danger mb-0">${turma.hhImprodutivas.toFixed(0)}</h5>
-                    <small class="text-muted">${hhTotal > 0 ? (turma.hhImprodutivas/hhTotal*100).toFixed(1) : 0}% do total</small>
                 </div>
             </div>
 
@@ -1381,17 +1334,20 @@ class VisaoGeral {
                             <thead class="table-light" style="position:sticky;top:0;z-index:1;"><tr>
                                 <th style="font-size:.72rem;">Serviço</th>
                                 <th class="text-center" style="font-size:.72rem;width:44px;">Tipo</th>
+                                <th class="text-end" style="font-size:.72rem;width:46px;">Qtd</th>
                                 <th class="text-end" style="font-size:.72rem;width:54px;">HH</th>
                                 <th class="text-end" style="font-size:.72rem;width:40px;">Ocr</th>
                             </tr></thead>
                             <tbody>${turma.servicos.map(s => {
                                 const isPDM = s.classificacao === classPDM;
+                                const qtdFmt = Number.isFinite(s.qty) ? (Number.isInteger(s.qty) ? s.qty : s.qty.toFixed(1)) : '–';
                                 return `<tr>
-                                    <td style="font-size:.75rem;max-width:150px;" class="text-truncate" title="${escAttr(s.descricao)}">
+                                    <td style="font-size:.75rem;max-width:130px;" class="text-truncate" title="${escAttr(s.descricao)}">
                                         <div style="height:2px;width:${(s.hh/maxSHH*100).toFixed(0)}%;background:${isPDM?'#1976D2':'#90CAF9'};border-radius:2px;margin-bottom:1px;"></div>
                                         ${escapeHtml(s.descricao)}
                                     </td>
                                     <td class="text-center">${isPDM?'<span class="badge bg-primary bg-opacity-75" style="font-size:.6rem;">PDM</span>':'<span class="badge bg-secondary bg-opacity-50" style="font-size:.6rem;">Corr</span>'}</td>
+                                    <td class="text-end text-muted" style="font-size:.75rem;">${qtdFmt}</td>
                                     <td class="text-end fw-bold" style="font-size:.75rem;">${s.hh.toFixed(1)}</td>
                                     <td class="text-end text-muted" style="font-size:.75rem;">${s.ocorrencias}</td>
                                 </tr>`;
@@ -1412,10 +1368,10 @@ class VisaoGeral {
                             </tr></thead>
                             <tbody>${turma.perdas.map(p => {
                                 const isNC = !p.controlavel;
-                                return `<tr>
+                                return `<tr style="cursor:pointer;" title="Clique para ver apontamentos" data-perda-chave="${escAttr(p.chave)}" onclick="visaoGeral._abrirDetalhePerda(this.dataset.perdaChave)">
                                     <td style="font-size:.75rem;max-width:150px;" class="text-truncate" title="${escAttr(p.chave)}">
                                         <div style="height:2px;width:${(p.hh/maxPHH*100).toFixed(0)}%;background:${isNC?'#C62828':'#FF7043'};border-radius:2px;margin-bottom:1px;"></div>
-                                        ${escapeHtml(p.chave)}
+                                        <i class="fas fa-search" style="font-size:.6rem;opacity:.5;margin-right:2px;"></i>${escapeHtml(p.chave)}
                                     </td>
                                     <td class="text-center">${isNC?'<span class="badge bg-danger bg-opacity-75" style="font-size:.6rem;">NC</span>':'<span class="badge bg-warning text-dark bg-opacity-75" style="font-size:.6rem;">Ctrl</span>'}</td>
                                     <td class="text-end fw-bold text-danger" style="font-size:.75rem;">${p.hh.toFixed(1)}</td>
@@ -1503,6 +1459,80 @@ class VisaoGeral {
             },
             plugins: [ChartDataLabels],
         });
+    }
+
+    // ── Detalhe de apontamentos de HI ────────────────────────────────────────
+
+    _abrirDetalhePerda(chave, perdaObj) {
+        // Se chamado do offcanvas, buscar na turma atual; se chamado do chart, usar perdaObj passado
+        const perda = perdaObj || this._offcanvasTurmaAtual?.perdas?.find(p => p.chave === chave);
+        if (!perda) return;
+        const regs = perda.registros || [];
+
+        const existingId = 'vg-hi-detalhe-modal';
+        let modal = document.getElementById(existingId);
+        if (modal) modal.remove();
+
+        const isNC = !perda.controlavel;
+        const badgeHtml = isNC
+            ? '<span class="badge bg-danger ms-2" style="font-size:.7rem;">Não Controlável</span>'
+            : '<span class="badge bg-warning text-dark ms-2" style="font-size:.7rem;">Controlável</span>';
+
+        const rows = regs.map(r => `
+            <tr>
+                <td style="font-size:.78rem;white-space:nowrap;">${escapeHtml(r.data || '–')}</td>
+                <td style="font-size:.78rem;white-space:nowrap;">${escapeHtml(r.numRDO || '–')}</td>
+                <td style="font-size:.78rem;">${r.horaInicio || '–'} → ${r.horaFim || '–'}</td>
+                <td class="text-center" style="font-size:.78rem;">${r.operadores || '–'}</td>
+                ${r.descricao ? `<td style="font-size:.78rem;word-break:break-word;white-space:normal;">${escapeHtml(r.descricao)}</td>` : '<td class="text-muted" style="font-size:.78rem;">–</td>'}
+                <td class="text-end fw-bold text-danger" style="font-size:.78rem;">${r.hh.toFixed(2)}</td>
+            </tr>`).join('');
+
+        const html = `
+        <div class="modal fade" id="${existingId}" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+              <div class="modal-header py-2 px-3" style="background:${isNC?'#C62828':'#FF7043'};color:#fff;">
+                <h6 class="modal-title mb-0">
+                  <i class="fas fa-list-ul me-2"></i>Apontamentos — ${escapeHtml(chave)}${badgeHtml}
+                </h6>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body p-0">
+                ${regs.length ? `
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light" style="position:sticky;top:0;z-index:1;">
+                    <tr>
+                      <th style="font-size:.72rem;">Data</th>
+                      <th style="font-size:.72rem;">Número RDO</th>
+                      <th style="font-size:.72rem;">Horário</th>
+                      <th class="text-center" style="font-size:.72rem;">Op.</th>
+                      <th style="font-size:.72rem;">Descrição</th>
+                      <th class="text-end" style="font-size:.72rem;">HH</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                  <tfoot class="table-light">
+                    <tr>
+                      <td colspan="5" class="text-end fw-semibold" style="font-size:.78rem;">Total</td>
+                      <td class="text-end fw-bold text-danger" style="font-size:.78rem;">${regs.reduce((a,r)=>a+r.hh,0).toFixed(2)} HH</td>
+                    </tr>
+                  </tfoot>
+                </table>` : '<p class="text-muted text-center py-4 small">Nenhum apontamento encontrado.</p>'}
+              </div>
+              <div class="modal-footer py-2">
+                <small class="text-muted me-auto">${regs.length} apontamento${regs.length !== 1 ? 's' : ''}</small>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', html);
+        const el = document.getElementById(existingId);
+        const bsModal = new bootstrap.Modal(el, { backdrop: true });
+        el.addEventListener('hidden.bs.modal', () => el.remove(), { once: true });
+        bsModal.show();
     }
 
     // ── Utilitário ────────────────────────────────────────────────────────────
