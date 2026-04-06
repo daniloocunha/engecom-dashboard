@@ -1228,3 +1228,40 @@ canvas {
     border-left-width: 5px;
     transform: translateX(2px);
 }
+
+/* ============================================
+   VISÃO GERAL — tamanhos de fonte ampliados
+   ============================================ */
+#vg-tp, #vg-ts {
+    font-size: .9rem;
+}
+#vg-tp table, #vg-ts table {
+    font-size: .85rem;
+}
+#vg-tp .small, #vg-ts .small {
+    font-size: .82rem !important;
+}
+#vg-tp .kpi-card .card-body,
+#vg-ts .kpi-card .card-body {
+    font-size: .9rem;
+}
+#vg-offcanvas table {
+    font-size: .88rem;
+}
+#vg-offcanvas .small {
+    font-size: .85rem !important;
+}
+#vg-offcanvas table th,
+#vg-offcanvas table td {
+    font-size: .85rem !important;
+}
+#vg-offcanvas .card-header h6,
+#vg-offcanvas p.small,
+#vg-offcanvas .fw-semibold {
+    font-size: .88rem !important;
+}
+/* Modal de HI (Apontamentos) */
+#vg-hi-detalhe-modal table th,
+#vg-hi-detalhe-modal table td {
+    font-size: .84rem !important;
+}

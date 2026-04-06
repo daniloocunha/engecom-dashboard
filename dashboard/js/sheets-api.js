@@ -493,16 +493,17 @@ class GoogleSheetsAPI {
             // Calcular duração em horas (SEM multiplicar por operadores ainda)
             const duracaoHoras = this.calcularDuracaoHoras(horaInicio, horaFim);
 
-            // 🔴 REGRA: Trens com duração < 15 minutos (0.25h) = HH ZERO
+            // 🔴 REGRA: Trens com duração < 20 minutos = HH ZERO
             const isTrem = tipo.toLowerCase().includes('trem');
-            const isTremCurto = isTrem && duracaoHoras < 0.25;
+            const limiteMinutosTrem = (typeof METAS !== 'undefined' && METAS.MINUTOS_MINIMOS_TREM) ? METAS.MINUTOS_MINIMOS_TREM : 20;
+            const isTremCurto = isTrem && duracaoHoras < (limiteMinutosTrem / 60);
 
             // Calcular HH (duração × operadores), mas zerar se for trem curto
             let hhImprodutivas = duracaoHoras * operadores;
 
             if (isTremCurto) {
                 hhImprodutivas = 0;
-                debugLog(`🔴 [HI] ${numeroRDO} [${tipo}]: TREM < 15 min (${(duracaoHoras * 60).toFixed(0)} min) - HH ZERADO`);
+                debugLog(`🔴 [HI] ${numeroRDO} [${tipo}]: TREM < ${limiteMinutosTrem} min (${(duracaoHoras * 60).toFixed(0)} min) - HH ZERADO`);
             } else {
                 // 🔴 REGRA: Chuva conta como metade das HH
                 if (tipo.toLowerCase().includes('chuva')) {

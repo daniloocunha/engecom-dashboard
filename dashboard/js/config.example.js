@@ -164,17 +164,17 @@ const COMPOSICAO_PADRAO = {
 // ============================================
 const METAS = {
     // TPs
-    HH_POR_OPERADOR_DIA: 8,         // Horas por operador por dia
+    HH_POR_OPERADOR_DIA: 6,         // Horas por operador por dia
     OPERADORES_TP: 12,               // Número padrão de operadores TP
-    META_DIARIA_TP: 96,              // 12 × 8 = 96 HH/dia
+    META_DIARIA_TP: 72,              // 12 × 6 = 72 HH/dia
     LIMITE_FATURAMENTO_TP: 1.10,     // 110% do valor fixo
 
     // TSs
-    META_DIARIA_TS: 8,               // 1 soldador × 8h = 8 HH/dia
+    META_DIARIA_TS: 6,               // 1 soldador × 6h = 6 HH/dia
 
     // Improdutivas
     DIVISOR_CHUVA: 2,                // Horas de chuva contam como metade
-    MINUTOS_MINIMOS_TREM: 15         // Trens só contam se > 15 min
+    MINUTOS_MINIMOS_TREM: 20         // Trens só contam se >= 20 min
 };
 
 // ============================================
@@ -182,9 +182,9 @@ const METAS = {
 // ============================================
 const CORES = {
     // Status de performance
-    VERDE: '#4CAF50',      // Meta atingida (>= 96 HH)
-    AMARELO: '#FFC107',    // Próximo da meta (80-95 HH)
-    VERMELHO: '#F44336',   // Abaixo da meta (< 80 HH)
+    VERDE: '#4CAF50',      // Meta atingida (>= 72 HH)
+    AMARELO: '#FFC107',    // Próximo da meta (58-71 HH)
+    VERMELHO: '#F44336',   // Abaixo da meta (< 58 HH)
     AZUL: '#2196F3',       // Informativo
     ROXO: '#9C27B0',       // Destaque
     LARANJA: '#FF9800',    // Alerta
@@ -206,7 +206,7 @@ const THRESHOLDS = {
     // TP - Performance
     SLA_CRITICO: 0.80,      // < 80% = vermelho
     SLA_ALERTA: 0.95,       // 80-95% = amarelo
-    SLA_OK: 0.96,           // >= 96% = verde
+    SLA_OK: 0.96,           // >= 96% da meta = verde
 
     // TP - Faturamento
     FATURAMENTO_PROXIMO_TETO: 1.05,  // >= 105% = alerta amarelo

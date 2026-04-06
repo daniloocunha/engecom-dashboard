@@ -131,7 +131,7 @@ Core business logic for financial calculations.
 **Responsibilities:**
 - Filter RDOs by team/month/year
 - Calculate TMC billing (proportional to worked days vs business days)
-- Calculate TP billing (SLA-based with 110% cap, HH target = 12 operators × 8h × business days)
+- Calculate TP billing (SLA-based with 110% cap, HH target = 12 operators × 6h × business days)
 - Calculate TS billing (SLA-based on welder hours only)
 - Compute daily HH breakdown (services + unproductive hours)
 - Generate daily heatmaps with status (green/yellow/red)
@@ -185,12 +185,12 @@ renderizarHeatmap()          // Daily productivity heatmap
 
 **calendario-tp.js**: TP calendar visualization
 - Monthly calendar view for TP teams
-- Daily HH goals (96 HH target) with color coding
+- Daily HH goals (72 HH target) with color coding
 - Interactive day selection with detailed breakdown
 
 **calendario-ts.js**: TS (Welding) calendar visualization
 - Monthly calendar for TS teams
-- Welder-specific HH tracking (8 HH daily target)
+- Welder-specific HH tracking (6 HH daily target)
 - Specialized service filtering for welding work
 
 ## Data Flow
@@ -254,8 +254,8 @@ Equipamentos, Materiais, Transportes
 #### TP (Production Teams) - SLA-Based:
 ```javascript
 // Meta Mensal
-metaMensal = 12 operadores × 8 horas × diasUteis
-metaDiaria = 96 HH (12 × 8)
+metaMensal = 12 operadores × 6 horas × diasUteis
+metaDiaria = 72 HH (12 × 6)
 
 // HH Calculation
 hhServicos = Σ(quantidade × coeficiente)  // Sum all services
@@ -294,8 +294,8 @@ faturamento = {
 #### TS (Welding Teams) - Welder HH Only:
 ```javascript
 // Meta Mensal
-metaMensal = 1 soldador × 8 horas × diasUteis
-metaDiaria = 8 HH
+metaMensal = 1 soldador × 6 horas × diasUteis
+metaDiaria = 6 HH
 
 // HH Calculation (ONLY from services performed by welder)
 hhSoldador = Σ(quantidade × coeficiente)
@@ -394,7 +394,7 @@ const PRECOS_ENCOGEL = {
 
 **Color Coding**:
 ```css
-.heatmap-day.verde    { background: #4CAF50; }  /* >= 96 HH (100% of daily target) */
+.heatmap-day.verde    { background: #4CAF50; }  /* >= 72 HH (100% of daily target) */
 .heatmap-day.amarelo  { background: #FFC107; }  /* 80-95 HH (warning zone) */
 .heatmap-day.vermelho { background: #f44336; }  /* < 80 HH (critical) */
 ```
@@ -672,30 +672,68 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.0.0 (2026-04-06)** - REMODELAÇÃO COMPLETA DA VISÃO GERAL:
+
+**Aba Visão Geral — reescrita do zero:**
+- Novo módulo `visao-geral.js` com arquitetura orientada a objetos (classe `VisaoGeral`)
+- KPIs dinâmicos por tipo de turma (TP/TS) com metas corretas (72 HH/dia TP, 6 HH/dia TS)
+- Gráfico de Composição de Horas: barra empilhada PDM + Correlato + Perdas NC + Perdas C + Gap
+- Scorecard comparativo de turmas com colunas configuráveis por tipo
+- Gráfico de Produtividade por turma (escala HH Total / HH/dia / HH/RDO)
+- Gráfico de Classificação de Atividades (pizza PDM vs Correlato) com filtro por turma
+- **Top Serviços por HH** com:
+  - Drill-down por clique (detalhes por OS, data, turma, KM)
+  - Ordenação por HH, Quantidade e Ocorrências
+  - Filtro TIPO (Todos / PDM / Correlato)
+- **Análise de Perdas (HI)** — Perdas Controláveis vs Não Controláveis com:
+  - Gráfico ranking completo de perdas
+  - Resumo split NC vs Controlável
+  - Detalhamento por clique (lista de apontamentos com horários e duração)
+- **Banner "Impacto das HI sobre Produção PDM"** posicionado abaixo da análise de perdas
+- **Qualidade dos Dados** com badges clicáveis (RDOs sem efetivo, HIs sem horário, serviços sem coeficiente)
+- Filtro por turma em tempo real: todos os painéis atualizam ao selecionar uma turma no scorecard
+
+**Detalhamento de Turma (offcanvas):**
+- Info operacional: encarregado, média operadores, dias ≥ META
+- KPIs: HH produtivo, HH improdutivo, total entregues, % da meta
+- Barra de composição da meta (PDM + Correlato + Perdas + Gap)
+- Gráficos: composição das horas (pizza) + top serviços (barras)
+- Tabelas: Serviços Realizados (clicável → drill-down) + Horas Improdutivas (clicável → apontamentos)
+- Lista de O.S com KM, datas, HH produtivo, HI e total (clicável → detalhe da OS)
+
+**Detalhamento de Serviço (drill-down):**
+- Filtrado pela turma de contexto quando aberto via detalhe de turma
+- Stats: HH Total, Quantidade, Ocorrências (recalculados para a turma filtrada)
+- Botão "← Voltar para [Turma]" quando há contexto de turma
+- Cada linha de OS clicável → abre detalhe da OS
+
+**Detalhamento de OS:**
+- Resumo: HH total, produtivo, improdutivo, % da meta
+- Média de operadores calculada a partir dos efetivos reais
+- Tabela de serviços com Qtd, HH e data
+- Tabela de HI com tipo, horários, duração calculada e HH
+- Botão "← Voltar para [Turma]"
+
+**Correções e melhorias:**
+- Removido card "Alertas e Notificações" da interface
+- Corrigida meta do gauge TS: usa `THRESHOLDS.SLA_ALERTA` em vez de `SLA_CRITICO`
+- Corrigido colspan do painel de Gestão de OS (13 colunas)
+- Corrigido contraste: título "Qualidade dos Dados" e label "Quantidade" agora visíveis
+- Aumentadas levemente as fontes das tabelas no offcanvas
+- Metas SEMPRE lidas de `METAS.*` (nunca hardcoded)
+
 **Version 1.3.0 (2024-12-03)** - SPRINT 3 COMPLETE:
-- 🚀 **NEW:** Sistema de Alertas Visíveis - Identificação automática de problemas críticos
-- 📊 **NEW:** Comparação de Períodos - Análise temporal mês a mês
-- 🔍 **NEW:** Filtros Favoritos - Salvar preferências no localStorage
-- ⚡ **NEW:** Índices Map para lookups O(1) - 70% mais rápido em datasets grandes
-- See `SPRINT_3_CONCLUIDO.md` for complete documentation
+- Sistema de Alertas, Comparação de Períodos, Filtros Favoritos, Índices O(1)
 
 **Version 1.2.0 (2024-12-02)** - CRITICAL FIX:
-- 🔴 **CRITICAL:** Fixed canvas reuse error when applying filters
-- Added destroy checks to all 9 Chart.js render methods
-- Completed Chart.js optimization from Sprint 2
-- Dashboard now stable with multiple filter changes
-- See `CORREÇÃO_CRITICA_FILTROS.md` for details
+- Fixed canvas reuse error when applying filters
 
 **Version 1.1.0 (2024-12-01)**:
-- Fixed null check in `filters.js` preventing crashes on value changes
-- Standardized field access patterns using `getCampoNormalizado()` utility
-- Improved field normalization consistency across modules
-
-See `CORREÇÕES_APLICADAS.md` for complete fix history.
+- Field normalization, null checks, getCampoNormalizado utility
 
 ## Version Information
 
-- **Current Version**: 1.3.0
+- **Current Version**: 2.0.0
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)

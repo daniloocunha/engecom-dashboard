@@ -292,7 +292,9 @@ class CalendarioTP {
                     quantidade: parseFloat(s.Quantidade || s.quantidade || 0),
                     unidade:    s.Unidade || s.unidade || 'UN',
                     hh: (parseFloat(s.Quantidade || s.quantidade || 0) *
-                         parseFloat(s.Coeficiente || s.coeficiente || 0)).toFixed(2)
+                         parseFloat(s.Coeficiente || s.coeficiente || 0)).toFixed(2),
+                    observacao: (s['Observações'] || s['Observacoes'] || s.observacoes || s.observações || '').trim(),
+                    isCustomizado: (s['É Customizado?'] || s.eCustomizado || '').toString().toUpperCase() === 'SIM'
                 }));
             servicos.push(...servicosRDO);
 
@@ -768,7 +770,11 @@ class CalendarioTP {
                                                 ${dados.servicos.map(s => `
                                                     <tr>
                                                         ${dados.multiplosRDOs ? `<td><span class="badge bg-secondary">${escapeHtml(s.numeroOS || '-')}</span></td>` : ''}
-                                                        <td>${escapeHtml(s.descricao)}</td>
+                                                        <td>
+                                                            ${escapeHtml(s.descricao)}
+                                                            ${s.isCustomizado ? '<span class="badge bg-info ms-1" style="font-size:.6rem;">Custom</span>' : ''}
+                                                            ${s.observacao ? `<div class="text-muted small mt-1"><i class="fas fa-comment-dots me-1"></i>${escapeHtml(s.observacao)}</div>` : ''}
+                                                        </td>
                                                         <td class="text-center">${escapeHtml(String(s.quantidade))}</td>
                                                         <td class="text-center">${escapeHtml(s.unidade)}</td>
                                                         <td class="text-end"><strong>${escapeHtml(String(s.hh))}</strong></td>

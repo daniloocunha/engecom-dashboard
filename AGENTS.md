@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+This file provides guidance to Codex (Codex.ai/code) when working with code in this repository.
 
 ## Project Overview
 
@@ -137,7 +137,7 @@ The project follows **MVVM (Model-View-ViewModel)** architecture with the follow
   - Loads services from `res/raw/servicos.json` (175 predefined railway services)
   - Calculates total hours based on service coefficients
   - Tracks HI (Horas Improdutivas) items with automatic calculations
-  - Target goal: 72.0 daily hours (`META_HORAS_DIARIAS`)
+  - Target goal: 96.0 daily hours (`META_HORAS_DIARIAS`)
   - Uses LiveData for reactive UI updates
 
 #### 4. Database Layer
@@ -207,7 +207,7 @@ if (totalHorasFim >= totalHorasInicio) {
 
 #### Daily Target Calculation
 ```kotlin
-META_HORAS_DIARIAS = 72.0
+META_HORAS_DIARIAS = 96.0
 progressoPercentual = (totalHoras / META_HORAS_DIARIAS) * 100
 ```
 
@@ -400,8 +400,8 @@ See `GERENCIAR_SERVICOS.md` for detailed instructions.
 - Update `RDOSyncWorker.kt` for background sync changes
 
 ## Version Information
-- **versionCode**: 16
-- **versionName**: "5.0.0"
+- **versionCode**: 12
+- **versionName**: "3.0.0"
 - **AGP Version**: 8.13.1
 - **Kotlin Version**: 2.0.21
 - **Gradle Version**: 8.13 (via wrapper)
@@ -420,7 +420,7 @@ See `GERENCIAR_SERVICOS.md` for detailed instructions.
 - **IMPORTANT**: Always use this keystore for ALL future releases to ensure updates work correctly
 
 **Current Release (v2.1.0):**
-- **APK Location**: `app/release/app-release-v5.0.0.apk`
+- **APK Location**: `app/release/app-release-v2.1.0.apk`
 - **MD5 Hash**: `51b8ec2435bcc04bc44977fe4ac94a5e`
 - **File Size**: ~3.2 MB
 - **Signed with**: APK Signature Scheme v2/v3 (modern Android signing)
@@ -432,17 +432,15 @@ See `GERENCIAR_SERVICOS.md` for detailed instructions.
 
 **Google Sheets Configuration (Config tab):**
 ```
-versao_minima          | 16
-versao_recomendada     | 16
-hash_md5               | 286FEBD53237AE44F6F5B37A2E9AEFE0
-tamanho_apk_mb         | 6.77
-url_download           | [URL do APK hospedado]
+versao_minima          | 8
+versao_recomendada     | 8
+hash_md5               | 51b8ec2435bcc04bc44977fe4ac94a5e
+tamanho_apk_mb         | 3.2
+url_download           | [Your APK hosting URL]
 forcar_update          | NAO
-mensagem_aviso         | Nova versão 5.0.0 disponível - Correções críticas de sincronização!
+mensagem_aviso         | Nova versão 2.1.0 disponível - Correção crítica de sincronização!
 mensagem_bloqueio      | Atualize para continuar usando
 ```
-
-> **IMPORTANTE**: Após gerar o APK release, atualize `hash_md5` e `tamanho_apk_mb` na aba Config do Google Sheets. O `versao_minima` usa `versionCode` (16), não `versionName` (5.0.0).
 
 ## Version History
 
@@ -633,7 +631,7 @@ mensagem_bloqueio      | Atualize para continuar usando
 **Files Modified:**
 - `GoogleSheetsService.kt:460, 492`
 - `build.gradle.kts` (version bump)
-- `CLAUDE.md` (documentation)
+- `AGENTS.md` (documentation)
 
 ---
 
@@ -665,7 +663,7 @@ mensagem_bloqueio      | Atualize para continuar usando
 4. **Documentation Updates**:
    - Updated DATABASE_VERSION: 8 → 9
    - Updated SDK configuration with justifications
-   - **Files modified**: `CLAUDE.md`
+   - **Files modified**: `AGENTS.md`
 
 **🧪 TESTING:**
 

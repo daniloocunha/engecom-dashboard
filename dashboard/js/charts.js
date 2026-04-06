@@ -976,8 +976,8 @@ class DashboardCharts {
 
         // Determinar cor
         let cor = CORES.VERMELHO;
-        if (percentual >= 96) cor = CORES.VERDE;
-        else if (percentual >= 80) cor = CORES.AMARELO;
+        if (percentual >= THRESHOLDS.SLA_OK * 100) cor = CORES.VERDE;
+        else if (percentual >= THRESHOLDS.SLA_ALERTA * 100) cor = CORES.AMARELO;
 
         // 🚀 FIX: Destruir gráfico existente antes de criar novo
         if (this.charts.slaGaugeTS) {

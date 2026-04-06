@@ -478,7 +478,7 @@ class CalculadoraMedicao {
             return null;
         }
 
-        // Meta mensal TS: 1 soldador × 8h × dias úteis
+        // Meta mensal TS: 1 soldador × 6h × dias úteis
         const metaMensal = calcularMetaMensalTS(diasUteis);
 
         // Validar meta
@@ -613,7 +613,7 @@ class CalculadoraMedicao {
             let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
             if (operadores <= 0) operadores = operadoresDefault;
 
-            // Pré-filtro: trens < 15 min são descartados (baseado no intervalo original)
+            // Pré-filtro: trens < 20 min são descartados (baseado no intervalo original)
             if (tipo.includes('trem') && (endMin - startMin) < METAS.MINUTOS_MINIMOS_TREM) return;
 
             intervals.push({ startMin, endMin, tipo, operadores });
@@ -660,7 +660,7 @@ class CalculadoraMedicao {
 
     /**
      * Calcula HH de horas improdutivas
-     * Regras: Chuva ÷ 2, Trens > 15min; sobreposições são mescladas antes do cálculo
+     * Regras: Chuva ÷ 2, Trens >= 20min; sobreposições são mescladas antes do cálculo
      */
     calcularHHImprodutivas(rdos) {
         let totalHH = 0;
@@ -745,7 +745,7 @@ class CalculadoraMedicao {
             // Definir status (cor)
             if (hhPorDia[data].percentualMeta >= 1.0) {
                 hhPorDia[data].status = 'verde';
-            } else if (hhPorDia[data].percentualMeta >= THRESHOLDS.SLA_ALERTA) {
+            } else if (hhPorDia[data].percentualMeta >= THRESHOLDS.SLA_CRITICO) {
                 hhPorDia[data].status = 'amarelo';
             } else {
                 hhPorDia[data].status = 'vermelho';
@@ -1110,7 +1110,7 @@ class CalculadoraMedicao {
                 alertas.push({
                     tipo: 'warning',
                     titulo: 'Dias Abaixo da Meta',
-                    mensagem: `${diasAbaixoMeta} dia(s) com menos de 96 HH`
+                    mensagem: `${diasAbaixoMeta} dia(s) com menos de ${METAS.META_DIARIA_TP} HH`
                 });
             }
         }

@@ -25,6 +25,7 @@ class VisaoGeral {
             tp: { col: 'hh', dir: 'desc' },
             ts: { col: 'hh', dir: 'desc' },
         };
+        this._filtroTipoServicos = { tp: null, ts: null };
     }
 
     // ── Helpers de classificação ──────────────────────────────────────────────
@@ -56,18 +57,19 @@ class VisaoGeral {
         const turmas    = calc.getTurmasPorTipo(tipoTurma, mes, ano);
         const diasUteis = calc.getDiasUteis(mes, ano);
         const classPDM  = tipoTurma === 'TP' ? 'PDM_TPS'       : 'PDM_SOLDA';
-        const metaDia   = tipoTurma === 'TP' ? 72              : 8;  // 12 op × 6h
+        const metaDia   = tipoTurma === 'TP' ? METAS.META_DIARIA_TP : METAS.META_DIARIA_TS;
 
         let totalHHServ = 0, totalHHPDM = 0, totalHHCorr = 0, totalHHImprod = 0;
         const dadosTurmas = [], servicosGlobal = {}, perdasGlobal = {}, evolucaoDiaria = {};
         let rdosSemEfetivo = 0, hisSemHorario = 0, servicosSemCoef = 0;
+        const listaRDOsSemEfetivo = [], listaHIsSemHorario = [], listaServicosSemCoef = [];
 
         turmas.forEach(turmaId => {
             const rdosTurma = calc.filtrarRDOsPorTurma(turmaId, mes, ano);
             if (!rdosTurma.length) return;
 
             let hhServ = 0, hhPDM = 0, hhCorr = 0;
-            const servicosTurma = {}, perdasTurma = {};
+            const servicosTurma = {}, perdasTurma = {}, osPorTurma = {};
             let diasBateuMeta = 0;
 
             const encarregadosSet = new Set();
@@ -76,6 +78,7 @@ class VisaoGeral {
             rdosTurma.forEach(rdo => {
                 const numRDO   = rdo['Número RDO'] || rdo.numeroRDO || '';
                 const dataNorm = FieldHelper.normalizarData(rdo['Data'] || rdo.data || '');
+                const osNumero = rdo['Número OS'] || rdo.numeroOS || '';
                 const enc = rdo['Encarregado'] || rdo.encarregado || '';
                 if (enc) encarregadosSet.add(enc);
                 const efRDO = calc.indices.efetivosPorRDO.get(numRDO);
@@ -83,7 +86,20 @@ class VisaoGeral {
                     const ops = parseInt(efRDO['Operadores'] || efRDO.operadores || 0);
                     if (ops > 0) { totalOps += ops; countOps++; }
                 }
-                if (!calc.indices.efetivosPorRDO.has(numRDO)) rdosSemEfetivo++;
+                if (!calc.indices.efetivosPorRDO.has(numRDO)) { rdosSemEfetivo++; listaRDOsSemEfetivo.push({ numRDO, data: dataNorm, turma: turmaId }); }
+
+                // Tracking de OS
+                const local     = rdo['Local'] || rdo.local || '';
+                const kmInicio  = rdo['KM Início'] || rdo.kmInicio || '';
+                const kmFim     = rdo['KM Fim'] || rdo.kmFim || '';
+                const horaIni   = rdo['Horário Início'] || rdo.horarioInicio || '';
+                const horaFim   = rdo['Horário Fim'] || rdo.horarioFim || '';
+                const obsRDO    = rdo['Observações'] || rdo.observacoes || '';
+                if (osNumero && osNumero !== 'Sem O.S') {
+                    if (!osPorTurma[osNumero]) osPorTurma[osNumero] = { os: osNumero, rdos: [], hhProd: 0, hhImpr: 0, datas: [], local, kmInicio, kmFim };
+                    osPorTurma[osNumero].rdos.push({ numRDO, data: dataNorm, local, kmInicio, kmFim, horaInicio: horaIni, horaFim: horaFim, obs: obsRDO });
+                    if (dataNorm) osPorTurma[osNumero].datas.push(dataNorm);
+                }
 
                 // ── Serviços ──
                 let hhServDia = 0;
@@ -93,13 +109,16 @@ class VisaoGeral {
                     const coef = parseFloat(s.coeficiente || s.Coeficiente || 0) || 0;
                     const hh   = (Number.isFinite(qty) && Number.isFinite(coef)) ? qty * coef : 0;
                     const cls  = this.classificarServicoV2(desc, tipoTurma);
-                    if (coef === 0 && (s['É Customizado?'] || s.eCustomizado || '') !== 'SIM') servicosSemCoef++;
+                    if (coef === 0 && (s['É Customizado?'] || s.eCustomizado || '') !== 'SIM') { servicosSemCoef++; listaServicosSemCoef.push({ numRDO, data: dataNorm, turma: turmaId, desc }); }
                     hhServ += hh; hhServDia += hh;
                     if (cls === classPDM) hhPDM += hh; else hhCorr += hh;
                     const u = s['Unidade'] || s.unidade || '';
+                    const dataRDO = dataNorm;
+                    const osRDO  = rdo['Número OS'] || rdo.numeroOS || '';
                     [servicosGlobal, servicosTurma].forEach(m => {
-                        if (!m[desc]) m[desc] = { hh: 0, qty: 0, ocorrencias: 0, classificacao: cls, unidade: u };
+                        if (!m[desc]) m[desc] = { hh: 0, qty: 0, ocorrencias: 0, classificacao: cls, unidade: u, detalhes: [] };
                         m[desc].hh += hh; m[desc].qty += qty; m[desc].ocorrencias++;
+                        m[desc].detalhes.push({ numRDO, os: osRDO, data: dataRDO, qty, hh, turma: turmaId, kmInicio, kmFim });
                     });
                 });
 
@@ -114,13 +133,13 @@ class VisaoGeral {
                     const tipo   = (hi['Tipo'] || hi.tipo || '').trim();
                     const inicio = hi['Hora Início'] || hi.horaInicio || '';
                     const fim    = hi['Hora Fim']    || hi.horaFim    || '';
-                    if (!inicio || !fim) { hisSemHorario++; return; }
+                    if (!inicio || !fim) { hisSemHorario++; listaHIsSemHorario.push({ numRDO, data: dataNorm, turma: turmaId, tipo }); return; }
                     const pm = t => { const p = (t||'').split(':').map(Number); return (p[0]||0)*60+(p[1]||0); };
                     let s = pm(inicio), e = pm(fim);
                     if (e <= s) e += 1440;
                     const dur = e - s;
                     const tl  = tipo.toLowerCase();
-                    if (tl.includes('trem') && dur < 15) return;
+                    if (tl.includes('trem') && dur < METAS.MINUTOS_MINIMOS_TREM) return;
                     let op = parseInt(hi['Operadores'] || hi.operadores || 0);
                     if (op <= 0) op = opDefault;
                     let hh = (dur / 60) * op;
@@ -129,11 +148,19 @@ class VisaoGeral {
                     const hiDesc = hi['Descrição'] || hi.descricao || '';
                     const chave = tipo || hiDesc || 'Outros';
                     const nc    = this._isNaoControlavel(tipo, hiDesc);
+                    const reg   = { numRDO, data: dataNorm, horaInicio: inicio, horaFim: fim, operadores: op, hh, descricao: hiDesc };
                     [perdasGlobal, perdasTurma].forEach(m => {
-                        if (!m[chave]) m[chave] = { hh: 0, count: 0, tipo, controlavel: !nc };
+                        if (!m[chave]) m[chave] = { hh: 0, count: 0, tipo, controlavel: !nc, registros: [] };
                         m[chave].hh += hh; m[chave].count++;
+                        m[chave].registros.push(reg);
                     });
                 });
+
+                // Acumular HH por OS
+                if (osNumero && osNumero !== 'Sem O.S' && osPorTurma[osNumero]) {
+                    osPorTurma[osNumero].hhProd += hhServDia;
+                    osPorTurma[osNumero].hhImpr += hhHIDia;
+                }
 
                 if (dataNorm) {
                     if (!evolucaoDiaria[dataNorm]) evolucaoDiaria[dataNorm] = { hhServicos: 0, hhImprod: 0 };
@@ -145,6 +172,14 @@ class VisaoGeral {
             const hhImprodOficial = calc.calcularHHImprodutivas(rdosTurma);
             const toArr  = m => Object.entries(m).map(([d, v]) => ({ descricao: d, ...v })).sort((a, b) => b.hh - a.hh);
             const pArr   = m => Object.entries(m).map(([c, v]) => ({ chave: c,   ...v })).sort((a, b) => b.hh - a.hh);
+
+            // Total de soldas (quantidade de serviços PDM_SOLDA)
+            const totalSoldas = Object.entries(servicosTurma)
+                .filter(([, v]) => v.classificacao === 'PDM_SOLDA')
+                .reduce((a, [, v]) => a + v.qty, 0);
+
+            // Lista de OS ordenada por HH
+            const ordensArray = Object.values(osPorTurma).sort((a, b) => (b.hhProd + b.hhImpr) - (a.hhProd + a.hhImpr));
 
             dadosTurmas.push({
                 turma: turmaId, rdos: rdosTurma,
@@ -158,6 +193,8 @@ class VisaoGeral {
                 hhImprodutivas: hhImprodOficial,
                 servicos: toArr(servicosTurma),
                 perdas:   pArr(perdasTurma),
+                totalSoldas,
+                ordens: ordensArray,
             });
 
             totalHHServ   += hhServ;
@@ -183,7 +220,7 @@ class VisaoGeral {
         const hhTotal            = totalHHServ + totalHHImprod;
         const taxaProdutividade  = hhTotal > 0 ? (totalHHServ / hhTotal) * 100 : 0;
         const n                  = dadosTurmas.length;
-        const metaMensal         = tipoTurma === 'TP' ? n * 12 * 6 * diasUteis : n * 8 * diasUteis;
+        const metaMensal         = n * metaDia * diasUteis;
         const percentualMeta     = metaMensal > 0 ? (totalHHServ / metaMensal) * 100 : 0;
         const hhNaoTrabalhado    = Math.max(0, metaMensal - totalHHServ - totalHHImprod);
         const hhNC               = perdasOrdenadas.filter(p => !p.controlavel).reduce((a, p) => a + p.hh, 0);
@@ -195,7 +232,7 @@ class VisaoGeral {
             servicos: toArr(servicosGlobal),
             perdas:   perdasOrdenadas,
             evolucao: evolucaoArray,
-            qualidade: { rdosSemEfetivo, hisSemHorario, servicosSemCoef },
+            qualidade: { rdosSemEfetivo, hisSemHorario, servicosSemCoef, listaRDOsSemEfetivo, listaHIsSemHorario, listaServicosSemCoef },
             totais: {
                 hhServicos: totalHHServ, hhPDM: totalHHPDM, hhCorrelato: totalHHCorr,
                 hhImprodutivas: totalHHImprod, hhTotal, taxaProdutividade,
@@ -217,6 +254,7 @@ class VisaoGeral {
 
     renderizar(estatisticas, calculadora, filtros) {
         const { mes, ano } = filtros;
+        this._calculadora  = calculadora;
         this._dadosTPS = this._calcularDados('TP', mes, ano, calculadora);
         this._dadosTS  = this._calcularDados('TS', mes, ano, calculadora);
         this._renderizarSubAba('vg-tp', this._dadosTPS);
@@ -257,10 +295,7 @@ class VisaoGeral {
         }
 
         painel.innerHTML = `
-            <!-- 1. Insights -->
-            <div id="vg-insights-${s}" class="mb-4"></div>
-
-            <!-- 2. KPIs -->
+            <!-- KPIs -->
             <div class="row g-3 mb-4" id="vg-kpis-${s}"></div>
 
             <!-- 3. Composição das Horas -->
@@ -272,8 +307,8 @@ class VisaoGeral {
                             <small class="text-muted fst-italic">A barra soma 100% da meta mensal. Blocos cinzas = horas não alocadas (meta não atingida).</small>
                         </div>
                     </div>
-                    <div class="card-body" style="position:relative; min-height:90px;">
-                        <canvas id="chart-vg-comp-${s}" height="80"></canvas>
+                    <div class="card-body" style="position:relative; height:170px;">
+                        <canvas id="chart-vg-comp-${s}"></canvas>
                     </div>
                 </div>
             </div></div>
@@ -297,18 +332,6 @@ class VisaoGeral {
                     </div>
                     <div class="card-body" style="position:relative; min-height:200px;">
                         <canvas id="chart-vg-prod-${s}"></canvas>
-                    </div>
-                </div>
-            </div></div>
-
-            <!-- 6. Evolução diária -->
-            <div class="row mb-4"><div class="col-12">
-                <div class="card border-0 shadow-sm">
-                    <div class="card-header bg-white">
-                        <h6 class="mb-0"><i class="fas fa-chart-line me-2 text-success"></i>Evolução Diária de HH</h6>
-                    </div>
-                    <div class="card-body" style="position:relative; min-height:200px;">
-                        <canvas id="chart-vg-evolucao-${s}"></canvas>
                     </div>
                 </div>
             </div></div>
@@ -370,8 +393,10 @@ class VisaoGeral {
                 </div>
             </div>
 
-            <!-- 9. Outros + 10. Qualidade -->
-            <div class="row mb-4" id="vg-outros-container-${s}"></div>
+            <!-- Banner: Impacto das HI sobre Produção PDM (somente TP) -->
+            <div id="vg-banner-dormentes-${s}" class="mb-4"></div>
+
+            <!-- 9. Qualidade -->
             <div id="vg-qualidade-${s}" class="mb-4"></div>
 
             <!-- 11. Mini-glossário -->
@@ -383,72 +408,27 @@ class VisaoGeral {
                         <div class="col-6 col-md-4"><strong>PDM</strong> — Produto Direto de Manutenção (atividade principal de via)</div>
                         <div class="col-6 col-md-4"><strong>Correlato</strong> — Atividade de apoio / manutenção geral</div>
                         <div class="col-6 col-md-4"><strong>HI</strong> — Horas Improdutivas (equipe presente, sem serviço)</div>
-                        <div class="col-6 col-md-4"><strong>Meta TP</strong> — 12 operadores × 6h × dias úteis = ${72} HH/dia &nbsp;·&nbsp; <strong>Meta TS</strong> — 1 soldador × 8h × dias úteis</div>
+                        <div class="col-6 col-md-4"><strong>Meta TP</strong> — 12 operadores × 6h × dias úteis = ${METAS.META_DIARIA_TP} HH/dia &nbsp;·&nbsp; <strong>Meta TS</strong> — 1 soldador × 6h × dias úteis = ${METAS.META_DIARIA_TS} HH/dia</div>
                         <div class="col-6 col-md-4"><strong>Taxa Prod</strong> — HH produtivo ÷ (produtivo + improdutivo)</div>
                     </div>
                 </div>
             </div>`;
 
         // Renderizar todas as seções
-        this._renderizarInsights(`vg-insights-${s}`, dados);
         this._renderizarKPIs(`vg-kpis-${s}`, dados);
         this._renderizarGraficoComposicao(s, dados);
         this._renderizarScorecard(`vg-scorecard-${s}`, dados);
         this._renderizarGraficoProdutividade(s, dados);
-        this._renderizarGraficoEvolucao(s, dados);
         this._renderizarGraficoClassificacao(s, dados);
         this._renderizarTopServicos(`vg-top-servicos-${s}`, dados, s);
         this._renderizarPerdasSplit(`vg-perdas-split-${s}`, dados, s);
         this._renderizarGraficoPerdas(s, dados);
         this._renderizarResumoPerdas(`vg-resumo-perdas-${s}`, dados, s);
-        this._renderizarAnaliseOutros(`vg-outros-container-${s}`, dados);
+        this._renderizarBannerDormentes(`vg-banner-dormentes-${s}`, dados);
         this._renderizarQualidadeDados(`vg-qualidade-${s}`, dados);
     }
 
     // ── 1. Insights ───────────────────────────────────────────────────────────
-
-    _renderizarInsights(containerId, dados) {
-        const el = document.getElementById(containerId);
-        if (!el || !dados.turmas.length) return;
-        const { totais, turmas, servicos, perdas } = dados;
-        const isTP   = dados.tipoTurma === 'TP';
-        const melhor = turmas.reduce((a, b) => a.hhServicos > b.hhServicos ? a : b, turmas[0]);
-        const trunc  = (s, n) => s && s.length > n ? s.substring(0, n-1) + '…' : (s || '—');
-        const perdaNC = perdas.find(p => !p.controlavel);
-        const perdaC  = perdas.find(p => p.controlavel);
-
-        const cards = [
-            { icon: 'fa-trophy',      color: 'success',
-              titulo: 'Melhor Turma',          valor: trunc(melhor?.turma, 20),
-              detalhe: melhor ? `${melhor.hhServicos.toFixed(0)} HH produtivo` : '' },
-            { icon: 'fa-ban',         color: 'danger',
-              titulo: 'Maior Perda NC',         valor: trunc(perdaNC?.chave, 20),
-              detalhe: perdaNC ? `${perdaNC.hh.toFixed(0)} HH — não controlável` : 'Nenhuma' },
-            { icon: 'fa-tools',       color: 'warning',
-              titulo: 'Maior Perda Controlável',valor: trunc(perdaC?.chave, 20),
-              detalhe: perdaC ? `${perdaC.hh.toFixed(0)} HH — pode ser reduzida` : 'Nenhuma' },
-            { icon: 'fa-bullseye',    color: totais.percentualMeta >= 80 ? 'info' : 'warning',
-              titulo: 'Meta Atingida',          valor: `${totais.percentualMeta.toFixed(1)}%`,
-              detalhe: `de ${totais.metaMensal.toFixed(0)} HH no mês` },
-        ];
-
-        el.innerHTML = `
-            <p class="text-muted small fw-semibold mb-2 text-uppercase" style="letter-spacing:.05em;">
-                <i class="fas fa-lightbulb me-1 text-warning"></i>Destaques do Período
-            </p>
-            <div class="row g-2">${cards.map(c => `
-                <div class="col-6 col-md-3">
-                    <div class="d-flex align-items-center gap-2 p-2 rounded border border-${c.color} border-opacity-25 bg-${c.color} bg-opacity-10">
-                        <i class="fas ${c.icon} text-${c.color} fs-5" style="width:20px;text-align:center;flex-shrink:0;"></i>
-                        <div class="overflow-hidden">
-                            <p class="mb-0 text-muted" style="font-size:.68rem;text-transform:uppercase;letter-spacing:.04em;">${escapeHtml(c.titulo)}</p>
-                            <p class="mb-0 fw-bold text-${c.color}" style="font-size:.88rem;" title="${escAttr(c.valor)}">${escapeHtml(c.valor)}</p>
-                            <p class="mb-0 text-muted" style="font-size:.7rem;">${escapeHtml(c.detalhe)}</p>
-                        </div>
-                    </div>
-                </div>`).join('')}
-            </div>`;
-    }
 
     // ── 2. KPIs ───────────────────────────────────────────────────────────────
 
@@ -461,23 +441,23 @@ class VisaoGeral {
         const fmtPct = n => Number.isFinite(n) ? n.toFixed(1) + '%' : '-%';
 
         const kpis = isTP ? [
-            { label: 'HH Produtivo Total',   value: `${fmt(totais.hhServicos)} HH`,     icon: 'fa-clock',        color: 'success',
+            { label: 'HH Produtivo Total',        value: `${fmt(totais.hhServicos)} HH`,     icon: 'fa-clock',        color: 'success',
               sub: `${fmt(totais.hhPDM)} PDM + ${fmt(totais.hhCorrelato)} Correlato` },
-            { label: 'HH Improdutivo Total', value: `${fmt(totais.hhImprodutivas)} HH`, icon: 'fa-pause-circle', color: 'danger',
+            { label: 'HH Improdutivo Total',      value: `${fmt(totais.hhImprodutivas)} HH`, icon: 'fa-pause-circle', color: 'danger',
               sub: `${fmt(totais.hhNC)} não control. + ${fmt(totais.hhC)} control.` },
-            { label: 'Taxa de Produtividade',value: fmtPct(totais.taxaProdutividade),   icon: 'fa-percentage',   color: totais.taxaProdutividade >= 70 ? 'primary' : 'warning',
-              sub: 'Produtivo / (Produtivo + Improdutivo)' },
-            { label: 'Meta vs Realizado',     value: fmtPct(totais.percentualMeta),      icon: 'fa-bullseye',     color: totais.percentualMeta >= 80 ? 'info' : 'warning',
+            { label: 'Total de Horas Entregues',  value: `${fmt(totais.hhTotal)} HH`,        icon: 'fa-layer-group',  color: 'info',
+              sub: 'Produtivo + Improdutivo' },
+            { label: 'Meta vs Realizado',          value: fmtPct(totais.percentualMeta),      icon: 'fa-bullseye',     color: totais.percentualMeta >= 80 ? 'info' : 'warning',
               sub: `Meta ${fmt(totais.metaMensal)} HH no mês` },
         ] : [
-            { label: 'HH Soldador Total',        value: `${fmt(totais.hhServicos)} HH`,     icon: 'fa-fire',         color: 'warning',
+            { label: 'HH Soldador Total',         value: `${fmt(totais.hhServicos)} HH`,     icon: 'fa-fire',         color: 'warning',
               sub: `${fmt(totais.hhPDM)} PDM + ${fmt(totais.hhCorrelato)} Correlato` },
-            { label: 'Soldas Aluminotérmicas',   value: dados.servicos.filter(s => s.classificacao === 'PDM_SOLDA').reduce((a,s) => a+s.qty,0).toFixed(0),
+            { label: 'Soldas Aluminotérmicas',    value: dados.servicos.filter(s => s.classificacao === 'PDM_SOLDA').reduce((a,s) => a+s.qty,0).toFixed(0),
               icon: 'fa-certificate', color: 'success', sub: 'Quantidade total de soldas PDM' },
-            { label: 'HH Improdutivo TS',        value: `${fmt(totais.hhImprodutivas)} HH`, icon: 'fa-pause-circle', color: 'danger',
+            { label: 'HH Improdutivo TS',         value: `${fmt(totais.hhImprodutivas)} HH`, icon: 'fa-pause-circle', color: 'danger',
               sub: `${fmt(totais.hhImprodutivas / (dados.turmas.length||1))} HH/turma` },
-            { label: 'Taxa de Produtividade',    value: fmtPct(totais.taxaProdutividade),   icon: 'fa-percentage',   color: totais.taxaProdutividade >= 70 ? 'primary' : 'warning',
-              sub: 'Soldador / (Soldador + Improdutivo)' },
+            { label: 'Total de Horas Entregues',  value: `${fmt(totais.hhTotal)} HH`,        icon: 'fa-layer-group',  color: 'info',
+              sub: 'Soldador + Improdutivo' },
         ];
 
         el.innerHTML = kpis.map(k => `
@@ -497,6 +477,44 @@ class VisaoGeral {
                     </div>
                 </div>
             </div>`).join('');
+    }
+
+    // ── VG-05: Banner HI → Dormentes ─────────────────────────────────────────
+
+    _renderizarBannerDormentes(containerId, dados) {
+        const el = document.getElementById(containerId);
+        if (!el) return;
+        // Só exibir para TP (dormentes são atividade TP)
+        if (dados.tipoTurma !== 'TP' || !dados.totais.hhImprodutivas || dados.totais.hhImprodutivas <= 0) {
+            el.innerHTML = '';
+            return;
+        }
+        const COEF_DORMENTE = 0.81;
+        const hhImpr = dados.totais.hhImprodutivas;
+        const dormentes = hhImpr / COEF_DORMENTE;
+
+        el.innerHTML = `
+            <div class="card border-0 shadow-sm" style="border-left:4px solid #FF9800 !important; background:linear-gradient(135deg, #FFF3E0, #FFFFFF);">
+                <div class="card-body py-3">
+                    <div class="d-flex align-items-center justify-content-between flex-wrap gap-2">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center bg-warning bg-opacity-25" style="width:48px;height:48px;flex-shrink:0;">
+                                <i class="fas fa-minus-circle text-warning fs-5"></i>
+                            </div>
+                            <div>
+                                <p class="mb-0 small text-muted fw-semibold text-uppercase" style="letter-spacing:.04em;">Impacto das HI sobre Produção PDM</p>
+                                <p class="mb-0 fw-bold text-warning" style="font-size:1.1rem;">
+                                    ${hhImpr.toFixed(1)} HH improdutivas = <span class="text-danger">${dormentes.toFixed(0)} dormentes</span> que deixaram de ser trocados
+                                </p>
+                            </div>
+                        </div>
+                        <div class="text-end">
+                            <p class="mb-0 small text-muted">Fórmula: HH ÷ ${COEF_DORMENTE} (coef. dormente)</p>
+                            <p class="mb-0 small text-muted">${hhImpr.toFixed(1)} ÷ ${COEF_DORMENTE} = ${dormentes.toFixed(1)} dormentes</p>
+                        </div>
+                    </div>
+                </div>
+            </div>`;
     }
 
     // ── 3. Composição das Horas ───────────────────────────────────────────────
@@ -546,6 +564,8 @@ class VisaoGeral {
             });
         }
 
+        datasets.forEach(ds => { ds.barThickness = 60; });
+
         this._charts[id] = new Chart(canvas, {
             type: 'bar',
             data: { labels: [''], datasets },
@@ -554,7 +574,7 @@ class VisaoGeral {
                 responsive: true,
                 maintainAspectRatio: false,
                 plugins: {
-                    legend: { position: 'bottom', labels: { boxWidth: 12, font: { size: 11 } } },
+                    legend: { position: 'bottom', labels: { boxWidth: 14, font: { size: 12 } } },
                     tooltip: {
                         callbacks: {
                             label: ctx => {
@@ -593,7 +613,7 @@ class VisaoGeral {
         if (dados.turmas.length < 2) { el.innerHTML = ''; return; } // só faz sentido com ≥2 turmas
 
         const isTP        = dados.tipoTurma === 'TP';
-        const metaDia     = isTP ? 72 : 8;  // 12 op × 6h
+        const metaDia     = isTP ? METAS.META_DIARIA_TP : METAS.META_DIARIA_TS;
         const painelSuffix = containerId.endsWith('-tp') ? 'tp' : 'ts';
 
         // Funções de semáforo
@@ -605,16 +625,15 @@ class VisaoGeral {
 
         // Calcular métricas por turma
         const linhas = dados.turmas.map(t => {
-            const taxaProd   = (t.hhServicos + t.hhImprodutivas) > 0
-                ? t.hhServicos / (t.hhServicos + t.hhImprodutivas) * 100 : 0;
-            const metaTurma  = isTP ? 12 * 6 * t.diasUteis : 8 * t.diasUteis;
-            const pctMeta    = metaTurma > 0 ? t.hhServicos / metaTurma * 100 : 0;
-            const hhDia      = t.diasTrabalhados > 0 ? t.hhServicos / t.diasTrabalhados : 0;
-            const pctDias    = t.numRDOs > 0 ? t.diasBateuMeta / t.numRDOs * 100 : 0;
-            const pctPDM     = t.hhServicos > 0 ? t.hhPDM / t.hhServicos * 100 : 0;
-            const pctImprod  = (t.hhServicos + t.hhImprodutivas) > 0
-                ? t.hhImprodutivas / (t.hhServicos + t.hhImprodutivas) * 100 : 0;
-            return { t, taxaProd, pctMeta, hhDia, pctDias, pctPDM, pctImprod };
+            const hhEntregues = t.hhServicos + t.hhImprodutivas;
+            const metaTurma   = metaDia * t.diasUteis;
+            const pctMeta     = metaTurma > 0 ? hhEntregues / metaTurma * 100 : 0;
+            const hhDia       = t.diasTrabalhados > 0 ? t.hhServicos / t.diasTrabalhados : 0;
+            const pctDias     = t.diasTrabalhados > 0 ? t.diasBateuMeta / t.diasTrabalhados * 100 : 0;
+            const pctPDM      = t.hhServicos > 0 ? t.hhPDM / t.hhServicos * 100 : 0;
+            const pctImprod   = hhEntregues > 0 ? t.hhImprodutivas / hhEntregues * 100 : 0;
+            const totalSoldas = t.totalSoldas || 0;
+            return { t, hhEntregues, pctMeta, hhDia, pctDias, pctPDM, pctImprod, totalSoldas };
         });
 
         el.innerHTML = `
@@ -629,25 +648,27 @@ class VisaoGeral {
                             <thead class="table-light">
                                 <tr>
                                     <th title="Código identificador da turma">Turma</th>
-                                    <th class="text-center" style="background:rgba(25,118,210,.07);" title="Percentual de HH produtivo em relação à meta mensal da turma (${isTP?'12 op × 6h × dias úteis':'1 soldador × 8h × dias úteis'})">% Meta ↑</th>
+                                    <th class="text-center" style="background:rgba(25,118,210,.07);" title="(HH Produtivo + HH Improdutivo) ÷ meta mensal da turma (${isTP?'12 op × 6h × dias úteis':'1 soldador × 6h × dias úteis'})">% Meta ↑</th>
                                     <th class="text-end" title="HH produtivo médio por dia trabalhado (registros com serviços)">HH/dia</th>
-                                    <th class="text-center" title="Taxa de produtividade = HH produtivo ÷ (HH produtivo + HH improdutivo). Indica eficiência do tempo presente.">Taxa Prod</th>
-                                    <th class="text-center" title="Número de RDOs (registros diários) em que o HH produtivo atingiu ou superou a meta diária de ${metaDia} HH. Não são 'dias de calendário'.">RDOs ≥ meta</th>
+                                    <th class="text-center" title="Total de HH entregues = HH Produtivo + HH Improdutivo">Total Entregues</th>
+                                    <th class="text-center" title="Número de dias em que o HH produtivo atingiu ou superou a meta diária de ${metaDia} HH.">Dias ≥ META</th>
                                     <th class="text-center" title="Percentual de PDM (Produtos Diretos de Manutenção) sobre o HH produtivo total. Maior = mais atividades de alta prioridade.">PDM%</th>
                                     <th class="text-center" title="Percentual de HH improdutivo sobre o total (produtivo + improdutivo). Menor = melhor.">% Improd</th>
+                                    ${!isTP ? '<th class="text-center" title="Total de soldas realizadas no mês (meta: 30/mês)">Soldas</th>' : ''}
                                     <th class="text-end" title="Total de HH produtivo no período">HH Prod</th>
                                 </tr>
                             </thead>
                             <tbody>
-                                ${linhas.map(({ t, taxaProd, pctMeta, hhDia, pctDias, pctPDM, pctImprod }) => `
+                                ${linhas.map(({ t, hhEntregues, pctMeta, hhDia, pctDias, pctPDM, pctImprod, totalSoldas }) => `
                                 <tr style="cursor:pointer;" onclick="visaoGeral._abrirDetalhesTurma('${escAttr(t.turma)}', '${escAttr(painelSuffix)}')">
                                     <td class="fw-semibold text-primary text-decoration-underline" style="cursor:pointer;">${escapeHtml(t.turma)}<i class="fas fa-external-link-alt ms-1" style="font-size:.6rem; opacity:.5;"></i></td>
                                     <td class="text-center fw-bold" style="background:rgba(25,118,210,.05);">${sem(pctMeta, 80, 50)} <span class="small">${pctMeta.toFixed(1)}%</span></td>
                                     <td class="text-end">${hhDia.toFixed(1)}</td>
-                                    <td class="text-center">${sem(taxaProd, 70, 55)} <span class="small">${taxaProd.toFixed(1)}%</span></td>
-                                    <td class="text-center">${sem(pctDias, 60, 30)} <span class="small">${t.diasBateuMeta}/${t.numRDOs} <span class="text-muted">(${pctDias.toFixed(0)}%)</span></span></td>
+                                    <td class="text-center fw-semibold"><span class="small">${hhEntregues.toFixed(0)} HH</span></td>
+                                    <td class="text-center">${sem(pctDias, 60, 30)} <span class="small">${t.diasBateuMeta}/${t.diasTrabalhados} <span class="text-muted">(${pctDias.toFixed(0)}%)</span></span></td>
                                     <td class="text-center"><span class="small">${pctPDM.toFixed(0)}%</span></td>
                                     <td class="text-center">${sem(100-pctImprod, 70, 55)} <span class="small">${pctImprod.toFixed(1)}%</span></td>
+                                    ${!isTP ? `<td class="text-center">${sem(totalSoldas, 30, 20)} <span class="small fw-bold">${totalSoldas.toFixed(0)}</span></td>` : ''}
                                     <td class="text-end small text-muted">${t.hhServicos.toFixed(0)}</td>
                                 </tr>`).join('')}
                             </tbody>
@@ -658,8 +679,8 @@ class VisaoGeral {
                             <i class="fas fa-circle text-success me-1"></i>Bom &nbsp;
                             <i class="fas fa-circle text-warning me-1"></i>Atenção &nbsp;
                             <i class="fas fa-circle text-danger me-1"></i>Crítico &nbsp;·&nbsp;
-                            <strong>"RDOs ≥ meta"</strong> = registros diários com HH produtivo ≥ ${metaDia} HH (não são dias corridos) &nbsp;·&nbsp;
-                            <strong>"% Meta"</strong> = HH produtivo ÷ meta mensal (${isTP ? '12 op × 6h' : '1 soldador × 8h'} × dias úteis) &nbsp;·&nbsp;
+                            <strong>"Dias ≥ META"</strong> = dias com HH produtivo ≥ ${metaDia} HH &nbsp;·&nbsp;
+                            <strong>"% Meta"</strong> = HH produtivo ÷ meta mensal (${isTP ? '12 op × 6h' : '1 soldador × 6h'} × dias úteis) &nbsp;·&nbsp;
                             <i class="fas fa-hand-pointer text-primary me-1"></i>Clique em uma turma para ver detalhes completos
                         </small>
                     </div>
@@ -683,10 +704,12 @@ class VisaoGeral {
         if (!dados) return;
         this._renderizarChipFiltro(suffix);
         this._renderizarTopServicos(`vg-top-servicos-${suffix}`, dados, suffix);
+        this._renderizarGraficoClassificacao(suffix, dados);
         this._renderizarGraficoPerdas(suffix, dados);
         // Atualizar também o split e resumo de perdas com dados da turma filtrada
         this._renderizarPerdasSplit(`vg-perdas-split-${suffix}`, dados, suffix);
         this._renderizarResumoPerdas(`vg-resumo-perdas-${suffix}`, dados, suffix);
+        this._renderizarBannerDormentes(`vg-banner-dormentes-${suffix}`, dados);
         const lbl = document.getElementById(`vg-filtro-label-${suffix}`);
         if (lbl) lbl.textContent = this._filtroTurma[suffix] ? `Filtro: ${this._filtroTurma[suffix]}` : '';
     }
@@ -720,84 +743,40 @@ class VisaoGeral {
         const hhImprod = dados.turmas.map(t => +this._transformarHH(t.hhImprodutivas,  t, escala).toFixed(2));
         const totais   = labels.map((_, i) => hhPDM[i] + hhCorr[i] + hhImprod[i]);
 
-        canvas.height = Math.max(200, labels.length * 48);
+        const chartH = Math.max(300, labels.length * 80);
+        canvas.parentElement.style.height = `${chartH}px`;
 
         this._charts[id] = new Chart(canvas, {
             type: 'bar',
             data: { labels, datasets: [
-                { label: isTP ? 'PDM TPS'      : 'PDM Solda',       data: hhPDM,    backgroundColor: '#1976D2', stack: 'hh' },
-                { label: isTP ? 'Correlato TPS' : 'Correlato Solda', data: hhCorr,   backgroundColor: '#64B5F6', stack: 'hh' },
-                { label: 'HI (Improdutivas)',                         data: hhImprod, backgroundColor: '#EF5350', stack: 'hh' },
+                { label: isTP ? 'PDM TPS'       : 'PDM Solda',       data: hhPDM,    backgroundColor: '#1976D2', stack: 'hh', barThickness: 32 },
+                { label: isTP ? 'Correlato TPS' : 'Correlato Solda', data: hhCorr,   backgroundColor: '#64B5F6', stack: 'hh', barThickness: 32 },
+                { label: 'HI (Improdutivas)',                          data: hhImprod, backgroundColor: '#EF5350', stack: 'hh', barThickness: 32 },
             ]},
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                 onClick: (_, els) => { if (els.length) this._aplicarFiltroTurma(suffix, labels[els[0].index]); },
                 plugins: {
-                    legend: { position: 'top' },
+                    legend: { position: 'top', labels: { font: { size: 13 } } },
                     tooltip: { callbacks: {
                         label: ctx => ` ${ctx.dataset.label}: ${ctx.raw.toFixed(1)} ${unit} (${totais[ctx.dataIndex] > 0 ? (ctx.raw/totais[ctx.dataIndex]*100).toFixed(1) : 0}%)`,
                         footer: ctx => ctx.length ? `Total: ${totais[ctx[0].dataIndex].toFixed(1)} ${unit}` : '',
                     }},
                     datalabels: {
                         display: ctx => ctx.dataset.data[ctx.dataIndex] >= (escala==='total' ? 10 : 0.5),
-                        color: '#fff', font: { size: 10, weight: 'bold' },
+                        color: '#fff', font: { size: 11, weight: 'bold' },
                         formatter: v => v > 0 ? v.toFixed(escala==='total' ? 0 : 1) : '',
                     },
                 },
                 scales: {
-                    x: { stacked: true, title: { display: true, text: unit } },
-                    y: { stacked: true, ticks: { font: { size: 11 } } },
+                    x: { stacked: true, title: { display: true, text: unit }, ticks: { font: { size: 12 } } },
+                    y: { stacked: true, ticks: { font: { size: 13 } } },
                 },
             },
             plugins: [ChartDataLabels],
         });
     }
 
-    // ── 6. Evolução diária ────────────────────────────────────────────────────
-
-    _renderizarGraficoEvolucao(suffix, dados) {
-        const id = `chart-vg-evolucao-${suffix}`;
-        this._destroyChart(id);
-        const canvas = document.getElementById(id);
-        if (!canvas || !dados.evolucao.length) return;
-
-        const labels   = dados.evolucao.map(e => e.data);
-        const hhProd   = dados.evolucao.map(e => +e.hhServicos.toFixed(2));
-        const hhImprod = dados.evolucao.map(e => +e.hhImprod.toFixed(2));
-        const meta     = dados.totais.metaDiaria;
-
-        this._charts[id] = new Chart(canvas, {
-            type: 'line',
-            data: { labels, datasets: [
-                { label: 'HH Produtivo',   data: hhProd,   borderColor: '#43A047', backgroundColor: 'rgba(67,160,71,.12)',  fill: true, tension: .3, pointRadius: 3 },
-                { label: 'HH Improdutivo', data: hhImprod, borderColor: '#EF5350', backgroundColor: 'rgba(239,83,80,.08)', fill: true, tension: .3, pointRadius: 3 },
-                { label: `Meta diária (${meta.toFixed(0)} HH)`,
-                  data: Array(labels.length).fill(meta),
-                  borderColor: '#FF9800', borderDash: [8,4], borderWidth: 2, fill: false, pointRadius: 0 },
-            ]},
-            options: {
-                responsive: true, maintainAspectRatio: true,
-                plugins: {
-                    legend: { position: 'top' },
-                    tooltip: { callbacks: {
-                        label: ctx => ctx.datasetIndex === 2 ? ` ${ctx.dataset.label}` : ` ${ctx.dataset.label}: ${ctx.raw.toFixed(1)} HH`,
-                        afterBody: ctx => {
-                            const prod = ctx.find(c => c.datasetIndex===0)?.raw || 0;
-                            const imp  = ctx.find(c => c.datasetIndex===1)?.raw || 0;
-                            const tot  = prod + imp;
-                            return tot > 0 ? ['', `Total: ${tot.toFixed(1)} HH`, `Produtividade: ${(prod/tot*100).toFixed(1)}%`] : [];
-                        },
-                    }},
-                    datalabels: { display: false },
-                },
-                scales: {
-                    x: { ticks: { maxTicksLimit: 15, maxRotation: 45 } },
-                    y: { title: { display: true, text: 'HH' }, beginAtZero: true },
-                },
-            },
-            plugins: [ChartDataLabels],
-        });
-    }
 
     // ── 7a. Classificação (doughnut) ──────────────────────────────────────────
 
@@ -806,11 +785,17 @@ class VisaoGeral {
         this._destroyChart(id);
         const canvas = document.getElementById(id);
         if (!canvas) return;
-        const { totais } = dados;
         const isTP  = dados.tipoTurma === 'TP';
-        const vals  = [+totais.hhPDM.toFixed(2), +totais.hhCorrelato.toFixed(2)];
+
+        // Respeitar filtro de turma ativa
+        const turmaAtiva = this._filtroTurma[suffix];
+        const fonte = turmaAtiva
+            ? (dados.turmas.find(t => t.turma === turmaAtiva) || dados.totais)
+            : dados.totais;
+        const vals  = [+(fonte.hhPDM||0).toFixed(2), +(fonte.hhCorrelato||0).toFixed(2)];
         const total = vals.reduce((a,b) => a+b, 0);
 
+        const classLabels = isTP ? ['PDM_TPS','CORRELATO_TPS'] : ['PDM_SOLDA','CORRELATO_SOLDA'];
         this._charts[id] = new Chart(canvas, {
             type: 'doughnut',
             data: {
@@ -819,6 +804,7 @@ class VisaoGeral {
             },
             options: {
                 responsive: true, maintainAspectRatio: true,
+                onClick: (_, els) => { if (els.length) this._abrirDrilldownClassificacao(suffix, classLabels[els[0].index]); },
                 plugins: {
                     legend: { position: 'bottom' },
                     tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw.toFixed(1)} HH (${total > 0 ? (ctx.raw/total*100).toFixed(1) : 0}%)` } },
@@ -839,22 +825,34 @@ class VisaoGeral {
         if (!el) return;
         const turmaAtiva = this._filtroTurma[suffix];
         const sort       = this._sortServicos[suffix] || { col: 'hh', dir: 'desc' };
+        const tipoFiltro = this._filtroTipoServicos[suffix] || null;
+        const isTP       = dados.tipoTurma === 'TP';
         const fullLista  = turmaAtiva
             ? (dados.turmas.find(t => t.turma === turmaAtiva)?.servicos || dados.servicos)
             : dados.servicos;
+        const listaFiltrada = tipoFiltro
+            ? fullLista.filter(s => {
+                const isPDM = s.classificacao === (isTP ? 'PDM_TPS' : 'PDM_SOLDA');
+                return tipoFiltro === 'pdm' ? isPDM : !isPDM;
+            })
+            : fullLista;
         const fns = {
             hh:          (a,b) => sort.dir==='desc' ? b.hh-a.hh : a.hh-b.hh,
             qty:         (a,b) => sort.dir==='desc' ? b.qty-a.qty : a.qty-b.qty,
             ocorrencias: (a,b) => sort.dir==='desc' ? b.ocorrencias-a.ocorrencias : a.ocorrencias-b.ocorrencias,
         };
-        const lista = [...fullLista].sort(fns[sort.col] || fns.hh).slice(0,15);
+        const lista = [...listaFiltrada].sort(fns[sort.col] || fns.hh).slice(0,15);
         if (!lista.length) { el.innerHTML = '<p class="text-muted text-center py-3 small">Nenhum serviço encontrado.</p>'; return; }
 
         // % calculado sobre o total REAL do período (não apenas o Top 15)
-        const totalHH = fullLista.reduce((a,s) => a+s.hh, 0) || 1;
+        const totalHH = listaFiltrada.reduce((a,s) => a+s.hh, 0) || 1;
         const maxHH   = lista[0]?.hh || 1;
-        const isTP    = dados.tipoTurma === 'TP';
         const suf     = escAttr(suffix);
+        const btnTipo = (val, label, cor) => {
+            const ativo = tipoFiltro === val;
+            return `<button class="btn btn-sm ${ativo ? `btn-${cor}` : `btn-outline-${cor}`}" style="font-size:.7rem;padding:1px 7px;"
+                onclick="visaoGeral._filtrarTipoTopServicos('${suf}','${val}')">${label}</button>`;
+        };
         const ico = col => sort.col !== col
             ? '<i class="fas fa-sort text-muted ms-1" style="font-size:.65rem;"></i>'
             : sort.dir==='desc'
@@ -863,8 +861,13 @@ class VisaoGeral {
         const th = 'cursor:pointer;user-select:none;white-space:nowrap;';
 
         el.innerHTML = `
+            <div class="d-flex gap-1 px-3 pt-2 pb-1 border-bottom bg-white" style="position:sticky;top:0;z-index:3;">
+                ${btnTipo(null,'Todos','secondary')}
+                ${btnTipo('pdm','PDM','primary')}
+                ${btnTipo('correlato','Correlato','info')}
+            </div>
             <table class="table table-sm table-hover mb-0">
-                <thead class="table-light" style="position:sticky;top:0;z-index:2;">
+                <thead class="table-light" style="position:sticky;top:32px;z-index:2;">
                     <tr>
                         <th>Serviço</th>
                         <th class="text-center" style="width:58px;">Tipo</th>
@@ -877,10 +880,10 @@ class VisaoGeral {
                 <tbody>${lista.map(s => {
                     const isPDM = s.classificacao === (isTP ? 'PDM_TPS' : 'PDM_SOLDA');
                     const cor   = isPDM ? '#1976D2' : '#90CAF9';
-                    return `<tr>
-                        <td class="text-truncate" style="max-width:190px;font-size:.8rem;" title="${escAttr(s.descricao)}">
+                    return `<tr style="cursor:pointer;" onclick="visaoGeral._abrirDrilldownServico('${suf}', '${escAttr(s.descricao)}')">
+                        <td style="max-width:150px;font-size:.82rem;word-break:break-word;white-space:normal;">
                             <div style="height:2px;width:${(s.hh/maxHH*100).toFixed(0)}%;background:${cor};border-radius:2px;margin-bottom:2px;"></div>
-                            ${escapeHtml(s.descricao)}
+                            ${escapeHtml(s.descricao)} <i class="fas fa-external-link-alt ms-1" style="font-size:.55rem;opacity:.4;"></i>
                         </td>
                         <td class="text-center">${isPDM ? '<span class="badge bg-primary bg-opacity-75 small">PDM</span>' : '<span class="badge bg-secondary bg-opacity-75 small">Corr</span>'}</td>
                         <td class="text-end fw-bold small">${s.hh.toFixed(1)}</td>
@@ -896,6 +899,13 @@ class VisaoGeral {
         const s = this._sortServicos[suffix] || { col: 'hh', dir: 'desc' };
         this._sortServicos[suffix] = { col, dir: s.col===col && s.dir==='desc' ? 'asc' : 'desc' };
         const dados = suffix==='tp' ? this._dadosTPS : this._dadosTS;
+        if (dados) this._renderizarTopServicos(`vg-top-servicos-${suffix}`, dados, suffix);
+    }
+
+    _filtrarTipoTopServicos(suffix, tipo) {
+        // Toggle: clicar no mesmo tipo ativo limpa o filtro
+        this._filtroTipoServicos[suffix] = this._filtroTipoServicos[suffix] === tipo ? null : tipo;
+        const dados = suffix === 'tp' ? this._dadosTPS : this._dadosTS;
         if (dados) this._renderizarTopServicos(`vg-top-servicos-${suffix}`, dados, suffix);
     }
 
@@ -1005,17 +1015,24 @@ class VisaoGeral {
         const colors = top10.map(p => p.controlavel ? '#FF7043' : '#C62828');
 
         canvas.height = Math.max(180, top10.length * 36);
+        canvas.style.cursor = 'pointer';
+        canvas.title = 'Clique em uma barra para ver os apontamentos';
 
         this._charts[id] = new Chart(canvas, {
             type: 'bar',
             data: { labels, datasets: [{ label: 'HH perdido', data: vals, backgroundColor: colors, borderWidth: 0 }] },
             options: {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                onClick: (evt, elements) => {
+                    if (!elements.length) return;
+                    const perda = top10[elements[0].index];
+                    if (perda?.registros?.length) this._abrirDetalhePerda(perda.chave, perda);
+                },
                 plugins: {
                     legend: { display: false },
                     tooltip: { callbacks: {
                         label: ctx => ` ${ctx.raw.toFixed(1)} HH (${totHH > 0 ? (ctx.raw/totHH*100).toFixed(1) : 0}% das perdas)`,
-                        afterLabel: ctx => top10[ctx.dataIndex].controlavel ? ' ⚠ Controlável' : ' 🚫 Não controlável',
+                        afterLabel: ctx => (top10[ctx.dataIndex].controlavel ? ' ⚠ Controlável' : ' 🚫 Não controlável') + ' · clique para detalhes',
                     }},
                     datalabels: {
                         anchor: 'end', align: 'right', color: '#333', font: { size: 11 },
@@ -1087,34 +1104,7 @@ class VisaoGeral {
             ${perdas.length > 3 ? `<p class="small text-muted mt-2 mb-0">+ ${perdas.length-3} outros tipos</p>` : ''}`;
     }
 
-    // ── 9. Análise de "Outros" ────────────────────────────────────────────────
-
-    _renderizarAnaliseOutros(containerId, dados) {
-        const el = document.getElementById(containerId);
-        if (!el) return;
-        const outros = dados.perdas.filter(p => p.chave.toLowerCase().includes('outro') || !p.tipo);
-        if (!outros.length) { el.innerHTML = ''; return; }
-        const sug = { 'intersticio':'Interstício','sem o.s':'Sem Frente','sem os':'Sem Frente',
-            'finalizacao':'Finalização de O.S.','dds':'Treinamento/DDS','treinamento':'Treinamento/DDS',
-            'aguardando':'Aguardando Liberação','falta de material':'Falta de Material','deslocamento':'Deslocamento' };
-        const get = c => { const k = c.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,''); for(const[p,v] of Object.entries(sug)) if(k.includes(p)) return v; return '—'; };
-        el.innerHTML = `<div class="col-12"><div class="card border-0 shadow-sm">
-            <div class="card-header bg-warning bg-opacity-10">
-                <h6 class="mb-0 text-warning"><i class="fas fa-lightbulb me-2"></i>HI "Outros" — Sugestões de Reclassificação</h6>
-            </div>
-            <div class="card-body p-0"><table class="table table-sm table-hover mb-0">
-                <thead class="table-light"><tr><th>Descrição</th><th class="text-end" style="width:80px;">HH</th><th class="text-center" style="width:60px;">Ocorr</th><th>Sugestão</th></tr></thead>
-                <tbody>${outros.map(p=>{const s=get(p.chave);return`<tr>
-                    <td class="small">${escapeHtml(p.chave)}</td>
-                    <td class="text-end small fw-bold">${p.hh.toFixed(1)}</td>
-                    <td class="text-center small text-muted">${p.count}</td>
-                    <td class="small">${s!=='—'?`<span class="badge bg-success bg-opacity-75">${escapeHtml(s)}</span>`:'<span class="text-muted">—</span>'}</td>
-                </tr>`;}).join('')}</tbody>
-            </table></div>
-        </div></div>`;
-    }
-
-    // ── 10. Qualidade dos dados ───────────────────────────────────────────────
+    // ── 9. Qualidade dos dados ───────────────────────────────────────────────
 
     _renderizarQualidadeDados(containerId, dados) {
         const el = document.getElementById(containerId);
@@ -1122,25 +1112,68 @@ class VisaoGeral {
         const q = dados.qualidade;
         const total = q.rdosSemEfetivo + q.hisSemHorario + q.servicosSemCoef;
         if (!total) { el.innerHTML = ''; return; }
+
+        // Armazena listas para uso no modal (acessíveis via closure no onclick)
+        const listas = {
+            semEfetivo: q.listaRDOsSemEfetivo || [],
+            semHorario: q.listaHIsSemHorario  || [],
+            semCoef:    q.listaServicosSemCoef || [],
+        };
+
+        const abrirDetalheQD = (tipo) => {
+            this._criarOffcanvas();
+            const lista = listas[tipo];
+            const titles = { semEfetivo: 'RDOs sem Efetivo', semHorario: 'HIs sem Horário', semCoef: 'Serviços sem Coeficiente' };
+            document.getElementById('vg-oc-title').textContent = titles[tipo];
+            document.getElementById('vg-oc-subtitle').textContent = `${lista.length} ocorrência${lista.length !== 1 ? 's' : ''}`;
+            const cols = tipo === 'semCoef'
+                ? `<tr><th>RDO</th><th>Data</th><th>Turma</th><th>Serviço</th></tr>`
+                : tipo === 'semHorario'
+                ? `<tr><th>RDO</th><th>Data</th><th>Turma</th><th>Tipo HI</th></tr>`
+                : `<tr><th>RDO</th><th>Data</th><th>Turma</th></tr>`;
+            const rows = lista.map(r => {
+                const extra = tipo === 'semCoef' ? `<td class="small text-muted">${escapeHtml(r.desc || '—')}</td>`
+                            : tipo === 'semHorario' ? `<td class="small"><span class="badge bg-warning text-dark">${escapeHtml(r.tipo || '—')}</span></td>`
+                            : '';
+                return `<tr><td class="small fw-bold text-primary">${escapeHtml(r.numRDO || '—')}</td><td class="small">${escapeHtml(r.data || '—')}</td><td class="small">${escapeHtml(r.turma || '—')}</td>${extra}</tr>`;
+            }).join('');
+            document.getElementById('vg-oc-body').innerHTML = `
+                <div class="p-3">
+                    <div class="table-responsive" style="max-height:75vh;overflow-y:auto;">
+                        <table class="table table-sm table-hover mb-0">
+                            <thead class="table-light" style="position:sticky;top:0;z-index:1;">${cols}</thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </div>`;
+            bootstrap.Offcanvas.getOrCreateInstance(document.getElementById('vg-offcanvas')).show();
+        };
+
+        // Registra handlers globais temporários
+        window._vgQD = abrirDetalheQD;
+
         const items = [
-            { label: 'RDOs sem efetivo',        count: q.rdosSemEfetivo,  icon: 'fa-users-slash', color: 'warning' },
-            { label: 'HIs sem horário',          count: q.hisSemHorario,   icon: 'fa-clock',       color: 'danger'  },
-            { label: 'Serviços sem coeficiente', count: q.servicosSemCoef, icon: 'fa-tools',       color: 'secondary'},
+            { key: 'semEfetivo', label: 'RDOs sem efetivo',        count: q.rdosSemEfetivo,  icon: 'fa-users-slash', color: 'warning'  },
+            { key: 'semHorario', label: 'HIs sem horário',          count: q.hisSemHorario,   icon: 'fa-clock',       color: 'danger'   },
+            { key: 'semCoef',    label: 'Serviços sem coeficiente', count: q.servicosSemCoef, icon: 'fa-tools',       color: 'secondary'},
         ].filter(i => i.count > 0);
+
         el.innerHTML = `<div class="card border-0 shadow-sm">
             <div class="card-header bg-warning bg-opacity-10 d-flex justify-content-between align-items-center">
-                <h6 class="mb-0 text-warning"><i class="fas fa-clipboard-check me-2"></i>Qualidade dos Dados</h6>
+                <h6 class="mb-0 text-dark"><i class="fas fa-clipboard-check me-2 text-warning"></i>Qualidade dos Dados</h6>
                 <span class="badge bg-warning text-dark">${total} inconsistência${total>1?'s':''}</span>
             </div>
             <div class="card-body">
                 <div class="row g-2">${items.map(i=>`<div class="col-auto">
-                    <div class="d-flex align-items-center gap-2 p-2 rounded border border-${i.color} border-opacity-25 bg-${i.color} bg-opacity-10">
+                    <div class="d-flex align-items-center gap-2 p-2 rounded border border-${i.color} border-opacity-25 bg-${i.color} bg-opacity-10"
+                         style="cursor:pointer;" title="Clique para ver lista" onclick="window._vgQD('${i.key}')">
                         <i class="fas ${i.icon} text-${i.color}"></i>
                         <span class="fw-bold text-${i.color}">${i.count}</span>
                         <span class="small text-muted">${escapeHtml(i.label)}</span>
+                        <i class="fas fa-external-link-alt text-muted" style="font-size:.6rem;"></i>
                     </div>
                 </div>`).join('')}</div>
-                <p class="small text-muted mt-2 mb-0"><i class="fas fa-info-circle me-1"></i>Inconsistências podem afetar cálculos de HH e médias de efetivo.</p>
+                <p class="small text-muted mt-2 mb-0"><i class="fas fa-info-circle me-1"></i>Clique em um badge para ver os RDOs afetados.</p>
             </div>
         </div>`;
     }
@@ -1155,7 +1188,8 @@ class VisaoGeral {
         el.id = 'vg-offcanvas';
         el.setAttribute('tabindex', '-1');
         // Forçar largura com !important para sobrescrever CSS estático do Bootstrap build
-        const savedW = parseInt(localStorage.getItem('vg_oc_width') || '0');
+        let savedW = 0;
+        try { savedW = parseInt(localStorage.getItem('vg_oc_width') || '0'); } catch (_) { /* private browsing */ }
         const initW  = savedW > 0 ? savedW : Math.min(760, Math.round(window.innerWidth * 0.9));
         el.style.setProperty('width', `${initW}px`, 'important');
         el.style.transition = 'none';
@@ -1267,16 +1301,17 @@ class VisaoGeral {
         const dados   = suffix === 'tp' ? this._dadosTPS : this._dadosTS;
         const turma   = dados?.turmas.find(t => t.turma === turmaId);
         if (!turma || !dados) return;
+        this._offcanvasTurmaAtual = turma;
 
         const isTP     = dados.tipoTurma === 'TP';
-        const metaDia  = isTP ? 72 : 8;
+        const metaDia  = isTP ? METAS.META_DIARIA_TP : METAS.META_DIARIA_TS;
         const metaTurma = metaDia * turma.diasUteis;
         const hhTotal  = turma.hhServicos + turma.hhImprodutivas;
-        const taxaProd = hhTotal > 0 ? turma.hhServicos / hhTotal * 100 : 0;
-        const pctMeta  = metaTurma > 0 ? turma.hhServicos / metaTurma * 100 : 0;
+        const hhEntregues = turma.hhServicos + turma.hhImprodutivas;
+        const pctMeta  = metaTurma > 0 ? hhEntregues / metaTurma * 100 : 0;
         const hhDia    = turma.diasTrabalhados > 0 ? turma.hhServicos / turma.diasTrabalhados : 0;
         const gap      = Math.max(0, metaTurma - turma.hhServicos - turma.hhImprodutivas);
-        const pctDias  = turma.numRDOs > 0 ? turma.diasBateuMeta / turma.numRDOs * 100 : 0;
+        const pctDias  = turma.diasTrabalhados > 0 ? turma.diasBateuMeta / turma.diasTrabalhados * 100 : 0;
 
         const enc   = turma.encarregados?.join(', ') || '—';
         const medOp = turma.mediaOperadores > 0 ? turma.mediaOperadores.toFixed(1) : '—';
@@ -1312,7 +1347,9 @@ class VisaoGeral {
                     <div class="col-auto text-muted">|</div>
                     <div class="col-auto"><i class="fas fa-users text-secondary me-1"></i><strong>Méd. Operadores:</strong> ${escapeHtml(medOp)}</div>
                     <div class="col-auto text-muted">|</div>
-                    <div class="col-auto"><i class="fas fa-calendar-check text-success me-1"></i><strong>RDOs ≥ meta:</strong> ${turma.diasBateuMeta}/${turma.numRDOs} <span class="text-muted">(${pctDias.toFixed(0)}%)</span></div>
+                    <div class="col-auto"><i class="fas fa-calendar-check text-success me-1"></i><strong>Dias ≥ META:</strong> ${turma.diasBateuMeta}/${turma.diasTrabalhados} <span class="text-muted">(${pctDias.toFixed(0)}%)</span></div>
+                    ${!isTP && turma.totalSoldas > 0 ? `<div class="col-auto text-muted">|</div>
+                    <div class="col-auto"><i class="fas fa-fire text-danger me-1"></i><strong>Soldas:</strong> <span class="${turma.totalSoldas >= 30 ? 'text-success' : turma.totalSoldas >= 20 ? 'text-warning' : 'text-danger'} fw-bold">${turma.totalSoldas.toFixed(0)}</span> <span class="text-muted">(meta: 30)</span></div>` : ''}
                 </div>
             </div>
 
@@ -1324,19 +1361,19 @@ class VisaoGeral {
                     <small class="text-muted">${hhDia.toFixed(1)} HH/dia</small>
                 </div>
                 <div class="col border-end py-3">
+                    <p class="small text-muted mb-1">HH Improdut.</p>
+                    <h5 class="fw-bold text-danger mb-0">${turma.hhImprodutivas.toFixed(0)}</h5>
+                    <small class="text-muted">${hhEntregues > 0 ? (turma.hhImprodutivas/hhEntregues*100).toFixed(1) : 0}% do total</small>
+                </div>
+                <div class="col border-end py-3">
+                    <p class="small text-muted mb-1">Total Entregues</p>
+                    <h5 class="fw-bold text-info mb-0">${hhEntregues.toFixed(0)}</h5>
+                    <small class="text-muted">prod + improdut.</small>
+                </div>
+                <div class="col py-3">
                     <p class="small text-muted mb-1">% da Meta</p>
                     <h5 class="fw-bold ${sem(pctMeta,80,50)} mb-0">${pctMeta.toFixed(1)}%</h5>
                     <small class="text-muted">meta: ${metaTurma.toFixed(0)} HH</small>
-                </div>
-                <div class="col border-end py-3">
-                    <p class="small text-muted mb-1">Taxa Produt.</p>
-                    <h5 class="fw-bold ${sem(taxaProd,70,55)} mb-0">${taxaProd.toFixed(1)}%</h5>
-                    <small class="text-muted">prod/(prod+impr)</small>
-                </div>
-                <div class="col py-3">
-                    <p class="small text-muted mb-1">HH Improdut.</p>
-                    <h5 class="fw-bold text-danger mb-0">${turma.hhImprodutivas.toFixed(0)}</h5>
-                    <small class="text-muted">${hhTotal > 0 ? (turma.hhImprodutivas/hhTotal*100).toFixed(1) : 0}% do total</small>
                 </div>
             </div>
 
@@ -1381,17 +1418,20 @@ class VisaoGeral {
                             <thead class="table-light" style="position:sticky;top:0;z-index:1;"><tr>
                                 <th style="font-size:.72rem;">Serviço</th>
                                 <th class="text-center" style="font-size:.72rem;width:44px;">Tipo</th>
+                                <th class="text-end" style="font-size:.72rem;width:46px;">Qtd</th>
                                 <th class="text-end" style="font-size:.72rem;width:54px;">HH</th>
                                 <th class="text-end" style="font-size:.72rem;width:40px;">Ocr</th>
                             </tr></thead>
                             <tbody>${turma.servicos.map(s => {
                                 const isPDM = s.classificacao === classPDM;
-                                return `<tr>
-                                    <td style="font-size:.75rem;max-width:150px;" class="text-truncate" title="${escAttr(s.descricao)}">
+                                const qtdFmt = Number.isFinite(s.qty) ? (Number.isInteger(s.qty) ? s.qty : s.qty.toFixed(1)) : '–';
+                                return `<tr style="cursor:pointer;" onclick="visaoGeral._abrirDrilldownServico('${escAttr(isTP?'tp':'ts')}', '${escAttr(s.descricao)}', '${escAttr(turmaId)}')">
+                                    <td style="font-size:.75rem;max-width:130px;" class="text-truncate" title="${escAttr(s.descricao)}">
                                         <div style="height:2px;width:${(s.hh/maxSHH*100).toFixed(0)}%;background:${isPDM?'#1976D2':'#90CAF9'};border-radius:2px;margin-bottom:1px;"></div>
-                                        ${escapeHtml(s.descricao)}
+                                        ${escapeHtml(s.descricao)} <i class="fas fa-external-link-alt ms-1" style="font-size:.5rem;opacity:.4;"></i>
                                     </td>
                                     <td class="text-center">${isPDM?'<span class="badge bg-primary bg-opacity-75" style="font-size:.6rem;">PDM</span>':'<span class="badge bg-secondary bg-opacity-50" style="font-size:.6rem;">Corr</span>'}</td>
+                                    <td class="text-end text-muted" style="font-size:.75rem;">${qtdFmt}</td>
                                     <td class="text-end fw-bold" style="font-size:.75rem;">${s.hh.toFixed(1)}</td>
                                     <td class="text-end text-muted" style="font-size:.75rem;">${s.ocorrencias}</td>
                                 </tr>`;
@@ -1412,10 +1452,10 @@ class VisaoGeral {
                             </tr></thead>
                             <tbody>${turma.perdas.map(p => {
                                 const isNC = !p.controlavel;
-                                return `<tr>
+                                return `<tr style="cursor:pointer;" title="Clique para ver apontamentos" data-perda-chave="${escAttr(p.chave)}" onclick="visaoGeral._abrirDetalhePerda(this.dataset.perdaChave)">
                                     <td style="font-size:.75rem;max-width:150px;" class="text-truncate" title="${escAttr(p.chave)}">
                                         <div style="height:2px;width:${(p.hh/maxPHH*100).toFixed(0)}%;background:${isNC?'#C62828':'#FF7043'};border-radius:2px;margin-bottom:1px;"></div>
-                                        ${escapeHtml(p.chave)}
+                                        <i class="fas fa-search" style="font-size:.6rem;opacity:.5;margin-right:2px;"></i>${escapeHtml(p.chave)}
                                     </td>
                                     <td class="text-center">${isNC?'<span class="badge bg-danger bg-opacity-75" style="font-size:.6rem;">NC</span>':'<span class="badge bg-warning text-dark bg-opacity-75" style="font-size:.6rem;">Ctrl</span>'}</td>
                                     <td class="text-end fw-bold text-danger" style="font-size:.75rem;">${p.hh.toFixed(1)}</td>
@@ -1425,7 +1465,46 @@ class VisaoGeral {
                         </table>` : '<p class="text-muted small text-center py-3">Nenhuma HI registrada.</p>'}
                     </div>
                 </div>
-            </div>`;
+            </div>
+
+            <!-- VG-01: Lista de OS -->
+            ${turma.ordens?.length > 0 ? `
+            <div class="border-top p-3">
+                <p class="small text-muted fw-semibold mb-2"><i class="fas fa-clipboard-list me-1 text-info"></i>Ordens de Serviço (${turma.ordens.length})</p>
+                <div style="max-height:240px;overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light" style="position:sticky;top:0;z-index:1;">
+                            <tr>
+                                <th style="font-size:.72rem;">O.S</th>
+                                <th style="font-size:.72rem;">KM</th>
+                                <th style="font-size:.72rem;">Data(s)</th>
+                                <th style="font-size:.72rem;">Local</th>
+                                <th class="text-end" style="font-size:.72rem;width:60px;">HH Prod</th>
+                                <th class="text-end" style="font-size:.72rem;width:50px;">HI</th>
+                                <th class="text-end" style="font-size:.72rem;width:50px;">Total</th>
+                            </tr>
+                        </thead>
+                        <tbody>${turma.ordens.map(o => {
+                            const totalOS = o.hhProd + o.hhImpr;
+                            const datasUnicas = [...new Set(o.datas)].sort((a,b) => {
+                                const [da,ma,ya] = a.split('/').map(Number);
+                                const [db,mb,yb] = b.split('/').map(Number);
+                                return new Date(ya,ma-1,da) - new Date(yb,mb-1,db);
+                            });
+                            const kmLabel = (o.kmInicio && o.kmFim) ? `${escapeHtml(o.kmInicio)}–${escapeHtml(o.kmFim)}` : (o.kmInicio ? escapeHtml(o.kmInicio) : '—');
+                            return `<tr style="cursor:pointer;" onclick="visaoGeral._abrirDetalheOS('${escAttr(turma.turma)}', '${escAttr(o.os)}', '${escAttr(isTP ? 'tp' : 'ts')}')">
+                                <td class="fw-bold text-primary small">${escapeHtml(o.os)} <i class="fas fa-external-link-alt ms-1" style="font-size:.5rem;opacity:.4;"></i></td>
+                                <td class="small text-muted">${kmLabel}</td>
+                                <td class="small text-muted">${datasUnicas.length > 2 ? datasUnicas[0]+' … '+datasUnicas[datasUnicas.length-1] : datasUnicas.join(', ')}</td>
+                                <td class="small text-truncate" style="max-width:100px;" title="${escAttr(o.local)}">${escapeHtml(o.local || '-')}</td>
+                                <td class="text-end fw-bold small text-primary">${o.hhProd.toFixed(1)}</td>
+                                <td class="text-end small text-warning">${o.hhImpr.toFixed(1)}</td>
+                                <td class="text-end small fw-bold">${totalOS.toFixed(1)}</td>
+                            </tr>`;
+                        }).join('')}</tbody>
+                    </table>
+                </div>
+            </div>` : ''}`;
 
         // Renderizar gráficos
         this._renderizarGraficoDetalheComp(turma, dados, gap, metaTurma);
@@ -1503,6 +1582,363 @@ class VisaoGeral {
             },
             plugins: [ChartDataLabels],
         });
+    }
+
+    // ── Detalhe de apontamentos de HI ────────────────────────────────────────
+
+    _abrirDetalhePerda(chave, perdaObj) {
+        // Se chamado do offcanvas, buscar na turma atual; se chamado do chart, usar perdaObj passado
+        const perda = perdaObj || this._offcanvasTurmaAtual?.perdas?.find(p => p.chave === chave);
+        if (!perda) return;
+        const regs = perda.registros || [];
+
+        const existingId = 'vg-hi-detalhe-modal';
+        let modal = document.getElementById(existingId);
+        if (modal) modal.remove();
+
+        const isNC = !perda.controlavel;
+        const badgeHtml = isNC
+            ? '<span class="badge bg-danger ms-2" style="font-size:.7rem;">Não Controlável</span>'
+            : '<span class="badge bg-warning text-dark ms-2" style="font-size:.7rem;">Controlável</span>';
+
+        const toMin = t => { const [h,m] = (t||'').split(':').map(Number); return isNaN(h)||isNaN(m) ? null : h*60+m; };
+        const fmtDur = (ini, fim) => {
+            const a = toMin(ini), b = toMin(fim);
+            if (a === null || b === null) return '–';
+            const d = b >= a ? b - a : (1440 - a + b);
+            return d >= 60 ? `${Math.floor(d/60)}h${String(d%60).padStart(2,'0')}m` : `${d}min`;
+        };
+
+        const rows = regs.map(r => `
+            <tr>
+                <td style="font-size:.78rem;white-space:nowrap;">${escapeHtml(r.data || '–')}</td>
+                <td style="font-size:.78rem;white-space:nowrap;">${escapeHtml(r.numRDO || '–')}</td>
+                <td style="font-size:.78rem;">${r.horaInicio || '–'} → ${r.horaFim || '–'}</td>
+                <td class="text-center text-muted" style="font-size:.78rem;">${fmtDur(r.horaInicio, r.horaFim)}</td>
+                <td class="text-center" style="font-size:.78rem;">${r.operadores || '–'}</td>
+                ${r.descricao ? `<td style="font-size:.78rem;word-break:break-word;white-space:normal;">${escapeHtml(r.descricao)}</td>` : '<td class="text-muted" style="font-size:.78rem;">–</td>'}
+                <td class="text-end fw-bold text-danger" style="font-size:.78rem;">${r.hh.toFixed(2)}</td>
+            </tr>`).join('');
+
+        const html = `
+        <div class="modal fade" id="${existingId}" tabindex="-1" aria-hidden="true">
+          <div class="modal-dialog modal-lg modal-dialog-scrollable">
+            <div class="modal-content">
+              <div class="modal-header py-2 px-3" style="background:${isNC?'#C62828':'#FF7043'};color:#fff;">
+                <h6 class="modal-title mb-0">
+                  <i class="fas fa-list-ul me-2"></i>Apontamentos — ${escapeHtml(chave)}${badgeHtml}
+                </h6>
+                <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body p-0">
+                ${regs.length ? `
+                <table class="table table-sm table-hover mb-0">
+                  <thead class="table-light" style="position:sticky;top:0;z-index:1;">
+                    <tr>
+                      <th style="font-size:.72rem;">Data</th>
+                      <th style="font-size:.72rem;">Número RDO</th>
+                      <th style="font-size:.72rem;">Horário</th>
+                      <th class="text-center" style="font-size:.72rem;">Duração</th>
+                      <th class="text-center" style="font-size:.72rem;">Op.</th>
+                      <th style="font-size:.72rem;">Descrição</th>
+                      <th class="text-end" style="font-size:.72rem;">HH</th>
+                    </tr>
+                  </thead>
+                  <tbody>${rows}</tbody>
+                  <tfoot class="table-light">
+                    <tr>
+                      <td colspan="6" class="text-end fw-semibold" style="font-size:.78rem;">Total</td>
+                      <td class="text-end fw-bold text-danger" style="font-size:.78rem;">${regs.reduce((a,r)=>a+r.hh,0).toFixed(2)} HH</td>
+                    </tr>
+                  </tfoot>
+                </table>` : '<p class="text-muted text-center py-4 small">Nenhum apontamento encontrado.</p>'}
+              </div>
+              <div class="modal-footer py-2">
+                <small class="text-muted me-auto">${regs.length} apontamento${regs.length !== 1 ? 's' : ''}</small>
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+
+        document.body.insertAdjacentHTML('beforeend', html);
+        const el = document.getElementById(existingId);
+        const bsModal = new bootstrap.Modal(el, { backdrop: true });
+        el.addEventListener('hidden.bs.modal', () => el.remove(), { once: true });
+        bsModal.show();
+    }
+
+    // ── VG-04: Drill-down por classificação (PDM / Correlato) ───────────────
+
+    _abrirDrilldownClassificacao(suffix, classificacao) {
+        this._criarOffcanvas();
+        const dados = suffix === 'tp' ? this._dadosTPS : this._dadosTS;
+        if (!dados) return;
+        const turmaAtiva = this._filtroTurma[suffix];
+        const lista = turmaAtiva
+            ? (dados.turmas.find(t => t.turma === turmaAtiva)?.servicos || dados.servicos)
+            : dados.servicos;
+        const filtrados = lista.filter(s => s.classificacao === classificacao);
+        if (!filtrados.length) return;
+        const totalHH = filtrados.reduce((a, s) => a + s.hh, 0);
+        const labelClass = classificacao.includes('PDM') ? 'PDM' : 'Correlato';
+
+        document.getElementById('vg-oc-title').textContent = `${labelClass} — Serviços`;
+        document.getElementById('vg-oc-subtitle').textContent =
+            `${filtrados.length} serviços · ${totalHH.toFixed(1)} HH total${turmaAtiva ? ` · Filtro: ${turmaAtiva}` : ''}`;
+
+        document.getElementById('vg-oc-body').innerHTML = `
+            <div class="p-3">
+                <div class="table-responsive" style="max-height:70vh;overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light" style="position:sticky;top:0;z-index:1;">
+                            <tr>
+                                <th>Serviço</th>
+                                <th class="text-end" style="width:70px;">HH</th>
+                                <th class="text-end" style="width:60px;">Qtd</th>
+                                <th class="text-end" style="width:50px;">Ocorr</th>
+                            </tr>
+                        </thead>
+                        <tbody>${filtrados.map(s => `
+                            <tr style="cursor:pointer;" onclick="visaoGeral._abrirDrilldownServico('${escAttr(suffix)}', '${escAttr(s.descricao)}')">
+                                <td class="small" title="${escAttr(s.descricao)}">${escapeHtml(s.descricao)} <i class="fas fa-external-link-alt ms-1" style="font-size:.5rem;opacity:.4;"></i></td>
+                                <td class="text-end fw-bold small">${s.hh.toFixed(1)}</td>
+                                <td class="text-end small">${s.qty.toFixed(1)}</td>
+                                <td class="text-end small text-muted">${s.ocorrencias}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th>Total</th>
+                                <th class="text-end">${totalHH.toFixed(1)}</th>
+                                <th class="text-end">${filtrados.reduce((a,s)=>a+s.qty,0).toFixed(1)}</th>
+                                <th class="text-end text-muted">${filtrados.reduce((a,s)=>a+s.ocorrencias,0)}</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>`;
+
+        const ocEl = document.getElementById('vg-offcanvas');
+        bootstrap.Offcanvas.getOrCreateInstance(ocEl).show();
+    }
+
+    // ── VG-02: Drill-down de serviço → OSs ───────────────────────────────────
+
+    _abrirDrilldownServico(suffix, descricao, turmaId = null) {
+        this._criarOffcanvas();
+        const dados = suffix === 'tp' ? this._dadosTPS : this._dadosTS;
+        if (!dados) return;
+        const servico = dados.servicos.find(s => s.descricao === descricao);
+        if (!servico || !servico.detalhes?.length) return;
+        // Filtrar por turma se contexto vier de _abrirDetalhesTurma
+        const detalhes = turmaId
+            ? servico.detalhes.filter(d => d.turma === turmaId)
+            : servico.detalhes;
+        if (!detalhes.length) return;
+        const totalHH = detalhes.reduce((a, d) => a + d.hh, 0);
+        const totalQty = detalhes.reduce((a, d) => a + d.qty, 0);
+        const isPDM = servico.classificacao?.includes('PDM');
+
+        document.getElementById('vg-oc-title').textContent = descricao;
+        document.getElementById('vg-oc-subtitle').textContent =
+            `${isPDM ? 'PDM' : 'Correlato'}${turmaId ? ` · ${turmaId}` : ''} · ${detalhes.length} ocorrências · ${totalHH.toFixed(1)} HH total`;
+
+        document.getElementById('vg-oc-body').innerHTML = `
+            ${turmaId ? `
+            <div class="px-3 pt-2 pb-1 border-bottom">
+                <button class="btn btn-sm btn-outline-secondary" onclick="visaoGeral._abrirDetalhesTurma('${escAttr(turmaId)}', '${escAttr(suffix)}')">
+                    <i class="fas fa-arrow-left me-1"></i>Voltar para ${escapeHtml(turmaId)}
+                </button>
+            </div>` : ''}
+            <div class="p-3">
+                <div class="d-flex gap-3 mb-3">
+                    <div class="p-2 rounded bg-primary bg-opacity-10 text-center flex-fill">
+                        <p class="small text-muted mb-0">HH Total</p>
+                        <h5 class="fw-bold text-primary mb-0">${totalHH.toFixed(1)}</h5>
+                    </div>
+                    <div class="p-2 rounded bg-success bg-opacity-10 text-center flex-fill">
+                        <p class="small text-dark mb-0">Quantidade</p>
+                        <h5 class="fw-bold text-success mb-0">${totalQty.toFixed(1)}</h5>
+                    </div>
+                    <div class="p-2 rounded bg-info bg-opacity-10 text-center flex-fill">
+                        <p class="small text-muted mb-0">Ocorrências</p>
+                        <h5 class="fw-bold text-info mb-0">${detalhes.length}</h5>
+                    </div>
+                </div>
+                <div class="table-responsive" style="max-height:60vh;overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light" style="position:sticky;top:0;z-index:1;">
+                            <tr>
+                                <th>O.S</th>
+                                <th>KM</th>
+                                <th>Data</th>
+                                <th>Turma</th>
+                                <th class="text-end">Qtd</th>
+                                <th class="text-end">HH</th>
+                            </tr>
+                        </thead>
+                        <tbody>${detalhes.map(d => {
+                            const kmLabel = (d.kmInicio && d.kmFim) ? `${escapeHtml(d.kmInicio)}–${escapeHtml(d.kmFim)}` : (d.kmInicio ? escapeHtml(d.kmInicio) : '—');
+                            return `<tr style="cursor:pointer;" title="Ver detalhe da O.S" onclick="visaoGeral._abrirDetalheOS('${escAttr(d.turma)}', '${escAttr(d.os)}', '${escAttr(suffix)}')">
+                                <td class="small fw-bold text-primary">${escapeHtml(d.os || '-')} <i class="fas fa-external-link-alt ms-1" style="font-size:.5rem;opacity:.4;"></i></td>
+                                <td class="small text-muted">${kmLabel}</td>
+                                <td class="small">${escapeHtml(d.data || '-')}</td>
+                                <td class="small">${escapeHtml(d.turma || '-')}</td>
+                                <td class="text-end small">${d.qty.toFixed(1)}</td>
+                                <td class="text-end fw-bold small">${d.hh.toFixed(1)}</td>
+                            </tr>`;
+                        }).join('')}
+                        </tbody>
+                        <tfoot class="table-light">
+                            <tr>
+                                <th colspan="4">Total</th>
+                                <th class="text-end">${detalhes.reduce((a,d)=>a+d.qty,0).toFixed(1)}</th>
+                                <th class="text-end">${totalHH.toFixed(1)}</th>
+                            </tr>
+                        </tfoot>
+                    </table>
+                </div>
+            </div>`;
+
+        const ocEl = document.getElementById('vg-offcanvas');
+        bootstrap.Offcanvas.getOrCreateInstance(ocEl).show();
+    }
+
+    // ── VG-01: Drill-down de OS ──────────────────────────────────────────────
+
+    _abrirDetalheOS(turmaId, osNumero, suffix) {
+        this._criarOffcanvas();
+        const dados = suffix === 'tp' ? this._dadosTPS : this._dadosTS;
+        if (!dados) return;
+        const turma = dados.turmas.find(t => t.turma === turmaId);
+        const os = turma?.ordens?.find(o => o.os === osNumero);
+        if (!os) return;
+        const calc = this._calculadora;
+        const totalHH = os.hhProd + os.hhImpr;
+
+        // Função auxiliar: duração entre dois horários HH:MM (suporta virada de meia-noite)
+        const calcDurMin = (ini, fim) => {
+            const toMin = t => { const [h,m] = (t||'').split(':').map(Number); return isNaN(h)||isNaN(m) ? null : h*60+m; };
+            const a = toMin(ini), b = toMin(fim);
+            if (a === null || b === null) return null;
+            return b >= a ? b - a : (1440 - a + b);
+        };
+        const fmtDur = min => min === null ? '—' : min >= 60 ? `${Math.floor(min/60)}h${String(min%60).padStart(2,'0')}m` : `${min}min`;
+
+        // Buscar serviços, HI e efetivos desta OS
+        const servicosOS = [];
+        const hiOS = [];
+        let somaOperadores = 0, countEfetivo = 0;
+        os.rdos.forEach(r => {
+            (calc?.indices?.servicosPorRDO?.get(r.numRDO) || []).forEach(s => {
+                const desc = s['Descrição'] || s.descricao || '';
+                const qty  = parseFloat(s['Quantidade'] || s.quantidade || 0) || 0;
+                const coef = parseFloat(s.coeficiente || s.Coeficiente || 0) || 0;
+                servicosOS.push({ desc, qty, hh: qty * coef, data: r.data });
+            });
+            (calc?.indices?.hiPorRDO?.get(r.numRDO) || []).forEach(hi => {
+                const tipo   = hi['Tipo'] || hi.tipo || '';
+                const inicio = hi['Hora Início'] || hi.horaInicio || '';
+                const fim    = hi['Hora Fim'] || hi.horaFim || '';
+                const hhVal  = parseFloat(hi.hhImprodutivas || hi['HH Improdutivas'] || 0);
+                const durMin = calcDurMin(inicio, fim);
+                hiOS.push({ tipo, inicio, fim, durMin, hh: hhVal, data: r.data });
+            });
+            const ef = calc?.indices?.efetivosPorRDO?.get(r.numRDO);
+            if (ef) { somaOperadores += parseInt(ef['Operadores'] || ef.operadores || 0); countEfetivo++; }
+        });
+        const medOp = countEfetivo > 0 ? (somaOperadores / countEfetivo).toFixed(1) : '—';
+
+        document.getElementById('vg-oc-title').textContent = `O.S ${osNumero}`;
+        document.getElementById('vg-oc-subtitle').textContent =
+            `${turmaId} · ${os.rdos.length} RDO(s) · ${totalHH.toFixed(1)} HH total`;
+
+        document.getElementById('vg-oc-body').innerHTML = `
+            <!-- Botão Voltar -->
+            <div class="px-3 pt-2 pb-1 border-bottom">
+                <button class="btn btn-sm btn-outline-secondary" onclick="visaoGeral._abrirDetalhesTurma('${escAttr(turmaId)}', '${escAttr(suffix)}')">
+                    <i class="fas fa-arrow-left me-1"></i>Voltar para ${escapeHtml(turmaId)}
+                </button>
+            </div>
+            <!-- Info operacional -->
+            <div class="px-3 py-2 border-bottom bg-light">
+                <div class="row g-2 align-items-center small">
+                    <div class="col-auto"><i class="fas fa-map-marker-alt text-primary me-1"></i>${escapeHtml(os.local || '-')}</div>
+                    <div class="col-auto text-muted">|</div>
+                    <div class="col-auto"><i class="fas fa-ruler text-secondary me-1"></i>KM: ${escapeHtml(os.kmInicio || '-')} → ${escapeHtml(os.kmFim || '-')}</div>
+                    <div class="col-auto text-muted">|</div>
+                    <div class="col-auto"><i class="fas fa-users text-info me-1"></i>Méd. operadores: <strong>${medOp}</strong></div>
+                </div>
+            </div>
+            <!-- KPIs -->
+            <div class="row g-0 border-bottom text-center">
+                <div class="col border-end py-3">
+                    <p class="small text-muted mb-1">HH Produtivo</p>
+                    <h5 class="fw-bold text-success mb-0">${os.hhProd.toFixed(1)}</h5>
+                </div>
+                <div class="col border-end py-3">
+                    <p class="small text-muted mb-1">HH Improdutivo</p>
+                    <h5 class="fw-bold text-danger mb-0">${os.hhImpr.toFixed(1)}</h5>
+                </div>
+                <div class="col py-3">
+                    <p class="small text-muted mb-1">Total</p>
+                    <h5 class="fw-bold text-primary mb-0">${totalHH.toFixed(1)}</h5>
+                </div>
+            </div>
+            <!-- Dias trabalhados -->
+            <div class="p-3 border-bottom">
+                <p class="small text-muted fw-semibold mb-2"><i class="fas fa-calendar me-1"></i>Dias Trabalhados (${os.rdos.length})</p>
+                <div class="d-flex flex-wrap gap-2">${os.rdos.map(r => `
+                    <span class="badge bg-light text-dark border small">${escapeHtml(r.data || '-')} <span class="text-muted">${escapeHtml(r.horaInicio || '')}–${escapeHtml(r.horaFim || '')}</span></span>`).join('')}
+                </div>
+            </div>
+            <!-- Serviços -->
+            ${servicosOS.length ? `
+            <div class="p-3 border-bottom">
+                <p class="small text-muted fw-semibold mb-2"><i class="fas fa-tools me-1 text-success"></i>Serviços (${servicosOS.length})</p>
+                <div style="max-height:200px;overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light" style="position:sticky;top:0;z-index:1;">
+                            <tr><th style="font-size:.72rem;">Serviço</th><th style="font-size:.72rem;">Data</th><th class="text-end" style="font-size:.72rem;">Qtd</th><th class="text-end" style="font-size:.72rem;">HH</th></tr>
+                        </thead>
+                        <tbody>${servicosOS.map(s => `
+                            <tr><td class="small">${escapeHtml(s.desc)}</td><td class="small text-muted">${escapeHtml(s.data)}</td><td class="text-end small">${s.qty.toFixed(1)}</td><td class="text-end fw-bold small">${s.hh.toFixed(1)}</td></tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>` : ''}
+            <!-- HI -->
+            ${hiOS.length ? `
+            <div class="p-3 border-bottom">
+                <p class="small text-muted fw-semibold mb-2"><i class="fas fa-pause-circle me-1 text-danger"></i>Horas Improdutivas (${hiOS.length})</p>
+                <div style="max-height:200px;overflow-y:auto;">
+                    <table class="table table-sm table-hover mb-0">
+                        <thead class="table-light" style="position:sticky;top:0;z-index:1;">
+                            <tr><th style="font-size:.72rem;">Tipo</th><th style="font-size:.72rem;">Data</th><th style="font-size:.72rem;">Horário</th><th style="font-size:.72rem;">Duração</th><th class="text-end" style="font-size:.72rem;">HH</th></tr>
+                        </thead>
+                        <tbody>${hiOS.map(h => `
+                            <tr>
+                                <td class="small"><span class="badge bg-warning text-dark">${escapeHtml(h.tipo)}</span></td>
+                                <td class="small text-muted">${escapeHtml(h.data)}</td>
+                                <td class="small">${escapeHtml(h.inicio)}–${escapeHtml(h.fim)}</td>
+                                <td class="small text-muted">${fmtDur(h.durMin)}</td>
+                                <td class="text-end fw-bold small">${h.hh.toFixed(1)}</td>
+                            </tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>` : ''}
+            <!-- Observações dos RDOs -->
+            ${os.rdos.filter(r => r.obs).length ? `
+            <div class="p-3">
+                <p class="small text-muted fw-semibold mb-2"><i class="fas fa-comment-dots me-1 text-info"></i>Observações</p>
+                ${os.rdos.filter(r => r.obs).map(r => `
+                    <div class="alert alert-light small py-2 mb-2"><strong>${escapeHtml(r.data)}:</strong> ${escapeHtml(r.obs)}</div>`).join('')}
+            </div>` : ''}`;
+
+        const ocEl = document.getElementById('vg-offcanvas');
+        bootstrap.Offcanvas.getOrCreateInstance(ocEl).show();
     }
 
     // ── Utilitário ────────────────────────────────────────────────────────────

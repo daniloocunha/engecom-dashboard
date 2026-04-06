@@ -12,7 +12,7 @@ class AlertsSystem {
             SLA_OK: 0.96,           // >= 96% = ok
             // Mínimo operacional diário: usa a meta configurada em METAS.META_DIARIA_TP
             // para evitar divergência caso o valor seja ajustado no config.js.
-            HH_MINIMO_TP: (typeof METAS !== 'undefined' ? METAS.META_DIARIA_TP : 96),
+            HH_MINIMO_TP: (typeof METAS !== 'undefined' ? METAS.META_DIARIA_TP : 72),
             DIAS_MINIMO_TMC: 15     // Mínimo dias trabalhados por TMC
         };
     }
@@ -106,7 +106,7 @@ class AlertsSystem {
                     turma: tp.turma,
                     tipoTurma: 'TP',
                     message: `SLA abaixo do esperado: ${(sla * 100).toFixed(1)}%`,
-                    details: `TP ${tp.turma} está com SLA de ${(sla * 100).toFixed(1)}% (meta: 96%)`,
+                    details: `TP ${tp.turma} está com SLA de ${(sla * 100).toFixed(1)}% (meta: ${METAS.META_DIARIA_TP} HH/dia)`,
                     action: 'Monitorar performance',
                     icon: 'fa-exclamation-circle',
                     color: 'warning'
@@ -226,7 +226,7 @@ class AlertsSystem {
                     turma: ts.turma,
                     tipoTurma: 'TS',
                     message: `SLA abaixo do esperado: ${(sla * 100).toFixed(1)}%`,
-                    details: `TS ${ts.turma} está com SLA de ${(sla * 100).toFixed(1)}% (meta: 96%)`,
+                    details: `TS ${ts.turma} está com SLA de ${(sla * 100).toFixed(1)}% (meta: ${METAS.META_DIARIA_TS} HH/dia)`,
                     action: 'Monitorar trabalhos de soldagem',
                     icon: 'fa-exclamation-circle',
                     color: 'warning'

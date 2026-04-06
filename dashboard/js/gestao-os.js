@@ -237,12 +237,16 @@ class GestaoOS {
         this._atualizarResumo();
     }
 
-    /** Aplica cor de fundo à linha <tr> com base no status */
+    /** Aplica cor de fundo à linha <tr> com base no status (urgente tem prioridade) */
     _atualizarCorLinha(numeroOS, status) {
         const cel = document.getElementById(`status-cel-${CSS.escape(numeroOS)}`);
         const tr  = cel?.closest('tr');
         if (!tr) return;
-        tr.style.backgroundColor = STATUS_ROW_COLORS[status] || '';
+        if (this.getUrgente(numeroOS)) {
+            tr.style.backgroundColor = '#ffe0b2'; // laranja claro — urgente tem prioridade visual
+        } else {
+            tr.style.backgroundColor = STATUS_ROW_COLORS[status] || '';
+        }
         tr.style.transition = 'background-color 0.2s ease';
     }
 
@@ -443,6 +447,49 @@ class GestaoOS {
                 </button>`;
     }
 
+    // ── Urgente (GO-01) — destaque laranja por O.S ──────────────────────
+
+    getUrgente(numeroOS) {
+        const sv = this._dadosServidor?.[numeroOS];
+        if (sv && sv.urgente !== undefined) return sv.urgente === 'sim';
+        const local = localStorage.getItem('gestaoOS_urgente_' + numeroOS);
+        return local === 'sim';
+    }
+
+    setUrgente(numeroOS, valor) {
+        if (valor) {
+            try { localStorage.setItem('gestaoOS_urgente_' + numeroOS, 'sim'); } catch (_) {}
+        } else {
+            localStorage.removeItem('gestaoOS_urgente_' + numeroOS);
+        }
+        if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
+        this._dadosServidor[numeroOS].urgente = valor ? 'sim' : 'nao';
+        this._salvarNoServidor(numeroOS);
+        const cel = document.getElementById(`urgente-cel-${CSS.escape(numeroOS)}`);
+        if (cel) cel.innerHTML = this._urgenteHTML(numeroOS);
+        // Atualizar cor da linha (urgente tem prioridade visual)
+        this._atualizarCorLinha(numeroOS, this.getStatus(
+            (() => { let g = null; this._grupos?.forEach(gt => { if (gt.ordens.has(numeroOS)) g = gt.ordens.get(numeroOS); }); return g || {}; })()
+        ));
+    }
+
+    _urgenteHTML(numeroOS) {
+        const urgente = this.getUrgente(numeroOS);
+        const osEsc = _escAttr(numeroOS);
+        if (urgente) {
+            return `<button class="btn btn-sm btn-warning py-0 px-1"
+                        onclick="event.stopPropagation();gestaoOS.setUrgente('${osEsc}', false)"
+                        title="Clique para desmarcar urgente" style="font-size:0.78rem;white-space:nowrap;">
+                      🔥 Sim
+                    </button>`;
+        }
+        return `<button class="btn btn-sm btn-outline-secondary py-0 px-1"
+                    onclick="event.stopPropagation();gestaoOS.setUrgente('${osEsc}', true)"
+                    title="Clique para marcar como urgente" style="font-size:0.78rem;white-space:nowrap;">
+                  ○ Não
+                </button>`;
+    }
+
     // ── Notas múltiplas (Feature 2) — localStorage + servidor ─────────────
 
     /**
@@ -506,7 +553,7 @@ class GestaoOS {
         const panelEl  = document.createElement('tr');
         panelEl.id     = panelId;
         panelEl.innerHTML = `
-          <td colspan="10" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
+          <td colspan="13" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
             <div id="notaPanelInner_${CSS.escape(numeroOS)}">
               ${this._notasPanelContent(numeroOS)}
             </div>
@@ -881,6 +928,7 @@ class GestaoOS {
         // Cancelar envio pendente para este OS e agendar novo
         clearTimeout(this._debounceTimers[numeroOS]);
         this._debounceTimers[numeroOS] = setTimeout(() => {
+            delete this._debounceTimers[numeroOS];
             this._enviarParaServidor(numeroOS);
         }, 600);
     }
@@ -1092,7 +1140,8 @@ class GestaoOS {
         const prefixos = [
             'gestaoOS_status_', 'gestaoOS_gevia_',
             'gestaoOS_nota_', 'gestaoOS_notas_',
-            'gestaoOS_mediu_', 'gestaoOS_anexos_'
+            'gestaoOS_mediu_', 'gestaoOS_anexos_',
+            'gestaoOS_urgente_'
         ];
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -1746,7 +1795,8 @@ class GestaoOS {
 
             const rows = ordens.map(o => {
                 const status = this.getStatus(o);
-                const rowBg  = STATUS_ROW_COLORS[status] || '';
+                const isUrgente = this.getUrgente(o.numeroOS);
+                const rowBg  = isUrgente ? '#ffe0b2' : (STATUS_ROW_COLORS[status] || '');
                 const hhProd = (o.hhProd || 0).toFixed(2);
                 const hhImpr = (o.hhImpr || 0).toFixed(2);
 
@@ -1760,6 +1810,7 @@ class GestaoOS {
                   <td class="text-muted small" title="${_escAttr(o.local)}" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(o.local)}</td>
                   <td class="text-end text-nowrap fw-bold text-primary" style="min-width:68px;">${hhProd}</td>
                   <td class="text-end text-nowrap fw-bold text-warning" style="min-width:58px;">${hhImpr}</td>
+                  <td class="text-center" id="urgente-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._urgenteHTML(o.numeroOS)}</td>
                   <td class="text-center" id="mediu-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._mediuHTML(o.numeroOS)}</td>
                   <td id="status-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._statusSelectHTML(o)}</td>
                   <td id="gevia-cel-${CSS.escape(o.numeroOS)}"  onclick="event.stopPropagation();">${this._geviaHTML(o.numeroOS)}</td>
@@ -1777,7 +1828,7 @@ class GestaoOS {
                        </td>
                        <td class="text-end text-primary">${turmaHHProdAprov.toFixed(2)}</td>
                        <td class="text-end text-warning">${turmaHHImprAprov.toFixed(2)}</td>
-                       <td colspan="4" class="text-muted small">
+                       <td colspan="5" class="text-muted small">
                          Total: <strong>${(turmaHHProdAprov + turmaHHImprAprov).toFixed(2)} HH</strong>
                        </td>
                      </tr>
@@ -1804,6 +1855,7 @@ class GestaoOS {
                         <th class="text-nowrap" style="min-width:110px;">Local</th>
                         <th class="text-end text-nowrap text-primary" style="min-width:68px;" title="HH Produtivas (Σ qtd × coef)">HH Prod</th>
                         <th class="text-end text-nowrap text-warning" style="min-width:58px;" title="HH Improdutivas">HI</th>
+                        <th class="text-center text-nowrap" style="min-width:72px;">Urgente</th>
                         <th class="text-center text-nowrap" style="min-width:82px;">Já Medida</th>
                         <th class="text-nowrap" style="min-width:130px;">Status</th>
                         <th class="text-nowrap" style="min-width:100px;">GeVia</th>

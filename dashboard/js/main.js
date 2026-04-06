@@ -102,11 +102,7 @@ class DashboardMain {
             osAuditoria.atualizarBadge();
         }
 
-        // Alertas de qualidade de dados: serviços customizados sem HH Manual preenchido
         const customizadosSemHH = sheetsAPI.getCustomizadosSemHH();
-        if (customizadosSemHH.length > 0 && typeof alertsSystem !== 'undefined') {
-            alertsSystem.adicionarAlertasDados(customizadosSemHH);
-        }
 
         debugLog('[Dashboard] Dados carregados:', {
             rdos: this.dados.rdos.length,
@@ -375,12 +371,6 @@ class DashboardMain {
 
         // 1. KPIs
         this.atualizarKPIs();
-
-        // 1.5. 🔔 Alertas (Sprint 3)
-        if (typeof alertsSystem !== 'undefined') {
-            alertsSystem.analisarEstatisticas(this.estatisticas);
-            alertsSystem.renderizarAlertas();
-        }
 
         // 2. Gráficos (passar dados filtrados + calculadora para evolução real)
         dashboardCharts.renderizarTodos(this.estatisticas, this.calculadora);

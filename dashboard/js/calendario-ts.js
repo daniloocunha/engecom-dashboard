@@ -525,7 +525,9 @@ class CalendarioTS {
                 coeficiente: parseFloat(s.Coeficiente || s.coeficiente || 0).toFixed(4),
                 unidade:     s.Unidade || s.unidade || '-',
                 hh: (parseFloat(s.Quantidade  || s.quantidade  || 0) *
-                     parseFloat(s.Coeficiente || s.coeficiente || 0)).toFixed(2)
+                     parseFloat(s.Coeficiente || s.coeficiente || 0)).toFixed(2),
+                observacao: (s['Observações'] || s['Observacoes'] || s.observacoes || s.observações || '').trim(),
+                isCustomizado: (s['É Customizado?'] || s.eCustomizado || '').toString().toUpperCase() === 'SIM'
             }));
 
         const encarregado = dados.rdo?.Encarregado || dados.rdo?.encarregado || '-';
@@ -643,7 +645,11 @@ class CalendarioTS {
                                             <tbody>
                                                 ${servicosFormatados.map(s => `
                                                     <tr>
-                                                        <td>${escapeHtml(s.descricao)}</td>
+                                                        <td>
+                                                            ${escapeHtml(s.descricao)}
+                                                            ${s.isCustomizado ? '<span class="badge bg-info ms-1" style="font-size:.6rem;">Custom</span>' : ''}
+                                                            ${s.observacao ? `<div class="text-muted small mt-1"><i class="fas fa-comment-dots me-1"></i>${escapeHtml(s.observacao)}</div>` : ''}
+                                                        </td>
                                                         <td class="text-center">${s.quantidade}</td>
                                                         <td class="text-center">${s.coeficiente}</td>
                                                         <td class="text-center">${s.unidade}</td>
