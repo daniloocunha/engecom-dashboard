@@ -355,6 +355,13 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 
 **Ver `GERENCIAR_SERVICOS.md` para instruções detalhadas.**
 
+### DatabaseHelper — Notas de Arquitetura
+- `obterRDOsPaginados(offset, limit)` e `contarRDOs()` vivem em `DatabaseHelperExtensions.kt` (versões mais completas, com ordenação por data sortável)
+- Os métodos de paginação/contagem no arquivo principal foram removidos (duplicatas) na Fase 1
+- `inserirRDO()` usa backoff **linear** (10ms × tentativa) — NÃO exponencial
+- `marcarRDOComoPendente()` sempre escreve `""` em `mensagem_erro_sync` (nunca NULL)
+- Extensões usam strings literais para nomes de colunas (acesso a `private const val` não é possível de fora da classe)
+
 ### Database Migrations
 - Version 1: Schema inicial com campos básicos do RDO
 - Version 2: Campos de horário, tema DDS, efetivo, equipamentos, itens HI
@@ -646,7 +653,7 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 | Fase | Escopo | Status |
 |------|--------|--------|
 | Fase 0 | Fundação: CLAUDE.md, .gitignore, memória | ✅ Concluída (2026-05-27) |
-| Fase 1 | Android: Camada de Dados | Pendente |
+| Fase 1 | Android: Camada de Dados | ✅ Concluída (2026-05-27) |
 | Fase 2 | Android: Domínio e Validação | Pendente |
 | Fase 3 | Android: Serviços de Sync | Pendente |
 | Fase 4 | Android: UI | Pendente |

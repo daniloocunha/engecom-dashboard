@@ -444,7 +444,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
 
                 // 🔥 FIX: Usar coroutine delay() ao invés de Thread.sleep()
                 if (attempt < maxRetries) {
-                    delay(10L * attempt) // 10ms, 20ms, 30ms... (backoff exponencial)
+                    delay(10L * attempt) // 10ms, 20ms, 30ms... (backoff linear)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Erro ao inserir RDO: ${e.message}", e)
@@ -474,54 +474,6 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
             }
         }
         return rdos
-    }
-
-    /**
-     * ✅ PAGINAÇÃO: Obter RDOs com limite e offset
-     * @param limit Quantidade de itens por página (padrão: 20)
-     * @param offset Deslocamento inicial (padrão: 0)
-     * @return Lista paginada de RDOs ordenada por ID descendente
-     */
-    fun obterRDOsPaginados(limit: Int = 20, offset: Int = 0): List<RDODataCompleto> {
-        val rdos = mutableListOf<RDODataCompleto>()
-        val db = readableDatabase
-        val gson = Gson()
-
-        db.query(
-            TABLE_RDO,
-            null,
-            null,
-            null,
-            null,
-            null,
-            "$COLUMN_ID DESC",
-            "$offset, $limit"  // SQLite LIMIT offset, limit
-        ).use { cursor ->
-            while (cursor.moveToNext()) {
-                try {
-                    val rdo = extrairRDODoCursor(cursor, gson)
-                    rdos.add(rdo)
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            }
-        }
-
-        Log.d(TAG, "📄 Paginação: Carregados ${rdos.size} RDOs (offset: $offset, limit: $limit)")
-        return rdos
-    }
-
-    /**
-     * ✅ Conta total de RDOs no banco
-     */
-    fun contarTotalRDOs(): Int {
-        val db = readableDatabase
-        db.rawQuery("SELECT COUNT(*) FROM $TABLE_RDO", null).use { cursor ->
-            if (cursor.moveToFirst()) {
-                return cursor.getInt(0)
-            }
-        }
-        return 0
     }
 
     fun obterRDOsPorData(data: String): List<RDODataCompleto> {
@@ -1077,7 +1029,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         val valores = ContentValues().apply {
             put(COLUMN_SYNC_STATUS, SyncStatus.PENDING.toDbValue())
             put(COLUMN_SINCRONIZADO, 0)
-            putNull(COLUMN_MENSAGEM_ERRO_SYNC)
+            put(COLUMN_MENSAGEM_ERRO_SYNC, "")
         }
         db.update(TABLE_RDO, valores, "$COLUMN_ID = ?", arrayOf(id.toString()))
     }
