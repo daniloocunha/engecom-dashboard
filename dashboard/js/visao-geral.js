@@ -273,7 +273,6 @@ class VisaoGeral {
                 if (!dados) return;
                 this._renderizarGraficoComposicao(suffix, dados);
                 this._renderizarGraficoProdutividade(suffix, dados);
-                this._renderizarGraficoEvolucao(suffix, dados);
                 this._renderizarGraficoClassificacao(suffix, dados);
                 this._renderizarGraficoPerdas(suffix, dados);
             });
@@ -680,7 +679,7 @@ class VisaoGeral {
                             <i class="fas fa-circle text-warning me-1"></i>Atenção &nbsp;
                             <i class="fas fa-circle text-danger me-1"></i>Crítico &nbsp;·&nbsp;
                             <strong>"Dias ≥ META"</strong> = dias com HH produtivo ≥ ${metaDia} HH &nbsp;·&nbsp;
-                            <strong>"% Meta"</strong> = HH produtivo ÷ meta mensal (${isTP ? '12 op × 6h' : '1 soldador × 6h'} × dias úteis) &nbsp;·&nbsp;
+                            <strong>"% Meta"</strong> = (HH Produtivo + HH Improdutivo) ÷ meta mensal (${isTP ? '12 op × 6h' : '1 soldador × 6h'} × dias úteis) &nbsp;·&nbsp;
                             <i class="fas fa-hand-pointer text-primary me-1"></i>Clique em uma turma para ver detalhes completos
                         </small>
                     </div>
@@ -1306,7 +1305,6 @@ class VisaoGeral {
         const isTP     = dados.tipoTurma === 'TP';
         const metaDia  = isTP ? METAS.META_DIARIA_TP : METAS.META_DIARIA_TS;
         const metaTurma = metaDia * turma.diasUteis;
-        const hhTotal  = turma.hhServicos + turma.hhImprodutivas;
         const hhEntregues = turma.hhServicos + turma.hhImprodutivas;
         const pctMeta  = metaTurma > 0 ? hhEntregues / metaTurma * 100 : 0;
         const hhDia    = turma.diasTrabalhados > 0 ? turma.hhServicos / turma.diasTrabalhados : 0;

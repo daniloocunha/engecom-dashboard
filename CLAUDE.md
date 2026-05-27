@@ -658,6 +658,6 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 | Fase 3 | Android: Serviços de Sync | ✅ Concluída (2026-05-27) |
 | Fase 4 | Android: UI | ✅ Concluída (2026-05-27) |
 | Fase 5 | Dashboard: Core | ✅ Concluída (2026-05-27) |
-| Fase 6 | Dashboard: Módulos de Visualização | Pendente |
+| Fase 6 | Dashboard: Módulos de Visualização | ✅ Concluída (2026-05-27) |
 | Fase 7 | Consistência App ↔ Dashboard | Pendente |
 | Fase 8 | Documentação Final | Pendente |
