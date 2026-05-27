@@ -10,6 +10,7 @@ import androidx.work.WorkerParameters
 import com.example.calculadorahh.R
 import com.example.calculadorahh.services.GoogleSheetsService
 import com.example.calculadorahh.services.SheetsConstants
+import com.example.calculadorahh.utils.AppConstants
 import com.example.calculadorahh.utils.AppLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -30,9 +31,9 @@ class DataCleanupWorker(
 
     companion object {
         private const val TAG = "DataCleanupWorker"
-        const val WORK_NAME = "DataCleanupWork"
-        private const val NOTIFICATION_ID = 1002
-        private const val CHANNEL_ID = "data_cleanup_channel"
+        const val WORK_NAME = AppConstants.WORK_NAME_CLEANUP
+        private const val NOTIFICATION_ID = AppConstants.NOTIFICATION_ID_CLEANUP
+        private const val CHANNEL_ID = AppConstants.NOTIFICATION_CHANNEL_CLEANUP
         private const val CHANNEL_NAME = "Limpeza de Dados"
     }
 

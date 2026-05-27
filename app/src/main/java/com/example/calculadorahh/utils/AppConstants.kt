@@ -63,12 +63,6 @@ object AppConstants {
 
     // ========== DATABASE ==========
 
-    /** Backoff inicial para retry de inserção (em milissegundos) */
-    const val BACKOFF_INICIAL_MS = 10L
-
-    /** Multiplicador de backoff exponencial */
-    const val BACKOFF_MULTIPLICADOR = 2.0
-
     /** Página padrão para queries paginadas */
     const val PAGE_SIZE_DEFAULT = 20
 
