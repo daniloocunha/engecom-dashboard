@@ -465,7 +465,7 @@ class GoogleSheetsAPI {
         return horasImprodutivas.map(hi => {
             const numeroRDO = hi['Número RDO'] || hi.numeroRDO || '';
             const numeroOS = hi['Número OS'] || hi.numeroOS || '';
-            const dataRDO = hi['Data RDO'] || hi.data || '';
+            const dataRDO = hi['Data RDO'] || hi.dataRDO || '';
             const tipo = hi['Tipo'] || hi.tipo || '';
             const descricao = hi['Descrição'] || hi.descricao || '';
             const horaInicio = hi['Hora Início'] || hi.horaInicio || '';

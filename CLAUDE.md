@@ -274,7 +274,33 @@ Aba RDO: ID | Número RDO | Data | Código Turma | Encarregado | Local | Número
 
 > **Nota**: O campo `causaNaoServico` (RUMO/ENGECOM) existe no banco SQLite local e na UI do app mas **não é sincronizado** com o Google Sheets (removido como "redundante" na v6 dos headers). Dado disponível apenas localmente.
 
-#### 9. Dashboard — Arquitetura de Cálculos
+#### 9. Dashboard — Normalização de Campos (App ↔ Dashboard)
+
+`sheets-api.js` usa `normalizarNomeCampo()` para converter headers do Sheets para camelCase. Cada objeto retornado contém **ambas** as chaves: original e normalizada. Exemplos:
+
+| Header no Sheets (Android) | Chave normalizada (Dashboard) |
+|----------------------------|-------------------------------|
+| `Número RDO` | `numeroRDO` |
+| `Código Turma` | `codigoTurma` |
+| `Horário Início` | `horarioInicio` |
+| `KM Início` | `kmInicio` |
+| `É Customizado?` | `eCustomizado` |
+| `HH Manual` | `hhManual` |
+| `Hora Início` | `horaInicio` |
+| `Encarregado Qtd` | `encarregadoQtd` |
+| `Técnico Segurança` | `tecnicoSeguranca` |
+| `Operador EGP` | `operadorEgp` ⚠️ (não `operadorEGP`) |
+
+> ⚠️ **Quirk:** `"Operador EGP"` normaliza para `"operadorEgp"` (não `"operadorEGP"`), porque `slice(1).toLowerCase()` converte `"GP"` para `"gp"`. Todos os acessos cobrem essa variante com triple fallback: `ef['Operador EGP'] || ef.operadorEGP || ef.operadorEgp`.
+
+**Campos calculados pelo dashboard (não existem como coluna no Sheets):**
+- `coeficiente` em Servicos — adicionado por `enriquecerServicosComCoeficientes()` a partir de `servicos.json`
+- `hhImprodutivas` em HorasImprodutivas — calculado por `calcularHHImprodutivas()` com regras de Chuva ÷ 2 e Trem < 20min = 0
+- `total` em Efetivo — calculado por `obterEfetivoDia()` somando todos os campos de função
+
+**Abas lidas pelo dashboard:** apenas `RDO`, `Servicos`, `HorasImprodutivas`, `Efetivo`. As abas `Materiais`, `TransporteSucatas` e `Equipamentos` são escritas pelo app mas não consumidas pelo dashboard.
+
+#### 10. Dashboard — Arquitetura de Cálculos
 
 **`calculations.js`** — Classe `CalculadoraMedicao`:
 - Índices O(1) em Maps: `servicosPorRDO`, `hiPorRDO`, `efetivosPorRDO`, `rdosPorTurma`
@@ -659,5 +685,5 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 | Fase 4 | Android: UI | ✅ Concluída (2026-05-27) |
 | Fase 5 | Dashboard: Core | ✅ Concluída (2026-05-27) |
 | Fase 6 | Dashboard: Módulos de Visualização | ✅ Concluída (2026-05-27) |
-| Fase 7 | Consistência App ↔ Dashboard | Pendente |
+| Fase 7 | Consistência App ↔ Dashboard | ✅ Concluída (2026-05-27) |
 | Fase 8 | Documentação Final | Pendente |
