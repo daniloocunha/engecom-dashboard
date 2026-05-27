@@ -654,9 +654,9 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 |------|--------|--------|
 | Fase 0 | Fundação: CLAUDE.md, .gitignore, memória | ✅ Concluída (2026-05-27) |
 | Fase 1 | Android: Camada de Dados | ✅ Concluída (2026-05-27) |
-| Fase 2 | Android: Domínio e Validação | Pendente |
-| Fase 3 | Android: Serviços de Sync | Pendente |
-| Fase 4 | Android: UI | Pendente |
+| Fase 2 | Android: Domínio e Validação | ✅ Concluída (2026-05-27) |
+| Fase 3 | Android: Serviços de Sync | ✅ Concluída (2026-05-27) |
+| Fase 4 | Android: UI | ✅ Concluída (2026-05-27) |
 | Fase 5 | Dashboard: Core | Pendente |
 | Fase 6 | Dashboard: Módulos de Visualização | Pendente |
 | Fase 7 | Consistência App ↔ Dashboard | Pendente |
