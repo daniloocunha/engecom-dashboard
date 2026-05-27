@@ -28,9 +28,9 @@ app/release/*.apk
 dashboard/js/config.js
 
 # Arquivos temporários com nomes inválidos (Windows artifacts)
-coef
-normalized
-nul
+coef*
+normalized*
+nul*
 
 # Cloudflare Wrangler — cache de build local
 .wrangler/
@@ -42,6 +42,10 @@ rdo-engecom-*.json
 logcat.txt
 sheets_data.json
 sheets_output.txt
+
+# Screenshots e arquivos de debug do dashboard
+dashboard/debug/
+dashboard/RDO*.txt
 
 # Relatórios de análise gerados automaticamente (não são código)
 ANALISE_SHEETS_RESULTADO.txt

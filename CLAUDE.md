@@ -6,14 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **CalculadoraHH** (Display name: "Controle de Campo") is an Android application designed for calculating work hours (HH - Homem-Hora) and managing RDO (Relatório Diário de Obras / Daily Work Reports) for railway maintenance operations at Engecom Engenharia. The app is built using Kotlin with MVVM architecture, ViewBinding, and Material Design 3.
 
+The project also includes a **web dashboard** (`dashboard/`) hosted on GitHub Pages for management reporting, synced via Google Sheets.
+
 ### Key Features
-- **Calculadora HH**: Calculate work hours based on 175 predefined railway service coefficients
+- **Calculadora HH**: Calculate work hours based on ~100 predefined railway service coefficients
 - **RDO Management**: Create, store, and manage daily work reports with auto-generated RDO numbers
 - **Histórico**: View and filter historical RDOs with calendar integration
 - **Export**: Export RDO data to CSV/JSON formats via FileProvider
-- **Database**: Local SQLite storage (v8) with Gson serialization, UNIQUE constraints, and performance indexes
+- **Database**: Local SQLite storage (v10) with Gson serialization, UNIQUE constraints, and performance indexes
 - **Google Sheets Sync**: Automatic background sync every 6 hours via WorkManager with conflict-free offline support
-- **Auto-Update System**: Check for updates, download, validate (MD5), and install APKs from Google Sheets
+- **Auto-Update System**: Check for updates, download, validate (MD5), and install APKs from GitHub Releases
+- **Dashboard Web**: Management reporting with TMC calculations, calendars, productivity analysis, and OS management
 
 ## Development Commands
 
@@ -60,121 +63,237 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ./gradlew compileDebugKotlin
 ```
 
-### Gradle Tasks
+### Dashboard Scripts
 ```bash
-# List all available tasks
-./gradlew tasks
-
-# View project dependencies
-./gradlew dependencies
+# Sync servicos.json to dashboard (run after editing app/src/main/res/raw/servicos.json)
+npm run sync-servicos
+# or
+node scripts/sync-servicos.js
 ```
+
+### Utility Scripts (scripts/)
+- `scripts/importar_rdos.py` — Importa RDOs de mensagens WhatsApp/TXT para Sheets
+- `scripts/cleanup_sheets.py` — Limpeza e normalização de RDOs no Sheets (headers, deletados, HI)
+- `scripts/cleanup_op6.py` — Limpa coluna Operadores na aba HorasImprodutivas
+- `scripts/read_sheets.py` — Lê dados do Sheets via JWT manual para diagnóstico
+- `scripts/verify-sheets.js` — Verifica integridade dos dados no Sheets
+- `scripts/fix-sheets-*.js` — Scripts de correção pontual de dados históricos
 
 ## Architecture & Code Structure
 
-### Architecture Pattern
-The project follows **MVVM (Model-View-ViewModel)** architecture with the following layers:
+### Android App — Package Structure
 
 ```
-├── data/               # Data layer
-│   ├── models/        # Data models (Servico, ServicoCalculado, HICalculado, RDOData, RDODataCompleto, TransporteItem, SyncStatus)
-│   └── database/      # SQLite database (DatabaseHelper v5 - Singleton pattern)
+com.example.calculadorahh/
+├── data/
+│   ├── models/         # RDOData, RDODataCompleto, ServicoRDO, MaterialRDO,
+│   │                   # HIItem, TransporteItem, UpdateConfig, SyncStatus
+│   └── database/
+│       ├── DatabaseHelper.kt           # SQLite v10 — Singleton com double-checked locking
+│       └── DatabaseHelperExtensions.kt # Extensões de query
 │
-├── domain/            # Business logic layer
-│   └── managers/      # Business logic managers using Template Method pattern
-│       ├── BaseItemManager.kt          # Abstract base for item management
-│       ├── ServicosManager.kt          # Service management
-│       ├── MateriaisManager.kt         # Materials management
-│       ├── HIManager.kt                # Unproductive hours management
-│       ├── TransportesManager.kt       # Transport management
-│       └── ModeloLoader.kt             # RDO template loader
+├── domain/
+│   └── managers/
+│       ├── BaseItemManager.kt          # Abstract base (Template Method pattern)
+│       ├── ServicosManager.kt          # Serviços: seleção e cálculos HH
+│       ├── MateriaisManager.kt         # Materiais com seleção de unidade
+│       ├── HIManager.kt                # Horas Improdutivas com cálculos por categoria
+│       ├── TransportesManager.kt       # Transportes com validação
+│       ├── ModeloLoader.kt             # Carrega RDO como modelo para novo RDO
+│       └── RDOValidator.kt             # Validação de formulário (lógica pura, sem UI)
 │
-├── services/          # External services
-│   └── GoogleSheetsService.kt          # Google Sheets API integration
+├── services/
+│   ├── GoogleSheetsService.kt          # Facade: orquestra os 4 helpers abaixo
+│   ├── SheetsConstants.kt              # Nomes de abas, HEADERS_VERSION, listas de headers
+│   ├── SheetsHeaderManager.kt          # Detecta e atualiza headers das abas
+│   ├── SheetsLookupHelper.kt           # Lookup de linhas por Número RDO
+│   ├── SheetsRelatedDataManager.kt     # buildRDORow(), insertRelatedData(), deleteRelatedData()
+│   └── SheetsAuditService.kt           # Log de operações na aba AuditoriaSync
 │
-├── ui/                # Presentation layer
-│   ├── activities/    # Activity classes (HomeActivity, MainActivity, HistoricoRDOActivity, CalendarioRDOActivity)
-│   ├── fragments/     # Fragment classes (CalculadoraHHFragment, RDOFragment)
-│   └── adapters/      # RecyclerView adapters (ViewPagerAdapter, ServicosAdapter, HIsAdapter, HistoricoRDOAdapter)
+├── ui/
+│   ├── activities/
+│   │   ├── HomeActivity.kt             # Launcher: 3 opções de navegação
+│   │   ├── MainActivity.kt             # Container ViewPager2 (Calculadora + RDO)
+│   │   ├── HistoricoRDOActivity.kt     # Lista de RDOs com filtros
+│   │   └── CalendarioRDOActivity.kt    # Calendário de RDOs por mês
+│   ├── fragments/
+│   │   ├── CalculadoraHHFragment.kt    # Cálculo de HH por serviços
+│   │   └── RDOFragment.kt              # Formulário completo de RDO
+│   ├── adapters/
+│   │   ├── ViewPagerAdapter.kt
+│   │   ├── ServicosAdapter.kt
+│   │   ├── HIsAdapter.kt
+│   │   └── HistoricoRDOAdapter.kt
+│   └── components/
+│       └── SearchableSpinner.kt        # Spinner com busca para listas longas
 │
-├── viewmodels/        # ViewModels (CalculadoraHHViewModel - shared state with LiveData)
+├── viewmodels/
+│   └── CalculadoraHHViewModel.kt       # Estado compartilhado com LiveData
 │
-├── workers/           # Background tasks
-│   ├── RDOSyncWorker.kt               # WorkManager sync task (6-hour interval)
-│   └── DataCleanupWorker.kt           # Weekly orphan data cleanup
+├── workers/
+│   ├── RDOSyncWorker.kt               # WorkManager: sync a cada 6 horas
+│   └── DataCleanupWorker.kt           # WorkManager: limpeza de órfãos semanal
 │
-└── utils/             # Utility classes
-    ├── AppConstants.kt                 # Centralized configuration constants
-    ├── AppLogger.kt                    # Logging with file storage
-    ├── DateFormatter.kt                # Date/time formatting utilities
-    ├── ErrorHandler.kt                 # User-friendly error messages
-    ├── IntentExtensions.kt             # Android intent compatibility helpers
-    ├── KmInputMask.kt                  # KM formatting mask (input)
-    ├── KmUtils.kt                      # KM conversion and formatting utilities
-    ├── RDORelatorioUtil.kt             # Report generation
-    ├── ServicosCache.kt                # Singleton cache for services JSON
-    ├── SyncHelper.kt                   # Google Sheets sync orchestration
-    ├── TimeInputMask.kt                # Time formatting (HH:MM)
-    ├── TimeValidator.kt                # Time validation with overnight support
-    └── ValidationHelper.kt             # Comprehensive input validation
+├── utils/
+│   ├── AppConstants.kt                 # Regex, ranges de validação, constantes
+│   ├── AppLogger.kt                    # Logging estruturado com armazenamento em arquivo
+│   ├── DateFormatter.kt                # Formatação de data/hora
+│   ├── ErrorHandler.kt                 # Mensagens de erro amigáveis ao usuário
+│   ├── IntentExtensions.kt             # Compatibilidade de Intent (Android < API 33)
+│   ├── KmInputMask.kt                  # Máscara de entrada KM ferroviário "123+456"
+│   ├── KmUtils.kt                      # Conversão "123+456" ↔ Double
+│   ├── RDORelatorioUtil.kt             # Geração de relatório de RDO
+│   ├── ServicosCache.kt                # Cache Singleton do servicos.json
+│   ├── SyncHelper.kt                   # Orquestração de sincronização
+│   ├── TimeInputMask.kt                # Máscara de entrada HH:MM
+│   ├── TimeValidator.kt                # Validação e cálculos de horário (overnight support)
+│   ├── UpdateChecker.kt                # Verifica versão disponível no Google Sheets Config
+│   ├── UpdateDownloader.kt             # Download, validação MD5 e instalação de APK
+│   └── ValidationHelper.kt             # Validações com suporte a TextInputLayout.error
+│
+└── CalculadoraHHApplication.kt         # Inicializa Material You + WorkManager
+```
+
+### Dashboard — File Structure
+
+```
+dashboard/
+├── index.html                  # SPA principal (1200+ linhas, Bootstrap 5.3 + Chart.js 4.4)
+├── servicos.json               # Cópia de app/src/main/res/raw/servicos.json (AUTO-GERADO)
+├── css/
+│   ├── dashboard.css           # Estilos do dashboard
+│   └── minimal-view.css        # Tema minimalista
+└── js/
+    ├── config.js               # Secrets + constantes (GITIGNORED — ver config.example.js)
+    ├── config.example.js       # Template público do config.js
+    ├── main.js                 # Bootstrap da aplicação, event handlers globais
+    ├── sheets-api.js           # Integração Google Sheets API v4 (cache 5 min, rate limit)
+    ├── field-helper.js         # Normalização de campos (datas ISO, nomes de campos)
+    ├── calculations.js         # Cálculos TMC/TP/TS com índices O(1) e merge de HI
+    ├── visao-geral.js          # Visão Geral: KPIs, composição de horas, scorecard, perdas
+    ├── calendario-tp.js        # Calendário interativo para turmas TP
+    ├── calendario-ts.js        # Calendário interativo para turmas TS
+    ├── gestao-os.js            # Gestão de Ordens de Serviço com upload de anexos
+    ├── analise-tmc.js          # Análise TMC por turma e período
+    ├── period-comparison.js    # Comparação entre períodos
+    ├── charts.js               # Wrappers Chart.js com thresholds dinâmicos
+    ├── filters.js              # Filtros globais (mês, ano, turma)
+    ├── alerts-system.js        # Sistema de alertas com escapeHtml (anti-XSS)
+    ├── safe-html.js            # Utilitários de sanitização HTML
+    ├── export.js               # Exportação de dados
+    ├── export-helper.js        # Helpers de exportação
+    ├── auth.js                 # Autenticação (SECRET_KEY simples)
+    ├── view-manager.js         # Alternância clássico/minimalista
+    ├── os-auditoria.js         # Auditoria de OS
+    └── servicos-data.js        # Constante JS com serviços (AUTO-GERADO, fallback CORS)
 ```
 
 ### Key Architectural Components
 
 #### 1. Application Class
-- **CalculadoraHHApplication.kt**: Enables Material You dynamic colors (Android 12+), initializes WorkManager for background sync
+- **CalculadoraHHApplication.kt**: Habilita Material You dynamic colors (Android 12+), inicializa WorkManager para sync periódico e limpeza semanal
 
 #### 2. Navigation Flow
-- **HomeActivity**: Launcher activity with three main options:
-  - Calculadora HH (opens MainActivity tab 0)
-  - RDO (opens MainActivity tab 1)
-  - Histórico (opens HistoricoRDOActivity)
-- **MainActivity**: Container activity with ViewPager2 + TabLayout for two fragments
-- **CalendarioRDOActivity**: Calendar view accessible from Histórico
+- **HomeActivity**: Launcher com três opções principais:
+  - Calculadora HH → MainActivity tab 0
+  - RDO → MainActivity tab 1
+  - Histórico → HistoricoRDOActivity
+- **MainActivity**: Container com ViewPager2 + TabLayout (2 fragmentos)
+- **CalendarioRDOActivity**: Calendário acessível pelo Histórico
 
 #### 3. ViewModel (Shared State)
 - **CalculadoraHHViewModel**:
-  - Manages HH calculations and service data
-  - Loads services from `res/raw/servicos.json` (175 predefined railway services)
-  - Calculates total hours based on service coefficients
-  - Tracks HI (Horas Improdutivas) items with automatic calculations
-  - Target goal: 72.0 daily hours (`META_HORAS_DIARIAS`)
-  - Uses LiveData for reactive UI updates
+  - Carrega serviços de `res/raw/servicos.json` (~100 serviços ferroviários)
+  - Calcula total de horas baseado nos coeficientes dos serviços
+  - Rastreia itens HI com cálculos automáticos
+  - Meta diária: 72.0 HH (`META_HORAS_DIARIAS`)
+  - LiveData para atualizações reativas da UI
 
 #### 4. Database Layer
-- **DatabaseHelper**:
-  - Singleton pattern for SQLite database access
-  - Current version: 8
-  - Main table: `rdo` (stores complete RDO records)
-  - Auto-generates RDO numbers: format `OS-DD.MM.YY-XXX` (e.g., "998070-13.11.24-001")
-  - UNIQUE constraint on numero_rdo prevents duplicates with automatic retry logic
-  - Uses Gson for JSON serialization of complex fields (services, HI items, transports)
-  - Thread-safe with synchronized methods
-  - Performance indexes on data, numero_os, sincronizado, numero_rdo columns
+- **DatabaseHelper** (v10):
+  - Singleton com `@Volatile` double-checked locking — sempre usar `getInstance(context)`
+  - Tabela principal: `rdo` com 31 colunas
+  - Auto-geração de número RDO: formato `OS-DD.MM.YY-XXX` (ex: "998070-13.11.24-001")
+  - UNIQUE constraint em `numero_rdo` com retry automático (backoff exponencial)
+  - Gson para serialização de campos complexos (serviços, HI, transportes)
+  - Thread-safe com métodos sincronizados
+  - Indexes de performance em: `data`, `numero_os`, `sincronizado`, `numero_rdo`
 
 #### 5. Data Models
-- **Servico**: Service with description + coefficient (loaded from servicos.json)
-- **ServicoCalculado**: Calculated service (quantity × coefficient = hours)
-- **HICalculado**: Calculated unproductive hours (HI = Horas Improdutivas)
-  - "Chuva" category: hours divided by 2
-  - "RUMO" category: full hours
-- **RDOData**: Complete daily work report data with all fields
-- **TransporteItem**: Transport record with vehicle, driver, km, and times
-- **SyncStatus**: Enum for sync state tracking (pending, synced, error)
+- **RDOData**: Dados completos do RDO para escrita (19 campos incluindo `causaNaoServico`)
+- **RDODataCompleto**: Versão extendida para leitura com campos calculados
+- **ServicoRDO**: Serviço com descrição, quantidade, coeficiente, HH manual (opcional)
+- **HIItem**: Horas Improdutivas com tipo, horários, operadores
+- **TransporteItem**: Registro de transporte com veículo, motorista, KM e horários
+- **SyncStatus**: Enum para rastreamento de estado de sync (pending/success/error)
 
 #### 6. Business Logic Managers (Template Method Pattern)
-- **BaseItemManager**: Abstract base class defining template for item management
-- **ServicosManager**: Loads services from JSON, manages service selection and calculations
-- **MateriaisManager**: Manages materials with unit selection (KG, M³, M, UN)
-- **HIManager**: Handles unproductive hours with category-specific calculations
-- **TransportesManager**: Manages transport items with validation
+- **BaseItemManager\<T\>**: Classe base abstrata; métodos concretos: `getItens()`, `adicionarItem()`, `removerItem()`; abstratos: `mostrarDialogAdicionar()`, `adicionarView()`, etc.
+- **ServicosManager**: Carrega serviços do JSON, gerencia seleção e cálculos HH
+- **MateriaisManager**: Gerencia materiais com seleção de unidade (KG, M³, M, UN)
+- **HIManager**: Horas Improdutivas com cálculo por categoria (Chuva ÷2, outros × 1)
+- **TransportesManager**: Transportes com validação de KM e horários
+- **RDOValidator**: Validação do formulário RDO — lógica pura sem dependências de UI Android. Retorna `RDOValidationResult` (Valid | Error | ConfirmacaoNecessaria)
 
-#### 7. Google Sheets Integration
-- **GoogleSheetsService**:
-  - Fetches app configuration (version, download URL, messages, MD5 hash)
-  - Syncs RDO data to Google Sheets for backup/reporting
-  - Supports OAuth2 authentication
-- **RDOSyncWorker**: Background sync via WorkManager (runs every 6 hours)
-- **SyncHelper**: Coordinates sync operations with conflict resolution
+#### 7. Google Sheets Integration (Facade Pattern)
+`GoogleSheetsService.kt` (270 linhas) é uma facade que delega para 5 helpers:
+
+| Arquivo | Responsabilidade |
+|---------|-----------------|
+| `SheetsConstants.kt` | Nomes de abas, `HEADERS_VERSION = 6`, listas de headers por aba |
+| `SheetsHeaderManager.kt` | Detecta versão dos headers e atualiza abas desatualizadas |
+| `SheetsLookupHelper.kt` | `findRowNumberByNumeroRDO()` — busca linha pelo Número RDO |
+| `SheetsRelatedDataManager.kt` | `buildRDORow()`, `insertRelatedData()`, `deleteRelatedData()` |
+| `SheetsAuditService.kt` | `logSyncAction()` — registra INSERT/UPDATE/DELETE na aba AuditoriaSync |
+
+**Fluxo de sync:**
+1. `syncRDO(rdo)` → `GoogleSheetsService`
+2. `verificarSeRDOExiste(numeroRDO)` → `SheetsLookupHelper`
+3. `insertRDOInSheet()` ou `updateRDOInSheet()` → `SheetsRelatedDataManager.buildRDORow()`
+4. `insertRelatedData()` → insere nas abas Servicos, Materiais, HI, Transportes, Efetivo, Equipamentos
+5. `logSyncAction()` → `SheetsAuditService`
+
+**Identificador único**: `Número RDO` (formato `OS-DD.MM.YY-XXX`) — globalmente único entre dispositivos. O ID local do SQLite é enviado na coluna A mas não é usado para lookup.
+
+#### 8. Google Sheets — Estrutura das Abas
+
+| Aba | Colunas | Identificador de Linha |
+|-----|---------|----------------------|
+| `RDO` | 22 (A–V) | Número RDO (col B) |
+| `Servicos` | 11 (A–K) | Número RDO (col A) |
+| `Materiais` | 8 (A–H) | Número RDO (col A) |
+| `HorasImprodutivas` | 10 (A–J) | Número RDO (col A) |
+| `TransporteSucatas` | 11 (A–K) | Número RDO (col A) |
+| `Efetivo` | 11 (A–K) | Número RDO (col A) |
+| `Equipamentos` | 7 (A–G) | Número RDO (col A) |
+| `AuditoriaSync` | 7 (A–G) | Timestamp (col A) |
+| `Config` | 2 (A–B) | Chave (col A) |
+
+**Headers versão atual (HEADERS_VERSION = 6):**
+Aba RDO: ID | Número RDO | Data | Código Turma | Encarregado | Local | Número OS | Status OS | KM Início | KM Fim | Horário Início | Horário Fim | Clima | Tema DDS | Houve Serviço | Houve Transporte | Nome Colaboradores | Observações | Deletado | Data Sincronização | Data Criação | Versão App
+
+> **Nota**: O campo `causaNaoServico` (RUMO/ENGECOM) existe no banco SQLite local e na UI do app mas **não é sincronizado** com o Google Sheets (removido como "redundante" na v6 dos headers). Dado disponível apenas localmente.
+
+#### 9. Dashboard — Arquitetura de Cálculos
+
+**`calculations.js`** — Classe `CalculadoraMedicao`:
+- Índices O(1) em Maps: `servicosPorRDO`, `hiPorRDO`, `efetivosPorRDO`, `rdosPorTurma`
+- `_mergeHIIntervals()`: merge de sobreposições de HI com sweep line (evita dupla-contagem)
+- Regras de HI: Chuva = HH ÷ 2; Trem < 20 min = descartado; outros = HH × 1
+- Quando múltiplos HIs se sobrepõem: `Math.max()` dos operadores (uma turma = um grupo)
+- Suporta datas ISO 8601 via `FieldHelper.parseData()`
+
+**`visao-geral.js`** — Seções (v2.0.0):
+1. Destaques do período (insights)
+2. KPIs por tipo (TP/TS)
+3. Composição de horas (PDM + Correlato + Perdas NC + Perdas Controláveis + Gap)
+4. Scorecard comparativo de turmas
+5. Gráfico de Produtividade por turma
+6. Evolução diária com meta
+7. Classificação PDM/Correlato + Top Serviços (com drill-down)
+8. Análise de Perdas (Controláveis vs NC)
+9. HI "Outros" — sugestões de reclassificação
+10. Qualidade dos dados
 
 ### Key Business Logic
 
@@ -186,17 +305,24 @@ totalHoras = sum(horas de todos os serviços)
 
 #### HI Calculation Formula
 ```kotlin
-diferençaHoras = horaFim - horaInicio  // handles overnight periods
+diferençaHoras = horaFim - horaInicio  // suporta overnight
 totalHoras = diferençaHoras × colaboradores
 
 if (categoria == "Chuva") {
-    totalHoras /= 2  // Rain hours count as half
+    totalHoras /= 2  // Chuva conta como metade
 }
-// RUMO category: full hours (no division)
+// Outras categorias: horas integrais
 ```
 
+#### Metas Diárias
+```
+TP: 12 operadores × 6h = 72 HH/dia
+TS:  1 soldador   × 6h =  6 HH/dia
+```
+Sempre usar `METAS.META_DIARIA_TP` e `METAS.META_DIARIA_TS` de `config.js`. Nunca hardcodar.
+
 #### Time Difference Calculation
-Handles overnight periods (e.g., 23:00 to 02:00):
+Suporta períodos overnight (ex: 23:00 às 02:00):
 ```kotlin
 if (totalHorasFim >= totalHorasInicio) {
     diferença = totalHorasFim - totalHorasInicio
@@ -205,549 +331,326 @@ if (totalHorasFim >= totalHorasInicio) {
 }
 ```
 
-#### Daily Target Calculation
-```kotlin
-META_HORAS_DIARIAS = 72.0
-progressoPercentual = (totalHoras / META_HORAS_DIARIAS) * 100
-```
-
 ## Important Technical Details
 
 ### View Binding
-- **Enabled**: `buildFeatures { viewBinding = true }`
-- All activities and fragments use ViewBinding for type-safe view access
-- Pattern: `ActivityMainBinding.inflate(layoutInflater)`
-- Never use `findViewById()` in new code
+- **Habilitado**: `buildFeatures { viewBinding = true }`
+- Todas as activities e fragments usam ViewBinding
+- Padrão: `ActivityMainBinding.inflate(layoutInflater)`
+- Nunca usar `findViewById()` em código novo
 
-### Services Management (Unified System)
+### Services Management (Single Source of Truth)
 
-**⚠️ IMPORTANT: Single Source of Truth**
+**⚠️ IMPORTANTE: Um único arquivo de origem**
 
-All services and coefficients are managed in **ONE file only**:
-- **Source**: `app/src/main/res/raw/servicos.json` (✅ EDIT THIS FILE ONLY)
-- **Generated**: `dashboard/servicos.json` (❌ DO NOT EDIT - auto-generated)
-- **Generated**: `dashboard/js/servicos-data.js` (❌ DO NOT EDIT - auto-generated)
+Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
+- **Fonte**: `app/src/main/res/raw/servicos.json` (✅ EDITAR APENAS ESTE)
+- **Gerado**: `dashboard/servicos.json` (❌ NÃO EDITAR — auto-gerado)
+- **Gerado**: `dashboard/js/servicos-data.js` (❌ NÃO EDITAR — auto-gerado)
 
-**Synchronization Workflow:**
-1. Edit: `app/src/main/res/raw/servicos.json`
-2. Run: `npm run sync-servicos` or `node scripts/sync-servicos.js`
-3. Commit all 3 files together
+**Workflow de sincronização:**
+1. Editar: `app/src/main/res/raw/servicos.json`
+2. Executar: `npm run sync-servicos`
+3. Commitar os 3 arquivos juntos
 
-**Script**: `scripts/sync-servicos.js` automatically generates:
-- `dashboard/servicos.json` - JSON copy for HTTP access
-- `dashboard/js/servicos-data.js` - JavaScript constant for CORS fallback
-
-**Data Format**: `[{"descricao": "Service Name", "coeficiente": 0.81}, ...]`
-- Contains ~100 railway maintenance services with coefficients
-- Loaded lazily in ViewModel via Gson (Android)
-- Loaded via fetch or embedded constant (Dashboard)
-- Each service has unique description and coefficient for HH calculation
-
-See `GERENCIAR_SERVICOS.md` for detailed instructions.
+**Ver `GERENCIAR_SERVICOS.md` para instruções detalhadas.**
 
 ### Database Migrations
-- Version 1: Initial schema with basic RDO fields
-- Version 2: Added horario fields, tema DDS, efetivo, equipamentos, HI items
-- Version 3: Added numero_rdo with auto-generation logic
-- Version 4: Added transport support (houve_transporte, transportes JSON)
-- Version 5: Added nome_colaboradores field for tracking worker names
-- Version 6: Added sincronizado flag for sync tracking
-- Version 7: Added performance indexes (data, numero_os, sincronizado, numero_rdo)
-- Version 8: Added UNIQUE index on numero_rdo to prevent duplicates with retry logic
+- Version 1: Schema inicial com campos básicos do RDO
+- Version 2: Campos de horário, tema DDS, efetivo, equipamentos, itens HI
+- Version 3: `numero_rdo` com lógica de auto-geração
+- Version 4: Suporte a transporte (`houve_transporte`, JSON de transportes)
+- Version 5: Campo `nome_colaboradores`
+- Version 6: Flag `sincronizado` para rastreamento de sync
+- Version 7: Indexes de performance (data, numero_os, sincronizado, numero_rdo)
+- Version 8: UNIQUE index em `numero_rdo` com retry automático
+- Version 9: Campos de auditoria de sync (`sync_status`, `mensagem_erro_sync`, `tentativas_sync`, `ultima_tentativa_sync`)
+- Version 10: Coluna `causa_nao_servico TEXT DEFAULT ''` (armazenada localmente, não sincronizada com Sheets)
 
 ### ProGuard Configuration
-- **Enabled** for release builds
-- Uses `proguard-android-optimize.txt`
-- Custom rules in `app/proguard-rules.pro`:
-  - Keeps Gson model classes
-  - Preserves Google Sheets API classes
-  - Maintains WorkManager classes
-- Release APK size: ~3.3 MB
+- **Habilitado** para release builds
+- Usa `proguard-android-optimize.txt`
+- Regras customizadas em `app/proguard-rules.pro`:
+  - Mantém classes de modelo Gson
+  - Preserva classes da API Google Sheets
+  - Mantém classes do WorkManager
+- Tamanho do APK release: ~3.2 MB
 
 ### Export Functionality
-- **Formats**: CSV (for spreadsheets) and JSON (for data interchange)
-- **Storage**: `context.getExternalFilesDir(null)` (app-specific storage, no permission needed)
-- **Sharing**: Uses FileProvider with Intent.ACTION_SEND
+- **Formatos**: CSV e JSON
+- **Storage**: `context.getExternalFilesDir(null)` (storage específico do app, sem permissão)
+- **Compartilhamento**: FileProvider com `Intent.ACTION_SEND`
 - **Authority**: `${applicationId}.fileprovider`
-- **CSV Format**: Headers + comma-separated values with proper escaping
-- **JSON Format**: Pretty-printed with Gson
 
 ### Background Tasks
-- **WorkManager** for periodic sync (6-hour interval) and weekly data cleanup
-- **RDOSyncWorker**: Uploads pending RDOs to Google Sheets (every 6 hours)
-- **DataCleanupWorker** (v2.4.0+): Weekly cleanup of orphaned data (every 7 days)
-- Constraints: Requires network connectivity + battery not low
-- Handles retries automatically with exponential backoff
+- **RDOSyncWorker**: Sync de RDOs pendentes a cada 6 horas (requer rede + bateria não baixa)
+- **DataCleanupWorker**: Limpeza de dados órfãos no Sheets a cada 7 dias
+- WorkManager gerencia retries com backoff exponencial automático
 
 ### Permissions
-- **INTERNET**: Required for Google Sheets sync and updates
-- **ACCESS_NETWORK_STATE**: Check connectivity before sync
-- **POST_NOTIFICATIONS**: Show sync and update progress (Android 13+)
-- **REQUEST_INSTALL_PACKAGES**: Install APK updates
-- **WRITE_EXTERNAL_STORAGE**: Legacy export support (API < 29)
+- **INTERNET**: Sync Google Sheets e atualizações
+- **ACCESS_NETWORK_STATE**: Verificar conectividade antes do sync
+- **POST_NOTIFICATIONS**: Progresso de sync e update (Android 13+)
+- **REQUEST_INSTALL_PACKAGES**: Instalar APK de atualização
+- **WRITE_EXTERNAL_STORAGE**: Exportação legada (API < 29)
 
 ### SDK Configuration
 - **minSdk**: 24 (Android 7.0 Nougat)
 - **targetSdk**: 34 (Android 14)
-- **compileSdk**: 35 (Android 15) - Requerido pelo WorkManager 2.11.0
-- **Java Version**: JVM Target 17 (required by Gradle 8.13.1)
+- **compileSdk**: 35 (Android 15) — requerido pelo WorkManager 2.11.0
+- **Java Version**: JVM Target 17 (requerido pelo Gradle 8.13.1)
 - **Kotlin**: 2.0.21
+- **core-ktx**: máx 1.15.0 (1.17.0 requer compileSdk 36)
 
 ### Key Dependencies
-- **AndroidX**: Core-KTX, Lifecycle, ViewPager2, Fragment-KTX, CardView, ConstraintLayout, WorkManager
-- **Material Design**: Material Components (1.13.0) with Material 3 theming
-- **Coroutines**: kotlinx-coroutines-core and kotlinx-coroutines-android (1.7.3)
-- **JSON**: Gson (2.13.2) for serialization/deserialization
+- **AndroidX**: Core-KTX 1.15.0, Lifecycle, ViewPager2, Fragment-KTX, CardView, ConstraintLayout, WorkManager 2.11.0
+- **Material Design**: Material Components 1.13.0 com Material 3 theming
+- **Coroutines**: kotlinx-coroutines 1.7.3
+- **JSON**: Gson 2.13.2
 - **Google Services**: Google Sheets API v4, Google Auth Library OAuth2
 - **Testing**: JUnit, Espresso
+
+### Auto-Update System
+- `UpdateChecker.kt`: Lê aba `Config` do Sheets (`versao_minima`, `versao_recomendada`, `url_download`, `hash_md5`)
+- `UpdateDownloader.kt`: Download, validação MD5 e instalação do APK
+- Verificação disparada: ao abrir o app e a cada 6 horas via WorkManager
+- APKs distribuídos via **GitHub Releases** (não mais Azure Blob)
+- `GOOGLE_SHEETS_ID` externalizado via `BuildConfig` (definido em `build.gradle.kts`)
 
 ## Development Conventions
 
 ### Package Organization
-- Use existing package structure (`data`, `domain`, `ui`, `viewmodels`, `utils`, `services`, `workers`)
-- Place new models in `data/models/`
-- Business logic goes in `domain/managers/` (extend BaseItemManager if applicable)
-- UI components in appropriate `ui/` subdirectories
-- Background tasks in `workers/`
-- Utility functions in `utils/`
+- Modelos em `data/models/`
+- Lógica de negócio em `domain/managers/` (estender `BaseItemManager` quando aplicável)
+- Componentes de UI em `ui/`
+- Tarefas em background em `workers/`
+- Funções utilitárias em `utils/`
 
 ### Data Persistence
-- Use **DatabaseHelper.getInstance(context)** for all database operations
-- Never call `DatabaseHelper()` constructor directly (Singleton pattern)
-- Always use Gson for serializing/deserializing complex objects in database
-- Use transactions for multiple related operations
-- Handle database errors gracefully with try-catch blocks
+- Sempre usar `DatabaseHelper.getInstance(context)` — nunca chamar o construtor diretamente
+- Usar Gson para serializar objetos complexos no banco
+- Usar transações para operações relacionadas
+- **NUNCA renomear campos de `RDOData`/`RDODataCompleto`** — Gson usa os nomes de campo como chaves JSON no SQLite; renomear quebra a desserialização de registros existentes
 
 ### UI Development
-- Activities should be minimal containers (routing, setup)
-- Business logic belongs in ViewModels or domain managers
-- Use LiveData for reactive UI updates (observe in onViewCreated for fragments)
-- Material Design 3 theming with dynamic colors support
-- Support both light and dark themes (values/ and values-night/)
-- All user-facing strings must be in strings.xml (support Portuguese)
+- Activities são containers mínimos (roteamento, setup)
+- Lógica de negócio fica nos ViewModels ou managers de domínio
+- LiveData para atualizações reativas da UI (observar em `onViewCreated` para fragments)
+- Material Design 3 com suporte a cores dinâmicas
+- Suporte a temas claro e escuro (`values/` e `values-night/`)
+- Strings voltadas ao usuário em `strings.xml` (português)
 
 ### Time Input
-- Use **TimeInputMask** utility for HH:MM format validation
-- Time format: "HH:MM" (24-hour format, e.g., "14:30")
-- Date format: "dd/MM/yyyy" (e.g., "13/11/2024")
-- Handle overnight time periods correctly (23:00 to 02:00)
+- Usar **TimeValidator** para validação (fonte única de verdade)
+- Usar **TimeInputMask** para formatação de entrada
+- Formato de hora: "HH:MM" (24h, ex: "14:30")
+- Formato de data: "dd/MM/yyyy" (ex: "13/11/2024")
+- Suporte correto a períodos overnight (23:00 → 02:00)
+
+### KM Ferroviário
+- Formato: "123+456" = 123 km + 456 metros = 123.456
+- Usar **KmUtils** para conversão (fonte única de verdade)
+- Usar **KmInputMask** para entrada no formulário
+- Regex de validação em `AppConstants`
 
 ### RDO Numbers
-- Auto-generated by DatabaseHelper using `gerarNumeroRDO(numeroOS, data)`
-- Format: `OS-DD.MM.YY-XXX` (e.g., "998070-13.11.24-001")
-- Sequential counter per OS + date combination
-- Counter resets for each unique OS-date pair
-- UNIQUE constraint prevents duplicates (v8+)
-- Automatic retry logic with exponential backoff on collisions
-- Auto-updates when RDO date or OS is changed during editing
-
-### Testing
-- Unit tests: `app/src/test/java/com/example/calculadorahh/`
-- Instrumented tests: `app/src/androidTest/java/com/example/calculadorahh/`
-- Test ViewModels with LiveData
-- Mock DatabaseHelper for unit tests
-- Use Espresso for UI tests
+- Auto-gerados por `DatabaseHelper.gerarNumeroRDO(numeroOS, data)`
+- Formato: `OS-DD.MM.YY-XXX` (ex: "998070-13.11.24-001")
+- Contador sequencial por combinação OS + data
+- UNIQUE constraint com retry automático (backoff exponencial)
+- Auto-atualização ao editar data ou OS do RDO
 
 ### Coroutines
-- Use `viewModelScope` in ViewModels for lifecycle-aware coroutines
-- Use `lifecycleScope` in Activities/Fragments
-- Always use appropriate dispatchers:
-  - `Dispatchers.Main`: UI updates
-  - `Dispatchers.IO`: Database, network, file operations
-  - `Dispatchers.Default`: CPU-intensive calculations
+- `viewModelScope` em ViewModels
+- `lifecycleScope` em Activities/Fragments
+- `Dispatchers.Main`: atualizações de UI
+- `Dispatchers.IO`: banco, rede, arquivos
+- `Dispatchers.Default`: cálculos CPU-intensivos
 
 ## Common Development Scenarios
 
 ### Adding a New Service Type
-1. Edit **`app/src/main/res/raw/servicos.json`** (single source of truth)
-2. Add entry: `{"descricao": "Service Name", "coeficiente": X.XX}`
-3. **Run sync script**: `npm run sync-servicos` (generates dashboard files)
-4. Commit all 3 files: `servicos.json`, `dashboard/servicos.json`, `dashboard/js/servicos-data.js`
-5. Services are loaded automatically on ViewModel initialization
-6. No code changes needed
-
-**See `GERENCIAR_SERVICOS.md` for detailed instructions.**
+1. Editar **`app/src/main/res/raw/servicos.json`** (fonte única de verdade)
+2. Adicionar: `{"descricao": "Nome do Serviço", "coeficiente": X.XX}`
+3. Executar: `npm run sync-servicos`
+4. Commitar os 3 arquivos: `servicos.json`, `dashboard/servicos.json`, `dashboard/js/servicos-data.js`
 
 ### Adding a New RDO Field
-1. Update `RDOData` model in `data/models/RDOData.kt`
-2. Increment DATABASE_VERSION in `DatabaseHelper.kt`
-3. Add column in `onUpgrade()` with ALTER TABLE statement
-4. Update `inserirRDO()` to include new field in INSERT
-5. Update `extrairRDODoCursor()` to read new field
-6. Update UI layouts and fragments to display/edit new field
-7. Update Google Sheets headers in `GoogleSheetsService.kt` if syncing new field
-
-### Modifying Calculation Logic
-- Edit `CalculadoraHHViewModel.kt` methods:
-  - `adicionarServico()` for HH calculations
-  - `adicionarHI()` for HI calculations
-  - `calcularTotal()` for aggregation
-- Update unit tests to verify new logic
-- Consider impact on existing RDO data
-
-### Adding a New Manager
-1. Create new class extending `BaseItemManager<YourItemType>`
-2. Implement abstract methods: `criarItem()`, `atualizarItem()`, `obterLista()`, `setLista()`
-3. Add validation logic in `validarItem()`
-4. Register manager in ViewModel if needed
-5. Create corresponding adapter if displaying in RecyclerView
+1. Atualizar `RDOData` em `data/models/RDOData.kt`
+2. Incrementar `DATABASE_VERSION` em `DatabaseHelper.kt`
+3. Adicionar coluna em `onUpgrade()` com `ALTER TABLE`
+4. Atualizar `inserirRDO()` e `atualizarRDO()` com o novo campo
+5. Atualizar `extrairRDODoCursor()` para ler o novo campo
+6. Atualizar UI (layout XML + fragment)
+7. Se sincronizar com Sheets: atualizar `HEADERS_RDO` em `SheetsConstants.kt`, `buildRDORow()` em `SheetsRelatedDataManager.kt`, e incrementar `HEADERS_VERSION`
 
 ### Updating Google Sheets Integration
-- Modify `GoogleSheetsService.kt` for API calls
-- Update `SyncHelper.kt` for sync logic
-- Test with actual Google Sheets credentials
-- Handle OAuth2 token refresh
-- Update `RDOSyncWorker.kt` for background sync changes
+- Headers: editar `SheetsConstants.kt` (incrementar `HEADERS_VERSION`)
+- Row building: editar `SheetsRelatedDataManager.buildRDORow()`
+- Lookup: editar `SheetsLookupHelper.kt`
+- Auditoria: editar `SheetsAuditService.kt`
+- Orchestração: editar `GoogleSheetsService.kt` apenas se o fluxo principal mudar
 
 ## Version Information
-- **versionCode**: 16
-- **versionName**: "5.0.0"
+- **versionCode**: 22
+- **versionName**: "5.1.5"
 - **AGP Version**: 8.13.1
 - **Kotlin Version**: 2.0.21
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 10
+- **Sheets HEADERS_VERSION**: 6
 
 ## Release Information
 
 ### APK Signing & Distribution
 
 **Keystore Information:**
-- **Location**: `app/calculadorahh-release.keystore`
+- **Location**: `app/calculadorahh-release.keystore` (gitignored)
 - **Alias**: `controledecampo`
 - **Certificate**: Engecom Engenharia
 - **Valid until**: March 31, 2053
 - **Algorithm**: SHA256withRSA (2048-bit RSA key)
-- **IMPORTANT**: Always use this keystore for ALL future releases to ensure updates work correctly
+- **IMPORTANTE**: Sempre usar este keystore para todos os releases futuros
 
-**Current Release (v2.1.0):**
-- **APK Location**: `app/release/app-release-v5.0.0.apk`
-- **MD5 Hash**: `51b8ec2435bcc04bc44977fe4ac94a5e`
-- **File Size**: ~3.2 MB
-- **Signed with**: APK Signature Scheme v2/v3 (modern Android signing)
+**Distribuição:**
+- APKs via **GitHub Releases** (não mais incluídos no repositório)
+- APKs são gitignored: `app/release/*.apk`
+- Credenciais de serviço Google são gitignored: `rdo-engecom-*.json`
 
-**Distribution Instructions:**
-- See `INSTRUCOES_ATUALIZACAO_v1.5.0.md` for user installation guide
-- **First-time update requires full reinstallation** (new signing certificate)
-- After v1.5.0, all updates will work via auto-update system without reinstallation
-
-**Google Sheets Configuration (Config tab):**
+**Google Sheets Config (aba Config):**
 ```
-versao_minima          | 16
-versao_recomendada     | 16
-hash_md5               | 286FEBD53237AE44F6F5B37A2E9AEFE0
-tamanho_apk_mb         | 6.77
-url_download           | [URL do APK hospedado]
-forcar_update          | NAO
-mensagem_aviso         | Nova versão 5.0.0 disponível - Correções críticas de sincronização!
-mensagem_bloqueio      | Atualize para continuar usando
+versao_minima          | <versionCode mínimo aceitável>
+versao_recomendada     | <versionCode atual>
+hash_md5               | <MD5 do APK release>
+tamanho_apk_mb         | <tamanho em MB>
+url_download           | <URL do GitHub Release>
+forcar_update          | NAO (ou SIM para forçar)
+mensagem_aviso         | <mensagem mostrada se versão desatualizada>
+mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 ```
 
-> **IMPORTANTE**: Após gerar o APK release, atualize `hash_md5` e `tamanho_apk_mb` na aba Config do Google Sheets. O `versao_minima` usa `versionCode` (16), não `versionName` (5.0.0).
+> **IMPORTANTE**: Após gerar o APK release, atualizar `hash_md5`, `tamanho_apk_mb`, `versao_recomendada` e `url_download` na aba Config. O `versao_minima` usa `versionCode` (número inteiro), não `versionName`.
 
 ## Version History
+
+### Version 5.1.5 (versionCode 22) - 2026-04-06
+**Dashboard v2.0.0 + Correções de App**
+
+**Dashboard:**
+- Remodelação completa da aba Visão Geral (reescrita do zero)
+- KPIs dinâmicos por tipo TP/TS com metas corretas (72/6 HH/dia)
+- Gráfico de Composição de Horas (PDM + Correlato + Perdas NC/C + Gap)
+- Scorecard comparativo de turmas com semáforo
+- Gráfico de Produtividade por turma (HH Total / HH/dia / HH/RDO)
+- Análise de Perdas (Controláveis vs Não Controláveis)
+- Top Serviços com drill-down por clique
+- Qualidade dos Dados com badges clicáveis
+- Painel de turma redimensionável pelo usuário
+
+**App:**
+- Fix: remoção de toasts de diagnóstico
+- Fix: download de APK via GitHub Releases (não mais Azure CDN)
+
+---
+
+### Version 5.1.4 (versionCode 21)
+- Fix: nova chave de serviço Google
+- Fix: correção no diagnóstico de atualização
+
+---
+
+### Version 5.1.1 (versionCode 18)
+- Fix: atualização da lista de encarregados
+
+---
+
+### Version 5.1.0 (versionCode 17)
+- Fix: verificação de update agora ocorre sempre que o app abre (não apenas via WorkManager)
+- Security: APKs removidos do repositório; distribuição via GitHub Releases
+
+---
+
+### Version 5.0.0 (versionCode 16)
+- Melhorias visuais e de UX
+- Remoção de dependências Compose (projeto usa XML + ViewBinding)
+- Limpeza do Gradle (dependências duplicadas removidas, Google APIs centralizadas)
+- Localization pt-BR completa
+
+---
 
 ### Version 3.0.0 (versionCode 12) - 2026-02-27
 **Bug Fixes & Correções Críticas**
 
 1. **[CRÍTICO] RDOs deletados incluídos no faturamento**:
    - `filtrarRDOsPorTurma()` agora exclui RDOs com `Deletado = "Sim"`
-   - `getTurmasPorTipo()` e `totalRDOs` (KPIs) também corrigidos
-   - Calendários TP/TS já filtravam corretamente; agora todos os módulos são consistentes
+   - `getTurmasPorTipo()` e KPIs também corrigidos
    - **Arquivo**: `dashboard/js/calculations.js`
 
-2. **[CRÍTICO] `causaNaoServico` não sincronizava com Google Sheets**:
-   - Campo "Causa Não Serviço" (valores: "RUMO", "ENGECOM" ou "") adicionado aos headers da aba RDO (coluna P)
-   - `buildRDORow()` agora envia o campo para o Sheets
-   - Colunas Q–W renumeradas para acomodar a nova coluna
-   - Referências hardcoded às colunas U (Data Criação) e V (Versão App) atualizadas para V e W
-   - `HEADERS_VERSION` incrementado para 5
-   - **Arquivos**: `SheetsConstants.kt`, `SheetsRelatedDataManager.kt`, `GoogleSheetsService.kt`, `SheetsAuditService.kt`
+2. **[CRÍTICO] `causaNaoServico` — histórico**:
+   - v3.0.0 (HEADERS_VERSION=5): campo adicionado à aba RDO (coluna P)
+   - Posteriormente revertido (HEADERS_VERSION=6): removido como "redundante"
+   - Estado atual: campo armazenado no SQLite local, **não sincronizado com Sheets**
 
-3. **[ALTO] Busca de Efetivo inconsistente entre módulos**:
-   - `calcularMediaEfetivo()` usava `.find()` O(n) com chave `numeroOS + data` (impreciso)
-   - Corrigido para usar índice `efetivosPorRDO` Map O(1) com chave `numeroRDO` (preciso)
+3. **[ALTO] Efetivo por chave OS+data → por Número RDO**:
+   - Corrigido para usar índice O(1) com chave `numeroRDO`
    - **Arquivo**: `dashboard/js/calculations.js`
 
-4. **[ALTO] Lógica de HI duplicada com risco de divergência**:
-   - Bloco de cálculo de HI estava repetido em `calcularHHImprodutivas()` e `calcularHHPorDia()`
-   - Extraído para método privado `_calcularHHDeUmaHI(hi, numeroRDO)` — fonte única de verdade
-   - Fallback de operadores também migrado para índice O(1)
+4. **[ALTO] Lógica de HI duplicada**:
+   - Extraída para `_mergeHIIntervals()` — fonte única de verdade
    - **Arquivo**: `dashboard/js/calculations.js`
 
-5. **[MÉDIO] Suporte a data ISO 8601 em `filtrarRDOsPorTurma`**:
-   - Adicionado método `_normalizarData()` que converte "2025-01-15" para "15/01/2025"
-   - Previne falha silenciosa quando dados vêm em formato ISO
-   - **Arquivo**: `dashboard/js/calculations.js`
+5. **[MÉDIO] Suporte a data ISO 8601** via `_normalizarData()`
 
-**Database Migration:**
-- Versão 10: Adicionada coluna `causa_nao_servico TEXT DEFAULT ''`
-
-**Google Sheets Structure:**
-- Aba RDO: 22 → 23 colunas (nova coluna P: "Causa Não Serviço")
-- Versão App movida de coluna V para W
+**Database Migration:** Versão 10 — coluna `causa_nao_servico`
 
 ---
 
 ### Version 2.4.0 (versionCode 11) - 2025-12-05
-**🚀 Major Update - Sync Reliability & Data Integrity**
-
-**New Features:**
-
-1. **App Version Protection**:
-   - RDOs track app version that created them (column V)
-   - Older apps cannot delete data from newer versions
-   - Prevents data corruption during mixed-version deployments
-   - `getRDOAppVersion()` validates version before destructive operations
-
-2. **Complete Audit System**:
-   - New sheet: `AuditoriaSync` logs all sync operations
-   - Tracks: INSERT, UPDATE, DELETE, ERROR actions
-   - Records: timestamp, RDO number, app version, device ID, details, status
-   - Non-blocking: audit failures don't affect main sync
-   - `logSyncAction()` automatically logs all operations
-
-3. **Better Error Handling**:
-   - Error aggregation: collects ALL errors before failing
-   - Detailed messages show which sheets succeeded/failed
-   - Example: "2/7 sheets failed: Servicos (Timeout), Materiais (QuotaExceeded). Success: Efetivo, Equipamentos, HI, Transportes"
-   - Prevents partial deletions with incomplete visibility
-
-4. **Weekly Orphan Cleanup**:
-   - New worker: `DataCleanupWorker` runs every 7 days
-   - Automatically removes orphaned data (services, materials, etc. without parent RDO)
-   - Cleans 6 sheets: Servicos, Materiais, Efetivo, Equipamentos, HorasImprodutivas, TransporteSucatas
-   - Silent notifications (PRIORITY_LOW)
-   - Detailed logs per sheet with orphan counts
-
-**Technical Improvements:**
-- `GoogleSheetsService.kt`: +180 lines (4 new methods)
-- `DataCleanupWorker.kt`: 175 lines (new file)
-- `CalculadoraHHApplication.kt`: +29 lines (cleanup scheduler)
-- Total: ~384 lines added
-
-**New Methods**:
-- `getRDOAppVersion(numeroRDO)`: Fetch app version that created RDO
-- `getValidRDONumbers()`: Get all non-deleted RDO numbers
-- `cleanOrphanedData(sheetName, validRDOs)`: Remove orphaned rows
-- `logSyncAction(numeroRDO, acao, detalhes, status)`: Log to AuditoriaSync
-
-**Modified Methods**:
-- `deleteRelatedDataByNumeroRDO()`: +60 lines (version protection + error aggregation)
-- `syncRDO()`: +13 lines (audit integration)
-
-**Impact:**
-- ✅ Full traceability of all sync operations
-- ✅ Automatic data integrity maintenance
-- ✅ Protection against version conflicts
-- ✅ Detailed error diagnostics
-- ✅ No database migration required
-- ✅ Fully backward compatible with v2.3.0
-
-**Files Modified:**
-- `GoogleSheetsService.kt:444-570, 897-959` (4 new methods, 2 modified)
-- `DataCleanupWorker.kt` (new file)
-- `CalculadoraHHApplication.kt:6-7, 27-75` (cleanup integration)
-- `build.gradle.kts` (version bump to 11 / 2.4.0)
-- Created: `RELEASE_NOTES_v2.4.0.md` (comprehensive documentation)
-
-**See**: `RELEASE_NOTES_v2.4.0.md` for detailed feature descriptions and testing guide.
+- Sistema completo de auditoria (aba `AuditoriaSync`)
+- Proteção por versão de app (apps antigos não deletam dados de versões novas)
+- Agregação de erros de sync (mostra quais abas falharam)
+- `DataCleanupWorker`: limpeza semanal de dados órfãos no Sheets
 
 ---
 
 ### Version 2.3.0 (versionCode 10) - 2025-11-27
-**🔴 CRITICAL FIX - Multi-Device Sync Data Overwrite Prevention**
-
-**Problem Identified:**
-- Using local SQLite auto-increment IDs as primary identifier in Google Sheets
-- Device A creates RDO with ID=10, Device B creates RDO with ID=10
-- **Result**: Device B overwrites Device A's data silently
-- **Severity**: CRITICAL - Data loss in multi-device environments
-
-**Root Cause:**
-- `GoogleSheetsService.kt` used `findRowNumberById(rdo.id)` to check if RDO exists
-- Local IDs are only unique per device, not globally
-- Multiple devices can have same local ID values
-- Sync operation treats same ID as same RDO → overwrites data
-
-**Fix Applied:**
-- Changed primary identifier from local ID to **Número RDO** (globally unique)
-- `findRowNumberByNumeroRDO(rdo.numeroRDO)` now used for all lookups
-- Número RDO format: `OS-DD.MM.YY-XXX` (e.g., "998070-27.11.24-001")
-- Guaranteed unique across all devices and dates
-- Added app version tracking (column V) for audit trail
-
-**Impact:**
-- ✅ Prevents data overwrites between devices
-- ✅ No database migration required
-- ✅ Fully backward compatible with existing data
-- ✅ Column A (ID) still populated for compatibility but not used for lookups
-
-**Files Modified:**
-- `GoogleSheetsService.kt:421-423, 460-462, 497-503, 621, 525, 568` (sync identifier changes)
-- `build.gradle.kts` (version bump to 10 / 2.3.0)
-- Created: `RELEASE_NOTES_v2.3.0.md` (comprehensive documentation)
-
-**Recommendation:**
-- 🔴 Update ALL devices to v2.3.0 as soon as possible
-- Mixed version environments still have collision risk with old apps
-- See `RELEASE_NOTES_v2.3.0.md` for detailed migration guide
+**Fix crítico: overwrite entre dispositivos**
+- Identificador de sync alterado de ID local → Número RDO (globalmente único)
+- `findRowNumberByNumeroRDO()` substitui `findRowNumberById()`
 
 ---
 
 ### Version 2.1.0 (versionCode 8) - 2024-11-21
-**🔴 CRITICAL BUG FIX - Silent Sync Failure**
-
-**Problem Reported:**
-- User creates RDO with internet connection
-- App shows "RDO sincronizado com sucesso"
-- RDO appears as synced in history (green icon)
-- **BUT**: Google Sheets has RDO main data, but MISSING services, HI, materials, etc.
-
-**Root Cause:**
-- Exception swallowing in `GoogleSheetsService.kt`
-- `insertRDOInSheet()` and `updateRDOInSheet()` catch blocks did NOT propagate exceptions
-- When `insertRelatedData()` throws exception (timeout, quota, network error):
-  1. Main RDO row inserted successfully
-  2. Exception thrown during related data insertion
-  3. Exception caught but NOT re-thrown
-  4. Method returns normally → sync marked as successful
-  5. User sees "success" but data is incomplete
-
-**Fix Applied:**
-- **File**: `GoogleSheetsService.kt`
-- **Line 492**: Added `throw e` in `insertRDOInSheet()` catch block
-- **Line 460**: Added `throw e` in `updateRDOInSheet()` catch block
-- **Result**: Exceptions now propagate correctly → sync fails visibly → RDO remains pending
-
-**Impact:**
-- ✅ No more silent data loss
-- ✅ Users see error message when sync fails
-- ✅ Failed RDOs remain pending for retry
-- ✅ WorkManager will retry sync in 6 hours
-
-**Data Recovery:**
-- Created SQL diagnostic queries: `verificar_sync_status.sql`
-- Created recovery documentation: `BUG_CRITICO_SYNC_SILENCIOSO.md`
-- Users should update to v2.1.0 immediately
-
-**Files Modified:**
-- `GoogleSheetsService.kt:460, 492`
-- `build.gradle.kts` (version bump)
-- `CLAUDE.md` (documentation)
+**Fix crítico: sync silencioso**
+- Exceções em `insertRelatedData()` agora propagam corretamente
+- RDOs com falha parcial permanecem pendentes (não marcados como sincronizados)
 
 ---
 
 ### Version 2.0.0 (versionCode 7) - 2024-11-19
-**🚀 Major Release - Code Quality & Performance Improvements**
-
-**🔧 CRITICAL FIXES:**
-
-1. **[CRITICAL] Fixed Memory Leak in SyncHelper**:
-   - **Problem**: Static variable `sheetsService` maintained reference to Context causing memory leak
-   - **Solution**: Removed static variable, `initializeService()` now returns new instance per call
-   - **Impact**: Prevents memory leaks and app crashes during prolonged use
-   - **Files modified**: `SyncHelper.kt:17-50`
-
-2. **[HIGH] Centralized Google Sheets Headers**:
-   - **Problem**: Headers hardcoded in 3+ places causing maintenance issues
-   - **Solution**: Created centralized header constants in companion object
-   - **Benefits**: Single source of truth, easier to add/remove columns
-   - **Files modified**: `GoogleSheetsService.kt:35-75, 160-203, 245-278`
-
-**⚙️ CONFIGURATION UPDATES:**
-
-3. **SDK Configuration Updated**:
-   - `compileSdk`: 34 → 35 (required by WorkManager 2.11.0)
-   - `targetSdk`: kept at 34 for compatibility
-   - Removed deprecated `package` attribute from AndroidManifest.xml
-   - **Files modified**: `build.gradle.kts`, `AndroidManifest.xml`
-
-4. **Documentation Updates**:
-   - Updated DATABASE_VERSION: 8 → 9
-   - Updated SDK configuration with justifications
-   - **Files modified**: `CLAUDE.md`
-
-**🧪 TESTING:**
-
-5. **Test Files**:
-   - Temporarily disabled `GoogleSheetsServiceTest.kt` (compilation errors, doesn't affect production)
-   - Added TODO for future test fixes
-
-**📈 CODE QUALITY:**
-
-- Removed unnecessary `@SuppressLint("StaticFieldLeak")` annotation
-- Improved error handling in `initializeService()` with try-catch
-- Better separation of concerns (headers centralized)
-- Cleaner codebase with DRY principles applied
-
-**🔄 COMPATIBILITY:**
-
-- Full backward compatibility with v1.5.0 data
-- No database migration required
-- Existing RDOs remain intact
+- Fix crítico: memory leak no SyncHelper (variável static Context)
+- Headers do Sheets centralizados em `SheetsConstants.kt`
+- compileSdk atualizado para 35 (WorkManager 2.11.0)
 
 ---
 
 ### Version 1.5.0 (versionCode 6) - 2024-11-13
-**Critical Bug Fixes & Google Sheets Integration Improvements**
+- Fix crítico: deleção por OS+Data (não mais apenas OS)
+- Fix crítico: edição de RDO não duplicava mais no Sheets
+- Novo certificado de assinatura (válido até 2053)
 
-**🔴 CRITICAL FIXES:**
+---
 
-1. **[CRITICAL] Fixed data loss when syncing offline RDOs**:
-   - **Problem**: Creating RDO offline using "usar como modelo" with same OS but different date would delete ALL RDOs with that OS number from Google Sheets
-   - **Root cause**: `deleteRelatedData()` was deleting by `numeroOS` alone
-   - **Solution**: Changed deletion logic to match by **both** `numeroOS` AND `dataRDO` (date)
-   - **Affected sheets**: Acompanhamento, Servicos, Materiais, Efetivo, Equipamentos, HI, Transportes
-   - **Files modified**: `GoogleSheetsService.kt:308-622`
+## Code Review Progress (Programa de Qualidade)
 
-2. **[CRITICAL] Fixed RDO update duplication**:
-   - **Problem**: Editing RDO date created duplicate entries in Google Sheets
-   - **Root cause**: `updateRDOInSheet()` was deleting using NEW data instead of OLD data
-   - **Solution**: Fetch old data from sheet before updating, then delete using old OS + Date
-   - **Impact**: RDO edits now update correctly without creating duplicates
-
-**📊 Google Sheets Structure Improvements:**
-
-Enhanced all sheets with complete contextual information:
-
-- **Materiais**: 5 → 8 columns (added: Número OS, Data RDO, Código Turma, Encarregado)
-- **Efetivo**: 8 → 10 columns (added: Data RDO, Código Turma, Encarregado)
-- **Equipamentos**: 4 → 6 columns (added: Data RDO, Código Turma, Encarregado)
-- **Horas Improdutivas**: Now includes Número OS, Data RDO, Código Turma, Encarregado
-- **Transportes**: 9 → 12 columns (added: Número OS, Data RDO, Código Turma, Encarregado)
-
-**🔧 Technical Improvements:**
-
-- Updated `deleteRelatedData()` to handle different deletion strategies per sheet type
-- Materiais, Equipamentos, HI, Transportes: Delete by OS + Data (columns A:B)
-- Efetivo: Delete by Data (column A)
-- Servicos, Acompanhamento: Delete by OS + Data (columns A:B)
-- Added comprehensive logging for all deletion operations
-- Improved error handling with specific log levels
-
-**📱 Deployment Notes:**
-
-- **New signing certificate** (SHA256withRSA, valid until 2053)
-- **Requires full reinstallation** for existing users (one-time only)
-- After this update, auto-update system will work seamlessly
-- See `INSTRUCOES_ATUALIZACAO_v1.5.0.md` for user migration guide
-
-### Version 1.4.1 (versionCode 5)
-**Bug Fixes:**
-- Fixed RDO update persistence issues
-- Fixed numero_rdo auto-update when editing date/OS
-- Enhanced Google Sheets integration with multiple services per RDO
-- Added "Data RDO" and "Total Efetivo" columns to sheets
-
-### Version 1.4.0 (versionCode 4)
-**Features:**
-- Added auto-update system with Google Sheets configuration
-- Implemented APK download, validation (MD5), and installation
-- Added transport support to RDO
-
-### Version 1.3.0 (versionCode 3)
-**Features:**
-- Added automatic RDO number generation
-- Implemented Google Sheets background sync
-- Database migration to version 3
-- to memorize
+| Fase | Escopo | Status |
+|------|--------|--------|
+| Fase 0 | Fundação: CLAUDE.md, .gitignore, memória | ✅ Concluída (2026-05-27) |
+| Fase 1 | Android: Camada de Dados | Pendente |
+| Fase 2 | Android: Domínio e Validação | Pendente |
+| Fase 3 | Android: Serviços de Sync | Pendente |
+| Fase 4 | Android: UI | Pendente |
+| Fase 5 | Dashboard: Core | Pendente |
+| Fase 6 | Dashboard: Módulos de Visualização | Pendente |
+| Fase 7 | Consistência App ↔ Dashboard | Pendente |
+| Fase 8 | Documentação Final | Pendente |
