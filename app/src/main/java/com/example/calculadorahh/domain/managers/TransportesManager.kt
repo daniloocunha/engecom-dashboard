@@ -175,7 +175,7 @@ class TransportesManager(
 
             // Validações
             if (descricao.isEmpty()) {
-                Toast.makeText(context, "Digite a descrição do manejo de sucatas", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, "Digite a descrição do manejo realizado", Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 

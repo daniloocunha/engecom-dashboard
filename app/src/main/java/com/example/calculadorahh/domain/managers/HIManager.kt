@@ -7,10 +7,7 @@ import android.view.LayoutInflater
 import android.widget.*
 import com.example.calculadorahh.data.models.HIItem
 import com.example.calculadorahh.R
-import com.example.calculadorahh.data.database.DatabaseHelper
-import com.example.calculadorahh.data.models.*
-import com.example.calculadorahh.ui.adapters.*
-import com.example.calculadorahh.utils.*
+import com.example.calculadorahh.utils.TimeInputMask
 import com.example.calculadorahh.utils.ValidationHelper
 
 /**

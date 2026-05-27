@@ -5,57 +5,6 @@ import com.google.android.material.textfield.TextInputLayout
 
 object ValidationHelper {
 
-    fun validarKM(
-        etKmInicio: EditText,
-        etKmFim: EditText,
-        tilKmInicio: TextInputLayout,
-        tilKmFim: TextInputLayout
-    ): Boolean {
-        val kmInicioStr = etKmInicio.text.toString().replace(".", "").replace("+", "")
-        val kmFimStr = etKmFim.text.toString().replace(".", "").replace("+", "")
-
-        // Limpar erros anteriores
-        tilKmInicio.error = null
-        tilKmFim.error = null
-        tilKmInicio.isErrorEnabled = false
-        tilKmFim.isErrorEnabled = false
-
-        if (kmInicioStr.isEmpty()) {
-            tilKmInicio.error = "⚠️ Campo obrigatório"
-            tilKmInicio.isErrorEnabled = true
-            return false
-        }
-
-        if (kmFimStr.isEmpty()) {
-            tilKmFim.error = "⚠️ Campo obrigatório"
-            tilKmFim.isErrorEnabled = true
-            return false
-        }
-
-        val kmInicio = kmInicioStr.toDoubleOrNull()
-        val kmFim = kmFimStr.toDoubleOrNull()
-
-        if (kmInicio == null) {
-            tilKmInicio.error = "⚠️ KM inválido"
-            tilKmInicio.isErrorEnabled = true
-            return false
-        }
-
-        if (kmFim == null) {
-            tilKmFim.error = "⚠️ KM inválido"
-            tilKmFim.isErrorEnabled = true
-            return false
-        }
-
-        if (kmFim <= kmInicio) {
-            tilKmFim.error = "⚠️ KM fim deve ser maior que KM início (${formatarKM(kmInicio)})"
-            tilKmFim.isErrorEnabled = true
-            return false
-        }
-
-        return true
-    }
-
     fun validarHorario(
         etHorarioInicio: EditText,
         etHorarioFim: EditText,
@@ -126,16 +75,6 @@ object ValidationHelper {
         }
 
         return true
-    }
-
-    fun formatarKM(km: Double): String {
-        val kmStr = km.toInt().toString().padStart(6, '0')
-        return "${kmStr.take(3)}+${kmStr.substring(3)}"
-    }
-
-    fun formatarKM(kmStr: String): String {
-        val km = kmStr.replace(".", "").replace("+", "").toDoubleOrNull() ?: return kmStr
-        return formatarKM(km)
     }
 
     /**
