@@ -268,9 +268,12 @@ class CalendarioTP {
                 if (os && os.toLowerCase() !== 'sem o numero da os ainda' && os !== '0') return os;
                 return numeroRDO.split('-')[0] || 'S/O.S';
             })();
-            const kmInicio = (rdoDia['KM Início'] || rdoDia.kmInicio || rdoDia['Km Início'] || rdoDia['km_inicio'] || '').toString().trim();
-            const kmFim    = (rdoDia['KM Fim']    || rdoDia.kmFim    || rdoDia['Km Fim']    || rdoDia['km_fim']    || '').toString().trim();
-            hhPorOS.push({ numeroOS: osDisplay, hhProdutivas: hhProdRDO, hhImprodutivas: hhImprRDO, totalHH: hhProdRDO + hhImprRDO, kmInicio, kmFim });
+            const kmInicio      = (rdoDia['KM Início']     || rdoDia.kmInicio      || rdoDia['Km Início'] || rdoDia['km_inicio'] || '').toString().trim();
+            const kmFim         = (rdoDia['KM Fim']        || rdoDia.kmFim         || rdoDia['Km Fim']    || rdoDia['km_fim']    || '').toString().trim();
+            const local         = (rdoDia.Local             || rdoDia.local         || '').toString().trim() || '-';
+            const horarioInicio = (rdoDia['Horário Início'] || rdoDia.horarioInicio || '').toString().trim() || '-';
+            const horarioFim    = (rdoDia['Horário Fim']    || rdoDia.horarioFim    || '').toString().trim() || '-';
+            hhPorOS.push({ numeroOS: osDisplay, hhProdutivas: hhProdRDO, hhImprodutivas: hhImprRDO, totalHH: hhProdRDO + hhImprRDO, kmInicio, kmFim, local, horarioInicio, horarioFim });
 
             // Efetivo — soma os totais de cada RDO
             const ef = this.obterEfetivoDia(numeroRDO, dataFormatada);
@@ -686,11 +689,30 @@ class CalendarioTP {
                             <div class="row mb-4">
                                 <div class="col-md-12">
                                     <h6 class="text-muted mb-2">
-                                        <i class="fas fa-users me-2"></i>${dados.turma} |
-                                        <i class="fas fa-user me-2"></i>${dados.encarregado} |
+                                        <i class="fas fa-users me-2"></i>${dados.turma} &nbsp;|&nbsp;
+                                        <i class="fas fa-user me-2"></i>${dados.encarregado} &nbsp;|&nbsp;
                                         <i class="fas fa-file-alt me-2"></i>RDO: ${dados.numeroRDO}
                                         ${dados.multiplosRDOs ? `<span class="badge bg-warning text-dark ms-2"><i class="fas fa-layer-group me-1"></i>${dados.qtdRDOs} RDOs neste dia</span>` : ''}
                                     </h6>
+                                    ${dados.multiplosRDOs ? `
+                                        <div class="d-flex flex-column gap-1">
+                                            ${dados.hhPorOS.map(os => `
+                                                <h6 class="text-muted mb-0">
+                                                    <span class="badge bg-secondary me-1">${escapeHtml(os.numeroOS)}</span>
+                                                    <i class="fas fa-map-marker-alt me-1"></i>${escapeHtml(os.local)} &nbsp;|&nbsp;
+                                                    <i class="fas fa-road me-1"></i>KM ${escapeHtml(os.kmInicio || '-')} – ${escapeHtml(os.kmFim || '-')} &nbsp;|&nbsp;
+                                                    <i class="fas fa-clock me-1"></i>${escapeHtml(os.horarioInicio)} – ${escapeHtml(os.horarioFim)}
+                                                </h6>
+                                            `).join('')}
+                                        </div>
+                                    ` : dados.hhPorOS.length > 0 ? `
+                                        <h6 class="text-muted mb-0">
+                                            <i class="fas fa-hashtag me-2"></i>OS: ${escapeHtml(dados.hhPorOS[0].numeroOS)} &nbsp;|&nbsp;
+                                            <i class="fas fa-map-marker-alt me-2"></i>${escapeHtml(dados.hhPorOS[0].local)} &nbsp;|&nbsp;
+                                            <i class="fas fa-road me-2"></i>KM ${escapeHtml(dados.hhPorOS[0].kmInicio || '-')} – ${escapeHtml(dados.hhPorOS[0].kmFim || '-')} &nbsp;|&nbsp;
+                                            <i class="fas fa-clock me-2"></i>${escapeHtml(dados.hhPorOS[0].horarioInicio)} – ${escapeHtml(dados.hhPorOS[0].horarioFim)}
+                                        </h6>
+                                    ` : ''}
                                 </div>
                             </div>
 
@@ -719,7 +741,16 @@ class CalendarioTP {
                                         <h4 class="mb-1" style="color: #055160 !important; font-size: 2rem !important; font-weight: bold !important;">${dados.efetivo?.total || 0}</h4>
                                         <small class="text-muted">Efetivo Total</small>
                                         <div class="mt-1">
-                                            <small style="color: #6c757d !important;">${dados.efetivo?.operadores || 0} op. | ${dados.efetivo?.motoristas || 0} mot.</small>
+                                            <small style="color: #6c757d !important;">
+                                                ${[
+                                                    dados.efetivo?.encarregado      ? `Enc: ${dados.efetivo.encarregado}`      : '',
+                                                    dados.efetivo?.soldador         ? `Sold: ${dados.efetivo.soldador}`         : '',
+                                                    dados.efetivo?.operadores       ? `Op: ${dados.efetivo.operadores}`         : '',
+                                                    dados.efetivo?.motoristas       ? `Mot: ${dados.efetivo.motoristas}`        : '',
+                                                    dados.efetivo?.operadorEGP      ? `EGP: ${dados.efetivo.operadorEGP}`       : '',
+                                                    dados.efetivo?.tecnicoSeguranca ? `Tec: ${dados.efetivo.tecnicoSeguranca}`  : ''
+                                                ].filter(Boolean).join(' | ')}
+                                            </small>
                                         </div>
                                     </div>
                                 </div>

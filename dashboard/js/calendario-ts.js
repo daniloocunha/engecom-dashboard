@@ -555,6 +555,7 @@ class CalendarioTS {
                                     </h6>
                                     <h6 class="text-muted mb-0">
                                         <i class="fas fa-map-marker-alt me-2"></i>${escapeHtml(dados.local)} &nbsp;|&nbsp;
+                                        <i class="fas fa-road me-2"></i>KM ${escapeHtml(dados.kmInicio || '-')} – ${escapeHtml(dados.kmFim || '-')} &nbsp;|&nbsp;
                                         <i class="fas fa-clock me-2"></i>${escapeHtml(dados.horaInicio)} – ${escapeHtml(dados.horaFim)}
                                     </h6>
                                 </div>
