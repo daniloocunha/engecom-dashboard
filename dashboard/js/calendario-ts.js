@@ -558,18 +558,51 @@ class CalendarioTS {
                             <!-- Cabeçalho info -->
                             <div class="row mb-4">
                                 <div class="col-md-12">
-                                    <h6 class="text-muted mb-1 d-flex flex-wrap align-items-center gap-1">
+                                    <h6 class="text-muted mb-1">
                                         <i class="fas fa-user me-1"></i>${escapeHtml(encarregado)} &nbsp;|&nbsp;
-                                        <i class="fas fa-file-alt me-1"></i>RDO: ${escapeHtml(dados.numeroRDO)} &nbsp;|&nbsp;
-                                        <i class="fas fa-hashtag me-1"></i>OS:&nbsp;<span id="os-view">${escapeHtml(dados.numeroOS)}</span>
-                                        <span class="edit-ctrl" style="display:none;"><button class="btn btn-link btn-sm p-0" onclick="editorRDO.mostrarEditOS()" title="Editar O.S"><i class="fas fa-pencil-alt" style="font-size:.7rem;"></i></button></span>
-                                        <span id="os-form" style="display:none;"><input id="os-input" type="text" class="form-control form-control-sm d-inline-block" style="width:110px; vertical-align:middle;"><button class="btn btn-sm btn-success py-0" onclick="editorRDO.salvarOS(this)"><i class="fas fa-check"></i></button><button class="btn btn-sm btn-outline-secondary py-0" onclick="editorRDO.cancelarEditOS()"><i class="fas fa-times"></i></button></span>
+                                        <i class="fas fa-file-alt me-1"></i>RDO: <span id="cab-view-rdo">${escapeHtml(dados.numeroRDO)}</span>
                                     </h6>
-                                    <h6 class="text-muted mb-0">
-                                        <i class="fas fa-map-marker-alt me-2"></i>${escapeHtml(dados.local)} &nbsp;|&nbsp;
-                                        <i class="fas fa-road me-2"></i>KM ${escapeHtml(dados.kmInicio || '-')} – ${escapeHtml(dados.kmFim || '-')} &nbsp;|&nbsp;
-                                        <i class="fas fa-clock me-2"></i>${escapeHtml(dados.horaInicio)} – ${escapeHtml(dados.horaFim)}
-                                    </h6>
+                                    <div id="cabecalho-view" class="d-flex flex-wrap align-items-center gap-1 text-muted small">
+                                        <i class="fas fa-hashtag me-1"></i>OS:&nbsp;<span id="cab-view-os" class="fw-semibold">${escapeHtml(dados.numeroOS)}</span>
+                                        <span class="edit-ctrl" style="display:none;">
+                                            <button class="btn btn-link btn-sm p-0" onclick="editorRDO.mostrarEditCabecalho()" title="Editar cabeçalho"><i class="fas fa-pencil-alt" style="font-size:.7rem;"></i></button>
+                                        </span>
+                                        &nbsp;|&nbsp;<i class="fas fa-map-marker-alt me-1"></i><span id="cab-view-local">${escapeHtml(dados.local)}</span>
+                                        &nbsp;|&nbsp;<i class="fas fa-road me-1"></i>KM <span id="cab-view-km-ini">${escapeHtml(dados.kmInicio || '-')}</span> – <span id="cab-view-km-fim">${escapeHtml(dados.kmFim || '-')}</span>
+                                        &nbsp;|&nbsp;<i class="fas fa-clock me-1"></i><span id="cab-view-hr-ini">${escapeHtml(dados.horaInicio)}</span> – <span id="cab-view-hr-fim">${escapeHtml(dados.horaFim)}</span>
+                                    </div>
+                                    <div id="cabecalho-form" class="card card-body p-2 mt-2" style="display:none;">
+                                        <div class="row g-2">
+                                            <div class="col-6 col-md-2">
+                                                <label class="form-label form-label-sm mb-0 text-muted">O.S</label>
+                                                <input id="cab-os" type="text" class="form-control form-control-sm">
+                                            </div>
+                                            <div class="col-6 col-md-3">
+                                                <label class="form-label form-label-sm mb-0 text-muted">Local</label>
+                                                <input id="cab-local" type="text" class="form-control form-control-sm">
+                                            </div>
+                                            <div class="col-4 col-md-2">
+                                                <label class="form-label form-label-sm mb-0 text-muted">KM Início</label>
+                                                <input id="cab-km-ini" type="text" class="form-control form-control-sm" placeholder="000+000">
+                                            </div>
+                                            <div class="col-4 col-md-2">
+                                                <label class="form-label form-label-sm mb-0 text-muted">KM Fim</label>
+                                                <input id="cab-km-fim" type="text" class="form-control form-control-sm" placeholder="000+000">
+                                            </div>
+                                            <div class="col-4 col-md-1">
+                                                <label class="form-label form-label-sm mb-0 text-muted">Início</label>
+                                                <input id="cab-hr-ini" type="text" class="form-control form-control-sm" placeholder="HH:MM" maxlength="5">
+                                            </div>
+                                            <div class="col-4 col-md-1">
+                                                <label class="form-label form-label-sm mb-0 text-muted">Fim</label>
+                                                <input id="cab-hr-fim" type="text" class="form-control form-control-sm" placeholder="HH:MM" maxlength="5">
+                                            </div>
+                                            <div class="col-8 col-md-1 d-flex align-items-end gap-1">
+                                                <button class="btn btn-sm btn-success flex-fill" onclick="editorRDO.salvarCabecalho(this)"><i class="fas fa-save"></i></button>
+                                                <button class="btn btn-sm btn-outline-secondary" onclick="editorRDO.cancelarEditCabecalho()"><i class="fas fa-times"></i></button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
 
@@ -687,18 +720,28 @@ class CalendarioTS {
                                         <i class="fas fa-plus me-1"></i>Adicionar Solda
                                     </button>
                                     <div id="form-adicionar-servico" class="card card-body mt-2 p-2" style="display:none;">
-                                        <div class="row g-2">
+                                        <div class="row g-2 align-items-end">
                                             <div class="col-12 col-md-5">
-                                                <input id="novo-srv-desc" type="text" class="form-control form-control-sm" placeholder="Descrição da solda">
+                                                <label class="form-label form-label-sm mb-0 text-muted">Solda / Serviço</label>
+                                                <select id="novo-srv-sel" class="form-select form-select-sm" onchange="editorRDO._previewNovoHH()">
+                                                    <option value="">-- Selecione o serviço --</option>
+                                                    ${editorRDO._buildServicosOptions('')}
+                                                </select>
                                             </div>
-                                            <div class="col-6 col-md-2">
-                                                <input id="novo-srv-qty" type="number" class="form-control form-control-sm" step="0.01" min="0.01" placeholder="Qtd">
+                                            <div class="col-4 col-md-2">
+                                                <label class="form-label form-label-sm mb-0 text-muted">Qtd</label>
+                                                <input id="novo-srv-qty" type="number" class="form-control form-control-sm" step="0.01" min="0.01" placeholder="0" oninput="editorRDO._previewNovoHH()">
                                             </div>
-                                            <div class="col-6 col-md-2">
+                                            <div class="col-4 col-md-1">
+                                                <label class="form-label form-label-sm mb-0 text-muted">Un.</label>
                                                 <select id="novo-srv-un" class="form-select form-select-sm">
                                                     <option>M</option><option>M²</option><option>M³</option>
                                                     <option>KG</option><option selected>UN</option><option>T</option><option>L</option>
                                                 </select>
+                                            </div>
+                                            <div class="col-4 col-md-1 text-center">
+                                                <label class="form-label form-label-sm mb-0 text-muted">HH</label>
+                                                <div class="badge bg-info text-dark w-100 py-2"><span id="novo-srv-hh-pre">?</span></div>
                                             </div>
                                             <div class="col-12 col-md-3">
                                                 <button class="btn btn-sm btn-success w-100" onclick="editorRDO.salvarNovoServico(this)">

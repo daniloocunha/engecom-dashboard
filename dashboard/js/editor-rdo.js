@@ -153,6 +153,10 @@ class EditorRDO {
             btn.classList.replace('btn-warning', 'btn-outline-warning');
         }
 
+        // Fechar formulário de cabeçalho se estiver aberto
+        const cabForm = document.getElementById('cabecalho-form');
+        if (cabForm && cabForm.style.display !== 'none') this.cancelarEditCabecalho();
+
         // Restaurar linhas que estejam em modo de edição
         this._qa('tr[data-em-edicao]').forEach(tr => {
             if (tr.dataset.htmlOriginal) {
@@ -163,41 +167,132 @@ class EditorRDO {
         });
     }
 
-    // ── Número OS ────────────────────────────────────────────────────────────
+    // ── Cabeçalho (OS, Local, KM, Horário) ───────────────────────────────────
 
-    mostrarEditOS() {
-        const view = document.getElementById('os-view');
-        const form = document.getElementById('os-form');
+    mostrarEditCabecalho() {
+        const view = document.getElementById('cabecalho-view');
+        const form = document.getElementById('cabecalho-form');
         if (!view || !form) return;
-        const input = document.getElementById('os-input');
-        if (input) input.value = view.textContent.trim();
+
+        const g = id => document.getElementById(id)?.textContent.trim() || '';
+        const s = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+        s('cab-os',     g('cab-view-os'));
+        s('cab-local',  g('cab-view-local'));
+        s('cab-km-ini', g('cab-view-km-ini'));
+        s('cab-km-fim', g('cab-view-km-fim'));
+        s('cab-hr-ini', g('cab-view-hr-ini'));
+        s('cab-hr-fim', g('cab-view-hr-fim'));
+
         view.style.display = 'none';
-        form.style.display = 'inline-flex';
-        input && input.focus();
+        form.style.display = 'block';
+        document.getElementById('cab-os')?.focus();
     }
 
-    cancelarEditOS() {
-        const view = document.getElementById('os-view');
-        const form = document.getElementById('os-form');
+    cancelarEditCabecalho() {
+        const view = document.getElementById('cabecalho-view');
+        const form = document.getElementById('cabecalho-form');
         if (view) view.style.display = '';
         if (form) form.style.display = 'none';
     }
 
-    async salvarOS(btn) {
-        const input = document.getElementById('os-input');
-        if (!input) return;
-        const novaOS = input.value.trim();
+    async salvarCabecalho(btn) {
+        const g = id => document.getElementById(id)?.value.trim() || '';
+        const novaOS     = g('cab-os');
+        const local      = g('cab-local');
+        const kmInicio   = g('cab-km-ini');
+        const kmFim      = g('cab-km-fim');
+        const horaInicio = g('cab-hr-ini');
+        const horaFim    = g('cab-hr-fim');
+
         if (!novaOS) { this._erro('O número da O.S não pode ser vazio'); return; }
 
-        await this._comFeedback(btn, async () => {
-            await this._api({ acao: 'atualizarCampoRDO', numeroRDO: this.numeroRDO, campos: { numeroOS: novaOS } });
+        const osAtual  = document.getElementById('cab-view-os')?.textContent.trim() || '';
+        const osChanged = novaOS !== osAtual;
 
-            // Atualizar view e memória
-            const view = document.getElementById('os-view');
-            if (view) view.textContent = novaOS;
-            if (this.dados.hhPorOS && this.dados.hhPorOS[0]) this.dados.hhPorOS[0].numeroOS = novaOS;
-            this.cancelarEditOS();
+        await this._comFeedback(btn, async () => {
+            let rdoTarget = this.numeroRDO;
+
+            // Se a O.S mudou, renomear o Número RDO em todas as abas
+            if (osChanged) {
+                const partes = this.numeroRDO.split('-');
+                const sufixo = partes.slice(1).join('-');
+                const novoNumeroRDO = novaOS + '-' + sufixo;
+                await this._api({ acao: 'renomearRDO', oldNumeroRDO: this.numeroRDO, newNumeroRDO: novoNumeroRDO, novaOS });
+                this.numeroRDO = novoNumeroRDO;
+                rdoTarget = novoNumeroRDO;
+                // Atualizar exibição do Número RDO se visível no modal
+                const rdoSpan = document.getElementById('cab-view-rdo');
+                if (rdoSpan) rdoSpan.textContent = novoNumeroRDO;
+            }
+
+            // Atualizar demais campos
+            await this._api({
+                acao: 'atualizarCampoRDO',
+                numeroRDO: rdoTarget,
+                campos: { local, kmInicio, kmFim, horarioInicio: horaInicio, horarioFim: horaFim }
+            });
+
+            // Atualizar spans de visualização
+            const sv = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            sv('cab-view-os',     novaOS);
+            sv('cab-view-local',  local    || '-');
+            sv('cab-view-km-ini', kmInicio || '-');
+            sv('cab-view-km-fim', kmFim    || '-');
+            sv('cab-view-hr-ini', horaInicio || '-');
+            sv('cab-view-hr-fim', horaFim    || '-');
+
+            // Atualizar memória — TP (via hhPorOS)
+            if (this.dados.hhPorOS && this.dados.hhPorOS[0]) {
+                const os0 = this.dados.hhPorOS[0];
+                os0.numeroOS      = novaOS;
+                os0.local         = local;
+                os0.kmInicio      = kmInicio;
+                os0.kmFim         = kmFim;
+                os0.horarioInicio = horaInicio;
+                os0.horarioFim    = horaFim;
+            }
+            // Atualizar memória — TS (campos diretos)
+            if (this.dados.numeroOS   !== undefined) this.dados.numeroOS   = novaOS;
+            if (this.dados.local      !== undefined) this.dados.local      = local;
+            if (this.dados.kmInicio   !== undefined) this.dados.kmInicio   = kmInicio;
+            if (this.dados.kmFim      !== undefined) this.dados.kmFim      = kmFim;
+            if (this.dados.horaInicio !== undefined) this.dados.horaInicio = horaInicio;
+            if (this.dados.horaFim    !== undefined) this.dados.horaFim    = horaFim;
+
+            this.cancelarEditCabecalho();
         });
+    }
+
+    // ── Serviços — helpers de select ─────────────────────────────────────────
+
+    /** Constrói <option> elements a partir de SERVICOS_BASE global. */
+    _buildServicosOptions(selectedDesc) {
+        const lista = (typeof SERVICOS_BASE !== 'undefined' && Array.isArray(SERVICOS_BASE)) ? SERVICOS_BASE : [];
+        return lista.map(s => {
+            const val = escapeHtml(s.descricao + '|' + s.coeficiente);
+            const sel = s.descricao === selectedDesc ? ' selected' : '';
+            return `<option value="${val}"${sel}>${escapeHtml(s.descricao)} (coef: ${s.coeficiente})</option>`;
+        }).join('');
+    }
+
+    /** Atualiza preview de HH na linha de edição de serviço. */
+    _previewHH(idx) {
+        const sel = document.getElementById('srv-sel-' + idx);
+        const qty = parseFloat(document.getElementById('srv-qty-' + idx)?.value || 0);
+        const pre = document.getElementById('srv-hh-pre-' + idx);
+        if (!sel || !pre) return;
+        const coef = parseFloat((sel.value.split('|')[1]) || 0);
+        pre.textContent = (isNaN(coef) || coef === 0 || isNaN(qty) || qty === 0) ? '?' : (qty * coef).toFixed(2);
+    }
+
+    /** Atualiza preview de HH no formulário "Adicionar Serviço". */
+    _previewNovoHH() {
+        const sel = document.getElementById('novo-srv-sel');
+        const qty = parseFloat(document.getElementById('novo-srv-qty')?.value || 0);
+        const pre = document.getElementById('novo-srv-hh-pre');
+        if (!sel || !pre) return;
+        const coef = parseFloat((sel.value.split('|')[1]) || 0);
+        pre.textContent = (isNaN(coef) || coef === 0 || isNaN(qty) || qty === 0) ? '?' : (qty * coef).toFixed(2);
     }
 
     // ── Observações ───────────────────────────────────────────────────────────
@@ -245,23 +340,42 @@ class EditorRDO {
 
         const s = this.dados.servicos[idx];
         const unidades = ['M', 'M²', 'M³', 'KG', 'UN', 'T', 'L'];
+        const coef = parseFloat(s.coeficiente || 0);
+        const hhPrev = (coef > 0 && s.quantidade) ? (s.quantidade * coef).toFixed(2) : '?';
 
         tr.innerHTML = `
             <td colspan="${this._colsData}" class="p-2">
-                <div class="d-flex gap-2 flex-wrap align-items-center">
-                    <input id="srv-desc-${idx}" type="text" class="form-control form-control-sm"
-                           value="${escapeHtml(String(s.descricao || ''))}" style="min-width:180px; flex:2;" placeholder="Descrição">
-                    <input id="srv-qty-${idx}" type="number" class="form-control form-control-sm"
-                           value="${s.quantidade}" step="0.01" min="0" style="width:90px;" placeholder="Qtd">
-                    <select id="srv-un-${idx}" class="form-select form-select-sm" style="width:80px;">
-                        ${unidades.map(u => `<option${s.unidade === u ? ' selected' : ''}>${u}</option>`).join('')}
-                    </select>
-                    <button class="btn btn-sm btn-success" onclick="editorRDO.salvarServico(${idx}, this)">
-                        <i class="fas fa-save"></i> Salvar
-                    </button>
-                    <button class="btn btn-sm btn-outline-secondary" onclick="editorRDO.cancelarEditServico(${idx})">
-                        <i class="fas fa-times"></i>
-                    </button>
+                <div class="row g-2 align-items-center">
+                    <div class="col-12 col-md-5">
+                        <select id="srv-sel-${idx}" class="form-select form-select-sm"
+                                onchange="editorRDO._previewHH(${idx})">
+                            ${this._buildServicosOptions(s.descricao)}
+                        </select>
+                    </div>
+                    <div class="col-4 col-md-2">
+                        <input id="srv-qty-${idx}" type="number" class="form-control form-control-sm"
+                               value="${s.quantidade}" step="0.01" min="0" placeholder="Qtd"
+                               oninput="editorRDO._previewHH(${idx})">
+                    </div>
+                    <div class="col-4 col-md-2">
+                        <select id="srv-un-${idx}" class="form-select form-select-sm">
+                            ${unidades.map(u => `<option${s.unidade === u ? ' selected' : ''}>${u}</option>`).join('')}
+                        </select>
+                    </div>
+                    <div class="col-4 col-md-1 text-center">
+                        <span class="badge bg-info text-dark" title="HH estimado">
+                            <i class="fas fa-clock" style="font-size:.65rem;"></i>
+                            <span id="srv-hh-pre-${idx}">${hhPrev}</span>
+                        </span>
+                    </div>
+                    <div class="col-12 col-md-2 d-flex gap-1">
+                        <button class="btn btn-sm btn-success flex-fill" onclick="editorRDO.salvarServico(${idx}, this)">
+                            <i class="fas fa-save"></i> Salvar
+                        </button>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="editorRDO.cancelarEditServico(${idx})">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
                 </div>
             </td>
             <td class="edit-ctrl"></td>`;
@@ -276,12 +390,17 @@ class EditorRDO {
     }
 
     async salvarServico(idx, btn) {
-        const s          = this.dados.servicos[idx];
-        const descricao  = document.getElementById('srv-desc-' + idx)?.value.trim();
-        const quantidade = parseFloat(document.getElementById('srv-qty-' + idx)?.value || 0);
-        const unidade    = document.getElementById('srv-un-'  + idx)?.value;
+        const s   = this.dados.servicos[idx];
+        const sel = document.getElementById('srv-sel-' + idx);
+        if (!sel || !sel.value) { this._erro('Selecione um serviço'); return; }
 
-        if (!descricao) { this._erro('Descrição é obrigatória'); return; }
+        const parts      = sel.value.split('|');
+        const descricao  = parts[0] || '';
+        const coeficiente = parseFloat(parts[1] || 0);
+        const quantidade = parseFloat(document.getElementById('srv-qty-' + idx)?.value || 0);
+        const unidade    = document.getElementById('srv-un-' + idx)?.value;
+
+        if (!descricao) { this._erro('Selecione um serviço'); return; }
 
         const rdoAlvo = this._rdoDe(s);
         const indice  = this._indiceRDO(this.dados.servicos, idx);
@@ -289,14 +408,12 @@ class EditorRDO {
         await this._comFeedback(btn, async () => {
             await this._api({ acao: 'atualizarServico', numeroRDO: rdoAlvo, indice, descricao, quantidade, unidade });
 
-            // Atualizar memória
-            s.descricao  = descricao;
-            s.quantidade = quantidade;
-            s.unidade    = unidade;
-            const coef   = parseFloat(s.coeficiente || 0);
-            s.hh         = coef > 0 ? (quantidade * coef).toFixed(2) : s.hh;
+            s.descricao   = descricao;
+            s.quantidade  = quantidade;
+            s.unidade     = unidade;
+            s.coeficiente = coeficiente;
+            s.hh          = coeficiente > 0 ? (quantidade * coeficiente).toFixed(2) : s.hh;
 
-            // Restaurar view
             const tr = document.getElementById('srv-row-' + idx);
             if (tr) {
                 delete tr.dataset.emEdicao;
@@ -326,11 +443,16 @@ class EditorRDO {
     }
 
     async salvarNovoServico(btn) {
-        const descricao  = document.getElementById('novo-srv-desc')?.value.trim();
+        const sel = document.getElementById('novo-srv-sel');
+        if (!sel || !sel.value) { this._erro('Selecione um serviço'); return; }
+
+        const parts      = sel.value.split('|');
+        const descricao  = parts[0] || '';
+        const coeficiente = parseFloat(parts[1] || 0);
         const quantidade = parseFloat(document.getElementById('novo-srv-qty')?.value || 0);
         const unidade    = document.getElementById('novo-srv-un')?.value || 'UN';
 
-        if (!descricao) { this._erro('Descrição é obrigatória'); return; }
+        if (!descricao) { this._erro('Selecione um serviço'); return; }
         if (!quantidade || isNaN(quantidade) || quantidade <= 0) { this._erro('Quantidade deve ser maior que zero'); return; }
 
         const osRef = this.dados.hhPorOS?.[0] || {};
@@ -346,7 +468,8 @@ class EditorRDO {
                 descricao, quantidade, unidade
             });
 
-            const novo = { descricao, quantidade, unidade, hh: '?', coeficiente: 0, observacao: '', isCustomizado: false, numeroRDO: null, numeroOS: null };
+            const hhCalc = coeficiente > 0 ? (quantidade * coeficiente).toFixed(2) : '?';
+            const novo = { descricao, quantidade, unidade, hh: hhCalc, coeficiente, observacao: '', isCustomizado: false, numeroRDO: null, numeroOS: null };
             this.dados.servicos.push(novo);
 
             const tbody = document.getElementById('tbody-servicos');
@@ -359,7 +482,11 @@ class EditorRDO {
             }
 
             // Limpar form
-            ['novo-srv-desc', 'novo-srv-qty'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+            sel.selectedIndex = 0;
+            const qtyEl = document.getElementById('novo-srv-qty');
+            if (qtyEl) qtyEl.value = '';
+            const preEl = document.getElementById('novo-srv-hh-pre');
+            if (preEl) preEl.textContent = '?';
             document.getElementById('form-adicionar-servico').style.display = 'none';
         });
     }
