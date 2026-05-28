@@ -552,8 +552,8 @@ class CalendarioTS {
                         </div>
                         <div class="modal-body">
                             <div id="editor-alerta-ts" class="alert alert-danger py-2 mb-2" style="display:none;"></div>
-                            <div id="editor-banner-ts" class="alert alert-warning py-2 mb-2 d-flex align-items-center gap-2" style="display:none;">
-                                <i class="fas fa-pen-to-square"></i><strong>Modo de edição ativo</strong> — as alterações são salvas imediatamente no Google Sheets.
+                            <div id="editor-banner-ts" class="alert alert-warning py-2 mb-2" style="display:none;">
+                                <i class="fas fa-pen-to-square me-2"></i><strong>Modo de edição ativo</strong> — as alterações são salvas imediatamente no Google Sheets.
                             </div>
                             <!-- Cabeçalho info -->
                             <div class="row mb-4">
@@ -563,7 +563,7 @@ class CalendarioTS {
                                         <i class="fas fa-file-alt me-1"></i>RDO: ${escapeHtml(dados.numeroRDO)} &nbsp;|&nbsp;
                                         <i class="fas fa-hashtag me-1"></i>OS:&nbsp;<span id="os-view">${escapeHtml(dados.numeroOS)}</span>
                                         <span class="edit-ctrl" style="display:none;"><button class="btn btn-link btn-sm p-0" onclick="editorRDO.mostrarEditOS()" title="Editar O.S"><i class="fas fa-pencil-alt" style="font-size:.7rem;"></i></button></span>
-                                        <span id="os-form" style="display:none;" class="d-inline-flex align-items-center gap-1"><input id="os-input" type="text" class="form-control form-control-sm" style="width:110px;"><button class="btn btn-sm btn-success py-0" onclick="editorRDO.salvarOS(this)"><i class="fas fa-check"></i></button><button class="btn btn-sm btn-outline-secondary py-0" onclick="editorRDO.cancelarEditOS()"><i class="fas fa-times"></i></button></span>
+                                        <span id="os-form" style="display:none;"><input id="os-input" type="text" class="form-control form-control-sm d-inline-block" style="width:110px; vertical-align:middle;"><button class="btn btn-sm btn-success py-0" onclick="editorRDO.salvarOS(this)"><i class="fas fa-check"></i></button><button class="btn btn-sm btn-outline-secondary py-0" onclick="editorRDO.cancelarEditOS()"><i class="fas fa-times"></i></button></span>
                                     </h6>
                                     <h6 class="text-muted mb-0">
                                         <i class="fas fa-map-marker-alt me-2"></i>${escapeHtml(dados.local)} &nbsp;|&nbsp;
@@ -740,10 +740,10 @@ class CalendarioTS {
                                         <div class="row g-2">
                                             <div class="col-12 col-md-3">
                                                 <select id="nova-hi-tipo" class="form-select form-select-sm">
-                                                    <option>Chuva</option><option>RUMO - Trem</option>
-                                                    <option>Aguardando Material</option><option>Aguardando Liberação</option>
-                                                    <option>Aguardando Equipe</option><option>Manutenção Equipamento</option>
-                                                    <option>Paralisação</option><option>Outros</option>
+                                                    <option>Chuva</option><option>Falta de Material</option>
+                                                    <option>Aguardando Liberação</option><option>Passagens de Trem</option>
+                                                    <option>Treinamento</option><option>Almoço/Refeição</option>
+                                                    <option>Deslocamento</option><option>Outros</option>
                                                 </select>
                                             </div>
                                             <div class="col-12 col-md-3">
@@ -790,6 +790,10 @@ class CalendarioTS {
                             <button id="btn-toggle-edicao" type="button" class="btn btn-outline-warning me-auto"
                                     onclick="editorRDO.ativarModoEdicao()">
                                 <i class="fas fa-edit me-1"></i>Editar
+                            </button>
+                            <button class="btn btn-outline-danger edit-ctrl" style="display:none;"
+                                    onclick="editorRDO.excluirRDO()">
+                                <i class="fas fa-trash me-1"></i>Excluir RDO
                             </button>
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                         </div>

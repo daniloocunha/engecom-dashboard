@@ -5,7 +5,7 @@
  * ⚠️  NÃO EDITE MANUALMENTE!
  *
  * Fonte: app/src/main/res/raw/servicos.json
- * Gerado em: 2026-02-19T10:30:23.249Z
+ * Gerado em: 2026-05-28T14:15:38.713Z
  * Script: scripts/sync-servicos.js
  *
  * Para atualizar este arquivo:
@@ -63,23 +63,23 @@ const SERVICOS_BASE = [
   },
   {
     "descricao": "Substituição De Trilho TR-37",
-    "coeficiente": 0.57
+    "coeficiente": 0.39
   },
   {
     "descricao": "Substituição De Trilho TR-45",
-    "coeficiente": 0.68
+    "coeficiente": 0.46
   },
   {
     "descricao": "Substituição De Trilho TR-50",
-    "coeficiente": 0.71
+    "coeficiente": 0.48
   },
   {
     "descricao": "Substituição De Trilho TR-57",
-    "coeficiente": 0.81
+    "coeficiente": 0.55
   },
   {
     "descricao": "Substituição De Trilho TR-60",
-    "coeficiente": 0.89
+    "coeficiente": 0.61
   },
   {
     "descricao": "Substituição De Trilho TR-68",
@@ -87,7 +87,7 @@ const SERVICOS_BASE = [
   },
   {
     "descricao": "Subst. De Trilho C/Mud. De Perfil",
-    "coeficiente": 0.73
+    "coeficiente": 0.66
   },
   {
     "descricao": "Serv Posicionamento De Trilho",

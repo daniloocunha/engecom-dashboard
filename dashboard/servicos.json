@@ -45,23 +45,23 @@
   },
   {
     "descricao": "Substituição De Trilho TR-37",
-    "coeficiente": 0.57
+    "coeficiente": 0.39
   },
   {
     "descricao": "Substituição De Trilho TR-45",
-    "coeficiente": 0.68
+    "coeficiente": 0.46
   },
   {
     "descricao": "Substituição De Trilho TR-50",
-    "coeficiente": 0.71
+    "coeficiente": 0.48
   },
   {
     "descricao": "Substituição De Trilho TR-57",
-    "coeficiente": 0.81
+    "coeficiente": 0.55
   },
   {
     "descricao": "Substituição De Trilho TR-60",
-    "coeficiente": 0.89
+    "coeficiente": 0.61
   },
   {
     "descricao": "Substituição De Trilho TR-68",
@@ -69,7 +69,7 @@
   },
   {
     "descricao": "Subst. De Trilho C/Mud. De Perfil",
-    "coeficiente": 0.73
+    "coeficiente": 0.66
   },
   {
     "descricao": "Serv Posicionamento De Trilho",
@@ -202,30 +202,6 @@
   {
     "descricao": "Reposicionamento De Retensores",
     "coeficiente": 0.02
-  },
-  {
-    "descricao": "Solda Alumin TR-37 Kit Solda Fornec Rumo",
-    "coeficiente": 4.00
-  },
-  {
-    "descricao": "Solda Alumin TR-45 Kit Solda Fornec Rumo",
-    "coeficiente": 4.00
-  },
-  {
-    "descricao": "Solda Alumin TR-57 Kit Solda Fornec Rumo",
-    "coeficiente": 4.00
-  },
-  {
-    "descricao": "Solda Alumin TR-60 Kit Solda Fornec Rumo",
-    "coeficiente": 4.00
-  },
-  {
-    "descricao": "Solda Alumin TR-50 Kit Solda Fornec Rumo",
-    "coeficiente": 4.00
-  },
-  {
-    "descricao": "Solda Alumin TR-55 Kit Solda Fornec Rumo",
-    "coeficiente": 4.00
   },
   {
     "descricao": "Furação De Placa De Apoio",
@@ -406,5 +382,29 @@
   {
     "descricao": "Roçada Manual",
     "coeficiente": 0.02
+  },
+  {
+    "descricao": "Solda Alumin TR-37 Kit Solda Fornec Rumo",
+    "coeficiente": 4
+  },
+  {
+    "descricao": "Solda Alumin TR-45 Kit Solda Fornec Rumo",
+    "coeficiente": 4
+  },
+  {
+    "descricao": "Solda Alumin TR-57 Kit Solda Fornec Rumo",
+    "coeficiente": 4
+  },
+  {
+    "descricao": "Solda Alumin TR-60 Kit Solda Fornec Rumo",
+    "coeficiente": 4
+  },
+  {
+    "descricao": "Solda Alumin TR-50 Kit Solda Fornec Rumo",
+    "coeficiente": 4
+  },
+  {
+    "descricao": "Solda Alumin TR-55 Kit Solda Fornec Rumo",
+    "coeficiente": 4
   }
 ]

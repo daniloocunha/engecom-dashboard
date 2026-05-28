@@ -412,9 +412,9 @@ class EditorRDO {
         tr.dataset.htmlOriginal = tr.innerHTML;
 
         const hi = this.dados.horasImprodutivas[idx];
-        const tipos = ['Chuva', 'RUMO - Trem', 'Aguardando Material', 'Aguardando Liberação',
-                       'Aguardando Equipe', 'Manutenção Equipamento', 'Paralisação', 'Outros'];
-        // Se o tipo salvo não está na lista, adiciona para manter o valor
+        const tipos = ['Chuva', 'Falta de Material', 'Aguardando Liberação', 'Passagens de Trem',
+                       'Treinamento', 'Almoço/Refeição', 'Deslocamento', 'Outros'];
+        // Se o tipo salvo não está na lista (dado legado), adiciona para preservar o valor
         if (hi.tipo && !tipos.includes(hi.tipo)) tipos.unshift(hi.tipo);
 
         tr.innerHTML = `
@@ -571,6 +571,20 @@ class EditorRDO {
             <td class="edit-ctrl text-center" style="${this.modoEdicao ? '' : 'display:none'}">
                 <div class="edit-ctrl-btns-hi">${this._htmlHIBtns(idx)}</div>
             </td>`;
+    }
+
+    // ── Excluir RDO ───────────────────────────────────────────────────────────
+
+    async excluirRDO(numeroRDO) {
+        const rdo = numeroRDO || this.numeroRDO;
+        if (!confirm(`Excluir RDO ${rdo}?\n\nO relatório será marcado como deletado no Google Sheets e deixará de aparecer no dashboard. Esta ação não pode ser facilmente desfeita.`)) return;
+
+        try {
+            await this._api({ acao: 'deletarRDO', numeroRDO: rdo });
+            const modalEl = document.getElementById(this._modalId());
+            if (modalEl) bootstrap.Modal.getInstance(modalEl)?.hide();
+            setTimeout(() => window.location.reload(), 600);
+        } catch (err) { this._erro(err.message); }
     }
 
     _htmlHIBtns(idx) {

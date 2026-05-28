@@ -273,7 +273,7 @@ class CalendarioTP {
             const local         = (rdoDia.Local             || rdoDia.local         || '').toString().trim() || '-';
             const horarioInicio = (rdoDia['Horário Início'] || rdoDia.horarioInicio || '').toString().trim() || '-';
             const horarioFim    = (rdoDia['Horário Fim']    || rdoDia.horarioFim    || '').toString().trim() || '-';
-            hhPorOS.push({ numeroOS: osDisplay, hhProdutivas: hhProdRDO, hhImprodutivas: hhImprRDO, totalHH: hhProdRDO + hhImprRDO, kmInicio, kmFim, local, horarioInicio, horarioFim });
+            hhPorOS.push({ numeroRDO, numeroOS: osDisplay, hhProdutivas: hhProdRDO, hhImprodutivas: hhImprRDO, totalHH: hhProdRDO + hhImprRDO, kmInicio, kmFim, local, horarioInicio, horarioFim });
 
             // Efetivo — soma os totais de cada RDO
             const ef = this.obterEfetivoDia(numeroRDO, dataFormatada);
@@ -689,8 +689,8 @@ class CalendarioTP {
                         </div>
                         <div class="modal-body">
                             <div id="editor-alerta-tp" class="alert alert-danger py-2 mb-2" style="display:none;"></div>
-                            <div id="editor-banner-tp" class="alert alert-warning py-2 mb-2 d-flex align-items-center gap-2" style="display:none;">
-                                <i class="fas fa-pen-to-square"></i><strong>Modo de edição ativo</strong> — as alterações são salvas imediatamente no Google Sheets.
+                            <div id="editor-banner-tp" class="alert alert-warning py-2 mb-2" style="display:none;">
+                                <i class="fas fa-pen-to-square me-2"></i><strong>Modo de edição ativo</strong> — as alterações são salvas imediatamente no Google Sheets.
                             </div>
                             <!-- Cabeçalho -->
                             <div class="row mb-4">
@@ -702,25 +702,40 @@ class CalendarioTP {
                                         ${dados.multiplosRDOs ? `<span class="badge bg-warning text-dark ms-2"><i class="fas fa-layer-group me-1"></i>${dados.qtdRDOs} RDOs neste dia</span>` : ''}
                                     </h6>
                                     ${dados.multiplosRDOs ? `
-                                        <div class="d-flex flex-column gap-1">
+                                        <div class="d-flex flex-column gap-1 mt-1">
                                             ${dados.hhPorOS.map(os => `
-                                                <h6 class="text-muted mb-0">
-                                                    <span class="badge bg-secondary me-1">${escapeHtml(os.numeroOS)}</span>
-                                                    <i class="fas fa-map-marker-alt me-1"></i>${escapeHtml(os.local)} &nbsp;|&nbsp;
-                                                    <i class="fas fa-road me-1"></i>KM ${escapeHtml(os.kmInicio || '-')} – ${escapeHtml(os.kmFim || '-')} &nbsp;|&nbsp;
-                                                    <i class="fas fa-clock me-1"></i>${escapeHtml(os.horarioInicio)} – ${escapeHtml(os.horarioFim)}
-                                                </h6>
+                                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                                    <span class="badge bg-secondary">${escapeHtml(os.numeroOS)}</span>
+                                                    <span class="text-muted small">
+                                                        <i class="fas fa-map-marker-alt me-1"></i>${escapeHtml(os.local)}
+                                                        &nbsp;|&nbsp;<i class="fas fa-road me-1"></i>KM ${escapeHtml(os.kmInicio || '-')} – ${escapeHtml(os.kmFim || '-')}
+                                                        &nbsp;|&nbsp;<i class="fas fa-clock me-1"></i>${escapeHtml(os.horarioInicio)} – ${escapeHtml(os.horarioFim)}
+                                                    </span>
+                                                    <span class="edit-ctrl" style="display:none;">
+                                                        <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                                                onclick="editorRDO.excluirRDO('${escapeHtml(os.numeroRDO || '')}')"
+                                                                title="Excluir RDO desta O.S">
+                                                            <i class="fas fa-trash" style="font-size:.7rem;"></i>
+                                                        </button>
+                                                    </span>
+                                                </div>
                                             `).join('')}
                                         </div>
                                     ` : dados.hhPorOS.length > 0 ? `
-                                        <h6 class="text-muted mb-0 d-flex flex-wrap align-items-center gap-1">
-                                            <i class="fas fa-hashtag me-1"></i>OS:&nbsp;<span id="os-view">${escapeHtml(dados.hhPorOS[0].numeroOS)}</span>
-                                            <span class="edit-ctrl" style="display:none;"><button class="btn btn-link btn-sm p-0" onclick="editorRDO.mostrarEditOS()" title="Editar O.S"><i class="fas fa-pencil-alt" style="font-size:.7rem;"></i></button></span>
-                                            <span id="os-form" style="display:none;" class="d-inline-flex align-items-center gap-1"><input id="os-input" type="text" class="form-control form-control-sm" style="width:110px;"><button class="btn btn-sm btn-success py-0" onclick="editorRDO.salvarOS(this)"><i class="fas fa-check"></i></button><button class="btn btn-sm btn-outline-secondary py-0" onclick="editorRDO.cancelarEditOS()"><i class="fas fa-times"></i></button></span>
-                                            &nbsp;|&nbsp;<i class="fas fa-map-marker-alt me-1"></i>${escapeHtml(dados.hhPorOS[0].local)} &nbsp;|&nbsp;
-                                            <i class="fas fa-road me-2"></i>KM ${escapeHtml(dados.hhPorOS[0].kmInicio || '-')} – ${escapeHtml(dados.hhPorOS[0].kmFim || '-')} &nbsp;|&nbsp;
-                                            <i class="fas fa-clock me-2"></i>${escapeHtml(dados.hhPorOS[0].horarioInicio)} – ${escapeHtml(dados.hhPorOS[0].horarioFim)}
-                                        </h6>
+                                        <div class="d-flex flex-wrap align-items-center gap-1 mt-1 text-muted small">
+                                            <i class="fas fa-hashtag me-1"></i>OS:&nbsp;<span id="os-view" class="fw-semibold">${escapeHtml(dados.hhPorOS[0].numeroOS)}</span>
+                                            <span class="edit-ctrl" style="display:none;">
+                                                <button class="btn btn-link btn-sm p-0" onclick="editorRDO.mostrarEditOS()" title="Editar O.S"><i class="fas fa-pencil-alt" style="font-size:.7rem;"></i></button>
+                                            </span>
+                                            <span id="os-form" style="display:none;">
+                                                <input id="os-input" type="text" class="form-control form-control-sm d-inline-block" style="width:110px; vertical-align:middle;">
+                                                <button class="btn btn-sm btn-success py-0" onclick="editorRDO.salvarOS(this)"><i class="fas fa-check"></i></button>
+                                                <button class="btn btn-sm btn-outline-secondary py-0" onclick="editorRDO.cancelarEditOS()"><i class="fas fa-times"></i></button>
+                                            </span>
+                                            &nbsp;|&nbsp;<i class="fas fa-map-marker-alt me-1"></i>${escapeHtml(dados.hhPorOS[0].local)}
+                                            &nbsp;|&nbsp;<i class="fas fa-road me-1"></i>KM ${escapeHtml(dados.hhPorOS[0].kmInicio || '-')} – ${escapeHtml(dados.hhPorOS[0].kmFim || '-')}
+                                            &nbsp;|&nbsp;<i class="fas fa-clock me-1"></i>${escapeHtml(dados.hhPorOS[0].horarioInicio)} – ${escapeHtml(dados.hhPorOS[0].horarioFim)}
+                                        </div>
                                     ` : ''}
                                 </div>
                             </div>
@@ -870,10 +885,10 @@ class CalendarioTP {
                                         <div class="row g-2">
                                             <div class="col-12 col-md-3">
                                                 <select id="nova-hi-tipo" class="form-select form-select-sm">
-                                                    <option>Chuva</option><option>RUMO - Trem</option>
-                                                    <option>Aguardando Material</option><option>Aguardando Liberação</option>
-                                                    <option>Aguardando Equipe</option><option>Manutenção Equipamento</option>
-                                                    <option>Paralisação</option><option>Outros</option>
+                                                    <option>Chuva</option><option>Falta de Material</option>
+                                                    <option>Aguardando Liberação</option><option>Passagens de Trem</option>
+                                                    <option>Treinamento</option><option>Almoço/Refeição</option>
+                                                    <option>Deslocamento</option><option>Outros</option>
                                                 </select>
                                             </div>
                                             <div class="col-12 col-md-3">
@@ -921,6 +936,12 @@ class CalendarioTP {
                                     onclick="editorRDO.ativarModoEdicao()">
                                 <i class="fas fa-edit me-1"></i>Editar
                             </button>
+                            ${!dados.multiplosRDOs ? `
+                            <button class="btn btn-outline-danger edit-ctrl" style="display:none;"
+                                    onclick="editorRDO.excluirRDO()">
+                                <i class="fas fa-trash me-1"></i>Excluir RDO
+                            </button>
+                            ` : ''}
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                         </div>
                     </div>
