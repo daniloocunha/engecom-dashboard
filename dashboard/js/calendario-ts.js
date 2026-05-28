@@ -533,6 +533,12 @@ class CalendarioTS {
         const encarregado = dados.rdo?.Encarregado || dados.rdo?.encarregado || '-';
         const totalHH = dados.hhSoldador + dados.hhImprodutivas;
 
+        editorRDO.inicializar(
+            { ...dados, turma, multiplosRDOs: false, hhPorOS: [{ numeroOS: dados.numeroOS }] },
+            'TS',
+            servicosFormatados
+        );
+
         const modalHTML = `
             <div class="modal fade" id="modalDetalhesDiaTS" tabindex="-1">
                 <div class="modal-dialog modal-xl">
@@ -545,13 +551,19 @@ class CalendarioTS {
                             <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                         </div>
                         <div class="modal-body">
+                            <div id="editor-alerta-ts" class="alert alert-danger py-2 mb-2" style="display:none;"></div>
+                            <div id="editor-banner-ts" class="alert alert-warning py-2 mb-2 d-flex align-items-center gap-2" style="display:none;">
+                                <i class="fas fa-pen-to-square"></i><strong>Modo de edição ativo</strong> — as alterações são salvas imediatamente no Google Sheets.
+                            </div>
                             <!-- Cabeçalho info -->
                             <div class="row mb-4">
                                 <div class="col-md-12">
-                                    <h6 class="text-muted mb-1">
-                                        <i class="fas fa-user me-2"></i>${escapeHtml(encarregado)} &nbsp;|&nbsp;
-                                        <i class="fas fa-file-alt me-2"></i>RDO: ${escapeHtml(dados.numeroRDO)} &nbsp;|&nbsp;
-                                        <i class="fas fa-hashtag me-2"></i>OS: ${escapeHtml(dados.numeroOS)}
+                                    <h6 class="text-muted mb-1 d-flex flex-wrap align-items-center gap-1">
+                                        <i class="fas fa-user me-1"></i>${escapeHtml(encarregado)} &nbsp;|&nbsp;
+                                        <i class="fas fa-file-alt me-1"></i>RDO: ${escapeHtml(dados.numeroRDO)} &nbsp;|&nbsp;
+                                        <i class="fas fa-hashtag me-1"></i>OS:&nbsp;<span id="os-view">${escapeHtml(dados.numeroOS)}</span>
+                                        <span class="edit-ctrl" style="display:none;"><button class="btn btn-link btn-sm p-0" onclick="editorRDO.mostrarEditOS()" title="Editar O.S"><i class="fas fa-pencil-alt" style="font-size:.7rem;"></i></button></span>
+                                        <span id="os-form" style="display:none;" class="d-inline-flex align-items-center gap-1"><input id="os-input" type="text" class="form-control form-control-sm" style="width:110px;"><button class="btn btn-sm btn-success py-0" onclick="editorRDO.salvarOS(this)"><i class="fas fa-check"></i></button><button class="btn btn-sm btn-outline-secondary py-0" onclick="editorRDO.cancelarEditOS()"><i class="fas fa-times"></i></button></span>
                                     </h6>
                                     <h6 class="text-muted mb-0">
                                         <i class="fas fa-map-marker-alt me-2"></i>${escapeHtml(dados.local)} &nbsp;|&nbsp;
@@ -627,95 +639,158 @@ class CalendarioTS {
                             </div>
 
                             <!-- Serviços -->
-                            ${servicosFormatados.length > 0 ? `
-                                <div class="mb-4">
-                                    <h6 class="text-muted mb-3">
-                                        <i class="fas fa-fire me-2"></i>Soldas Realizadas
-                                    </h6>
-                                    <div class="table-responsive">
-                                        <table class="table table-sm table-hover">
-                                            <thead class="table-light">
-                                                <tr>
-                                                    <th>Descrição</th>
-                                                    <th class="text-center">Qtd</th>
-                                                    <th class="text-center">Coef.</th>
-                                                    <th class="text-center">Unidade</th>
-                                                    <th class="text-end">HH</th>
+                            <div class="mb-4">
+                                <h6 class="text-muted mb-3"><i class="fas fa-fire me-2"></i>Soldas Realizadas</h6>
+                                ${servicosFormatados.length === 0 ? '<p class="text-muted mb-2 view-only"><i class="fas fa-info-circle me-2"></i>Nenhum serviço registrado</p>' : `
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Descrição</th>
+                                                <th class="text-center">Qtd</th>
+                                                <th class="text-center">Coef.</th>
+                                                <th class="text-center">Unidade</th>
+                                                <th class="text-end">HH</th>
+                                                <th class="edit-ctrl" style="display:none;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tbody-servicos">
+                                            ${servicosFormatados.map((s, i) => `
+                                                <tr id="srv-row-${i}">
+                                                    <td>
+                                                        ${escapeHtml(s.descricao)}
+                                                        ${s.isCustomizado ? '<span class="badge bg-info ms-1" style="font-size:.6rem;">Custom</span>' : ''}
+                                                        ${s.observacao ? `<div class="text-muted small mt-1"><i class="fas fa-comment-dots me-1"></i>${escapeHtml(s.observacao)}</div>` : ''}
+                                                    </td>
+                                                    <td class="text-center">${s.quantidade}</td>
+                                                    <td class="text-center">${s.coeficiente}</td>
+                                                    <td class="text-center">${s.unidade}</td>
+                                                    <td class="text-end"><strong>${s.hh}</strong></td>
+                                                    <td class="edit-ctrl text-center" style="display:none;">
+                                                        <div class="edit-ctrl-btns-srv">${editorRDO._htmlSrvBtns(i)}</div>
+                                                    </td>
                                                 </tr>
-                                            </thead>
-                                            <tbody>
-                                                ${servicosFormatados.map(s => `
-                                                    <tr>
-                                                        <td>
-                                                            ${escapeHtml(s.descricao)}
-                                                            ${s.isCustomizado ? '<span class="badge bg-info ms-1" style="font-size:.6rem;">Custom</span>' : ''}
-                                                            ${s.observacao ? `<div class="text-muted small mt-1"><i class="fas fa-comment-dots me-1"></i>${escapeHtml(s.observacao)}</div>` : ''}
-                                                        </td>
-                                                        <td class="text-center">${s.quantidade}</td>
-                                                        <td class="text-center">${s.coeficiente}</td>
-                                                        <td class="text-center">${s.unidade}</td>
-                                                        <td class="text-end"><strong>${s.hh}</strong></td>
-                                                    </tr>
-                                                `).join('')}
-                                            </tbody>
-                                            <tfoot class="table-light">
-                                                <tr>
-                                                    <th colspan="4" class="text-end">TOTAL HH Soldador:</th>
-                                                    <th class="text-end">${dados.hhSoldador.toFixed(2)}</th>
-                                                </tr>
-                                            </tfoot>
-                                        </table>
+                                            `).join('')}
+                                        </tbody>
+                                        <tfoot class="table-light">
+                                            <tr>
+                                                <th colspan="4" class="text-end">TOTAL HH Soldador:</th>
+                                                <th class="text-end">${dados.hhSoldador.toFixed(2)}</th>
+                                                <th class="edit-ctrl" style="display:none;"></th>
+                                            </tr>
+                                        </tfoot>
+                                    </table>
+                                </div>
+                                `}
+                                <div class="edit-ctrl" style="display:none;">
+                                    <button class="btn btn-sm btn-outline-success mt-1" onclick="editorRDO.toggleFormAdicionarServico()">
+                                        <i class="fas fa-plus me-1"></i>Adicionar Solda
+                                    </button>
+                                    <div id="form-adicionar-servico" class="card card-body mt-2 p-2" style="display:none;">
+                                        <div class="row g-2">
+                                            <div class="col-12 col-md-5">
+                                                <input id="novo-srv-desc" type="text" class="form-control form-control-sm" placeholder="Descrição da solda">
+                                            </div>
+                                            <div class="col-6 col-md-2">
+                                                <input id="novo-srv-qty" type="number" class="form-control form-control-sm" step="0.01" min="0.01" placeholder="Qtd">
+                                            </div>
+                                            <div class="col-6 col-md-2">
+                                                <select id="novo-srv-un" class="form-select form-select-sm">
+                                                    <option>M</option><option>M²</option><option>M³</option>
+                                                    <option>KG</option><option selected>UN</option><option>T</option><option>L</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12 col-md-3">
+                                                <button class="btn btn-sm btn-success w-100" onclick="editorRDO.salvarNovoServico(this)">
+                                                    <i class="fas fa-save me-1"></i>Salvar
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            ` : '<p class="text-muted mb-4"><i class="fas fa-info-circle me-2"></i>Nenhum serviço registrado</p>'}
+                            </div>
 
                             <!-- Horas Improdutivas -->
-                            ${dados.horasImprodutivas.length > 0 ? `
-                                <div class="mb-4">
-                                    <h6 class="text-muted mb-3">
-                                        <i class="fas fa-pause-circle me-2"></i>Horas Improdutivas
-                                    </h6>
-                                    <div class="table-responsive">
-                                        <table class="table table-sm table-hover">
-                                            <thead class="table-light">
-                                                <tr>
-                                                    <th>Tipo</th>
-                                                    <th>Descrição</th>
-                                                    <th class="text-center">Hora Início</th>
-                                                    <th class="text-center">Hora Fim</th>
-                                                    <th class="text-end">HH</th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                ${dados.horasImprodutivas.map(hi => `
-                                                    <tr${hi.overlap ? ' class="table-warning"' : ''}>
-                                                        <td>
-                                                            <span class="badge bg-warning text-dark">${hi.tipo}</span>
-                                                            ${hi.overlap ? '<span class="badge bg-danger ms-1" title="Intervalo se sobrepõe com outra HI deste RDO">⚠️ sobreposição</span>' : ''}
-                                                        </td>
-                                                        <td>${hi.descricao}</td>
-                                                        <td class="text-center">${hi.horaInicio}</td>
-                                                        <td class="text-center">${hi.horaFim}</td>
-                                                        <td class="text-end"><strong>${hi.hh}</strong></td>
-                                                    </tr>
-                                                `).join('')}
-                                            </tbody>
-                                        </table>
+                            <div class="mb-4">
+                                <h6 class="text-muted mb-3"><i class="fas fa-pause-circle me-2"></i>Horas Improdutivas</h6>
+                                ${dados.horasImprodutivas.length === 0 ? '<p class="text-muted mb-2 view-only"><i class="fas fa-info-circle me-2"></i>Nenhuma hora improdutiva registrada</p>' : `
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead class="table-light">
+                                            <tr>
+                                                <th>Tipo</th>
+                                                <th>Descrição</th>
+                                                <th class="text-center">Hora Início</th>
+                                                <th class="text-center">Hora Fim</th>
+                                                <th class="text-end">HH</th>
+                                                <th class="edit-ctrl" style="display:none;"></th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="tbody-hi">
+                                            ${dados.horasImprodutivas.map((hi, i) => `<tr id="hi-row-${i}">${editorRDO._htmlHIRow(i, hi)}</tr>`).join('')}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                `}
+                                <div class="edit-ctrl" style="display:none;">
+                                    <button class="btn btn-sm btn-outline-warning mt-1" onclick="editorRDO.toggleFormAdicionarHI()">
+                                        <i class="fas fa-plus me-1"></i>Adicionar HI
+                                    </button>
+                                    <div id="form-adicionar-hi" class="card card-body mt-2 p-2" style="display:none;">
+                                        <div class="row g-2">
+                                            <div class="col-12 col-md-3">
+                                                <select id="nova-hi-tipo" class="form-select form-select-sm">
+                                                    <option>Chuva</option><option>RUMO - Trem</option>
+                                                    <option>Aguardando Material</option><option>Aguardando Liberação</option>
+                                                    <option>Aguardando Equipe</option><option>Manutenção Equipamento</option>
+                                                    <option>Paralisação</option><option>Outros</option>
+                                                </select>
+                                            </div>
+                                            <div class="col-12 col-md-3">
+                                                <input id="nova-hi-desc" type="text" class="form-control form-control-sm" placeholder="Descrição (opcional)">
+                                            </div>
+                                            <div class="col-4 col-md-2">
+                                                <input id="nova-hi-ini" type="text" class="form-control form-control-sm" placeholder="HH:MM" maxlength="5">
+                                            </div>
+                                            <div class="col-4 col-md-2">
+                                                <input id="nova-hi-fim" type="text" class="form-control form-control-sm" placeholder="HH:MM" maxlength="5">
+                                            </div>
+                                            <div class="col-4 col-md-1">
+                                                <input id="nova-hi-ops" type="number" class="form-control form-control-sm" value="1" min="1" title="Operadores">
+                                            </div>
+                                            <div class="col-12 col-md-1">
+                                                <button class="btn btn-sm btn-warning w-100" onclick="editorRDO.salvarNovaHI(this)">
+                                                    <i class="fas fa-save"></i>
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
-                            ` : '<p class="text-muted mb-4"><i class="fas fa-info-circle me-2"></i>Nenhuma hora improdutiva registrada</p>'}
+                            </div>
 
                             <!-- Observações -->
-                            ${dados.observacoes ? `
-                                <div class="alert alert-info mb-0">
-                                    <h6 class="alert-heading">
-                                        <i class="fas fa-sticky-note me-2"></i>Observações
-                                    </h6>
-                                    <p class="mb-0">${escapeHtml(dados.observacoes)}</p>
+                            <div class="alert alert-info mb-0">
+                                <h6 class="alert-heading d-flex align-items-center gap-2">
+                                    <i class="fas fa-sticky-note me-1"></i>Observações
+                                    <span class="edit-ctrl" style="display:none;">
+                                        <button class="btn btn-link btn-sm p-0" onclick="editorRDO.mostrarEditObservacoes()" title="Editar observações"><i class="fas fa-pencil-alt" style="font-size:.75rem;"></i></button>
+                                    </span>
+                                </h6>
+                                <div id="obs-view" class="view-only">${dados.observacoes ? escapeHtml(dados.observacoes) : '<em class="text-muted">Sem observações</em>'}</div>
+                                <div id="obs-form" style="display:none;">
+                                    <textarea id="obs-input" class="form-control form-control-sm mb-2" rows="2" placeholder="Observações..."></textarea>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm btn-success" onclick="editorRDO.salvarObservacoes(this)"><i class="fas fa-save me-1"></i>Salvar</button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="editorRDO.cancelarEditObservacoes()"><i class="fas fa-times me-1"></i>Cancelar</button>
+                                    </div>
                                 </div>
-                            ` : ''}
+                            </div>
                         </div>
                         <div class="modal-footer">
+                            <button id="btn-toggle-edicao" type="button" class="btn btn-outline-warning me-auto"
+                                    onclick="editorRDO.ativarModoEdicao()">
+                                <i class="fas fa-edit me-1"></i>Editar
+                            </button>
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Fechar</button>
                         </div>
                     </div>
