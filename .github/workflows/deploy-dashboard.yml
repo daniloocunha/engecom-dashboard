@@ -28,6 +28,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Criar config.js a partir do secret
+        run: echo "$DASHBOARD_CONFIG_JS" > dashboard/js/config.js
+        env:
+          DASHBOARD_CONFIG_JS: ${{ secrets.DASHBOARD_CONFIG_JS }}
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
@@ -45,6 +50,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
+      - name: Criar config.js a partir do secret
+        run: echo "$DASHBOARD_CONFIG_JS" > dashboard/js/config.js
+        env:
+          DASHBOARD_CONFIG_JS: ${{ secrets.DASHBOARD_CONFIG_JS }}
 
       - name: Deploy to Cloudflare Workers
         uses: cloudflare/wrangler-action@v3
