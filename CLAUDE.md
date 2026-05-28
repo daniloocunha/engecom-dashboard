@@ -214,7 +214,7 @@ dashboard/
   - Singleton com `@Volatile` double-checked locking — sempre usar `getInstance(context)`
   - Tabela principal: `rdo` com 31 colunas
   - Auto-geração de número RDO: formato `OS-DD.MM.YY-XXX` (ex: "998070-13.11.24-001")
-  - UNIQUE constraint em `numero_rdo` com retry automático (backoff exponencial)
+  - UNIQUE constraint em `numero_rdo` com retry automático (backoff linear: 10ms × tentativa)
   - Gson para serialização de campos complexos (serviços, HI, transportes)
   - Thread-safe com métodos sincronizados
   - Indexes de performance em: `data`, `numero_os`, `sincronizado`, `numero_rdo`
@@ -224,7 +224,7 @@ dashboard/
 - **RDODataCompleto**: Versão extendida para leitura com campos calculados
 - **ServicoRDO**: Serviço com descrição, quantidade, coeficiente, HH manual (opcional)
 - **HIItem**: Horas Improdutivas com tipo, horários, operadores
-- **TransporteItem**: Registro de transporte com veículo, motorista, KM e horários
+- **TransporteItem**: Registro de transporte com descrição, quantidade de colaboradores, KM início/fim e horários
 - **SyncStatus**: Enum para rastreamento de estado de sync (pending/success/error)
 
 #### 6. Business Logic Managers (Template Method Pattern)
@@ -490,7 +490,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - Auto-gerados por `DatabaseHelper.gerarNumeroRDO(numeroOS, data)`
 - Formato: `OS-DD.MM.YY-XXX` (ex: "998070-13.11.24-001")
 - Contador sequencial por combinação OS + data
-- UNIQUE constraint com retry automático (backoff exponencial)
+- UNIQUE constraint com retry automático (backoff linear: 10ms × tentativa)
 - Auto-atualização ao editar data ou OS do RDO
 
 ### Coroutines
@@ -686,4 +686,4 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 | Fase 5 | Dashboard: Core | ✅ Concluída (2026-05-27) |
 | Fase 6 | Dashboard: Módulos de Visualização | ✅ Concluída (2026-05-27) |
 | Fase 7 | Consistência App ↔ Dashboard | ✅ Concluída (2026-05-27) |
-| Fase 8 | Documentação Final | Pendente |
+| Fase 8 | Documentação Final | ✅ Concluída (2026-05-27) |
