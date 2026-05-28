@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **CalculadoraHH** (Display name: "Controle de Campo") is an Android application designed for calculating work hours (HH - Homem-Hora) and managing RDO (Relatório Diário de Obras / Daily Work Reports) for railway maintenance operations at Engecom Engenharia. The app is built using Kotlin with MVVM architecture, ViewBinding, and Material Design 3.
 
-The project also includes a **web dashboard** (`dashboard/`) hosted on GitHub Pages for management reporting, synced via Google Sheets.
+The project also includes a **web dashboard** (`dashboard/`) hosted on **Cloudflare Workers** (workers.dev) for management reporting, synced via Google Sheets. Deploy automático via GitHub Actions em cada push para `master`.
 
 ### Key Features
 - **Calculadora HH**: Calculate work hours based on ~100 predefined railway service coefficients
@@ -78,6 +78,127 @@ node scripts/sync-servicos.js
 - `scripts/read_sheets.py` — Lê dados do Sheets via JWT manual para diagnóstico
 - `scripts/verify-sheets.js` — Verifica integridade dos dados no Sheets
 - `scripts/fix-sheets-*.js` — Scripts de correção pontual de dados históricos
+
+## Fluxo de Trabalho de Desenvolvimento
+
+### Visão Geral do Pipeline de Deploy
+
+```
+Editar localmente
+      │
+      ▼
+git push → master
+      │
+      ├─► GitHub Actions: deploy-pages  → GitHub Pages  (backup)
+      └─► GitHub Actions: deploy-workers → Cloudflare Workers (produção ★)
+```
+
+O deploy é **automático** para qualquer push em `master` que toque `dashboard/**`, `src/**` ou `wrangler.jsonc`. Nenhuma ação manual necessária após o push.
+
+---
+
+### Cenário 1 — Melhoria no Dashboard
+
+```
+1. Editar arquivos em dashboard/js/ ou dashboard/index.html
+2. Testar localmente:
+     cd dashboard && python -m http.server 8000
+     Abrir: http://localhost:8000?key=<SECRET_KEY>
+3. Bump de versão (se aplicável):
+     - dashboard/CLAUDE.md  → "Current Version": X.Y.Z+1
+     - CLAUDE.md            → "versionName" do dashboard no Version History
+4. git add <arquivos alterados>
+   git commit -m "fix(dashboard): descrição"
+   git push
+5. GitHub Actions dispara automaticamente:
+     deploy-pages  → atualiza GitHub Pages
+     deploy-workers → atualiza workers.dev (produção) ✓
+```
+
+**Trigger do Actions:** qualquer arquivo em `dashboard/**`
+
+---
+
+### Cenário 2 — Melhoria no App Android
+
+```
+1. Editar arquivos Kotlin/XML/recursos
+2. Testar no dispositivo:
+     ./gradlew installDebug
+3. Bump de versão:
+     - app/build.gradle.kts → versionCode +1, versionName X.Y.Z+1
+     - CLAUDE.md → Version Information + novo entry no Version History
+4. git add <arquivos> && git commit -m "feat/fix(app): descrição" && git push
+5. Gerar APK de release:
+     ./gradlew assembleRelease
+6. Criar GitHub Release com o APK
+7. Atualizar aba Config no Google Sheets:
+     versao_recomendada | <novo versionCode>
+     hash_md5           | <MD5 do APK>
+     tamanho_apk_mb     | <tamanho>
+     url_download       | <URL do GitHub Release>
+```
+
+**Nota:** push de arquivos Android **não** dispara o deploy do dashboard (paths filter protege isso).
+
+---
+
+### Cenário 3 — Atualizar Serviços/Coeficientes
+
+```
+1. Editar APENAS: app/src/main/res/raw/servicos.json
+2. Sincronizar para o dashboard:
+     npm run sync-servicos
+3. Commitar os 3 arquivos juntos:
+     git add app/src/main/res/raw/servicos.json \
+             dashboard/servicos.json \
+             dashboard/js/servicos-data.js
+     git commit -m "chore(servicos): descrição"
+     git push
+4. GitHub Actions dispara (dashboard/servicos.json foi alterado) → deploy automático
+```
+
+**⚠️ Nunca editar `dashboard/servicos.json` ou `dashboard/js/servicos-data.js` diretamente.**
+
+---
+
+### Cenário 4 — Atualizar o Worker (proxy Apps Script)
+
+```
+1. Editar src/worker.js ou wrangler.jsonc
+2. Testar localmente (opcional):
+     npx wrangler dev
+3. git add src/worker.js wrangler.jsonc
+   git commit -m "fix(worker): descrição"
+   git push
+4. GitHub Actions dispara (wrangler.jsonc ou src/** alterados) → deploy automático
+```
+
+---
+
+### Configuração Inicial dos Secrets (única vez)
+
+Para o deploy automático funcionar, o GitHub precisa de 2 secrets do Cloudflare:
+
+**Passo 1 — Obter o Cloudflare API Token:**
+1. Acesse: https://dash.cloudflare.com/profile/api-tokens
+2. Clique em **"Create Token"**
+3. Use o template **"Edit Cloudflare Workers"**
+4. Copie o token gerado
+
+**Passo 2 — Obter o Cloudflare Account ID:**
+1. Acesse: https://dash.cloudflare.com
+2. Clique em **Workers & Pages** no menu lateral
+3. O **Account ID** aparece no canto superior direito da página
+
+**Passo 3 — Adicionar no GitHub:**
+1. Acesse: https://github.com/daniloocunha/engecom-dashboard/settings/secrets/actions
+2. **"New repository secret"** → Nome: `CLOUDFLARE_API_TOKEN` → Valor: (token do passo 1)
+3. **"New repository secret"** → Nome: `CLOUDFLARE_ACCOUNT_ID` → Valor: (ID do passo 2)
+
+Após isso, qualquer `git push` com mudanças no dashboard dispara o deploy automaticamente.
+
+---
 
 ## Architecture & Code Structure
 
