@@ -525,8 +525,8 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - Orchestração: editar `GoogleSheetsService.kt` apenas se o fluxo principal mudar
 
 ## Version Information
-- **versionCode**: 22
-- **versionName**: "5.1.5"
+- **versionCode**: 23
+- **versionName**: "5.1.6"
 - **AGP Version**: 8.13.1
 - **Kotlin Version**: 2.0.21
 - **Gradle Version**: 8.13 (via wrapper)
@@ -565,6 +565,27 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 > **IMPORTANTE**: Após gerar o APK release, atualizar `hash_md5`, `tamanho_apk_mb`, `versao_recomendada` e `url_download` na aba Config. O `versao_minima` usa `versionCode` (número inteiro), não `versionName`.
 
 ## Version History
+
+### Version 5.1.6 (versionCode 23) - 2026-05-27
+**Programa de Qualidade — Bug Fixes & Limpeza de Código**
+
+**App Android:**
+- Fix: `DatabaseHelper.marcarRDOComoPendente()` — `putNull` substituído por `put("", "")` (evita NULL em coluna DEFAULT '')
+- Fix: `TransportesManager` — dialog de edição exibia "Adicionar" em vez de "Editar"
+- Refactor: removido dead code em `HIManager` (imports mortos), `ValidationHelper` (3 funções nunca usadas), `AppConstants` (2 constantes órfãs), `DatabaseHelper` (2 métodos duplicados)
+- Refactor: `DataCleanupWorker` — constantes do companion object unificadas com `AppConstants`
+
+**Dashboard 2.0.1:**
+- Fix: `visao-geral.js` — `TypeError` ao trocar sub-abas TP/TS (chamada a método nunca implementado removida)
+- Fix: `visao-geral.js` — label do scorecard "% Meta" corrigido para incluir HH Improdutivo no numerador
+- Fix: `sheets-api.js` — fallback morto `hi.data` substituído por `hi.dataRDO` (campo real normalizado)
+- Refactor: variável morta `hhTotal` removida de `visao-geral.js`
+
+**Documentação:**
+- CLAUDE.md: 3 inacurácias corrigidas (backoff linear vs exponencial em 2 locais, TransporteItem com campos reais)
+- CLAUDE.md: seção 9 adicionada — tabela de normalização App ↔ Dashboard com quirk `operadorEgp`
+
+---
 
 ### Version 5.1.5 (versionCode 22) - 2026-04-06
 **Dashboard v2.0.0 + Correções de App**

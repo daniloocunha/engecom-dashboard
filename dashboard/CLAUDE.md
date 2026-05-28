@@ -672,6 +672,14 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.0.1 (2026-05-27)** - Bug Fixes (Programa de Qualidade):
+- Fix: `visao-geral.js` — TypeError ao trocar sub-abas TP/TS (método `_renderizarGraficoEvolucao` nunca implementado)
+- Fix: `visao-geral.js` — label "% Meta" corrigido para incluir HH Improdutivo no cálculo
+- Fix: `sheets-api.js` — fallback `hi.data` substituído por `hi.dataRDO` (campo normalizado correto)
+- Refactor: variável morta `hhTotal` removida de `visao-geral.js`
+
+---
+
 **Version 2.0.0 (2026-04-06)** - REMODELAÇÃO COMPLETA DA VISÃO GERAL:
 
 **Aba Visão Geral — reescrita do zero:**
@@ -733,7 +741,7 @@ if (tipo.includes('NovoTipo')) {
 
 ## Version Information
 
-- **Current Version**: 2.0.0
+- **Current Version**: 2.0.1
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)
