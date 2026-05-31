@@ -726,9 +726,12 @@ class DashboardMain {
             // Ocultar loading
             document.getElementById('loadingOverlay').style.display = 'none';
             document.getElementById('mainContainer').style.display = 'block';
+            if (typeof dashboardFilters !== 'undefined') dashboardFilters.resetarBotao();
 
         } catch (error) {
             console.error('[Dashboard] Erro ao aplicar filtros:', error);
+            document.getElementById('loadingOverlay').style.display = 'none';
+            document.getElementById('mainContainer').style.display = 'block';
             mostrarToast('Erro ao aplicar filtros. Tente novamente.', 'danger');
         }
     }
@@ -818,6 +821,8 @@ class DashboardMain {
 
             } catch (error) {
                 console.error('[Dashboard] Erro ao recarregar:', error);
+                document.getElementById('loadingOverlay').style.display = 'none';
+                document.getElementById('mainContainer').style.display = 'block';
                 mostrarToast('Erro ao recarregar dados. Tente novamente.', 'danger');
             }
         }

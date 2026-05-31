@@ -9,6 +9,20 @@ class DashboardCharts {
     }
 
     /**
+     * Restaura o canvas de um container (reverte o efeito do estado vazio).
+     * Chamado antes de qualquer renderização com dados.
+     * @param {HTMLElement} ctx - O elemento canvas
+     */
+    _restaurarCanvas(ctx) {
+        if (!ctx) return;
+        // Mostrar canvas novamente
+        ctx.style.display = '';
+        // Remover mensagem de estado vazio se existir
+        const msg = ctx.parentElement?.querySelector('.chart-empty-msg');
+        if (msg) msg.style.display = 'none';
+    }
+
+    /**
      * Renderiza todos os gráficos (otimizado - update em vez de destroy)
      */
     renderizarTodos(estatisticas, calculadora) {
@@ -105,6 +119,7 @@ class DashboardCharts {
             this.charts.evolucao.destroy();
         }
 
+        this._restaurarCanvas(ctx);
         this.charts.evolucao = new Chart(ctx, {
             type: 'line',
             data: {
@@ -185,6 +200,7 @@ class DashboardCharts {
             this.charts.distribuicao.destroy();
         }
 
+        this._restaurarCanvas(ctx);
         this.charts.distribuicao = new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -291,6 +307,7 @@ class DashboardCharts {
             this.charts.ranking.destroy();
         }
 
+        this._restaurarCanvas(ctx);
         this.charts.ranking = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -339,7 +356,14 @@ class DashboardCharts {
         const { tps } = estatisticas;
 
         if (tps.length === 0) {
-            ctx.parentElement.innerHTML = '<p class="text-center text-muted">Nenhuma TP no período selecionado</p>';
+            (function(_el){
+                var _m = _el.querySelector('.chart-empty-msg');
+                if (!_m) { _m = document.createElement('p'); _m.className = 'text-center text-muted py-3 chart-empty-msg'; _el.appendChild(_m); }
+                _m.textContent = 'Nenhuma TP no período selecionado';
+                _m.style.display = '';
+                var _c = _el.querySelector('canvas');
+                if (_c) _c.style.display = 'none';
+            })(ctx.parentElement);
             return;
         }
 
@@ -355,6 +379,7 @@ class DashboardCharts {
             this.charts.hhComparacao.destroy();
         }
 
+        this._restaurarCanvas(ctx);
         this.charts.hhComparacao = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -431,7 +456,14 @@ class DashboardCharts {
         const { tps } = estatisticas;
 
         if (tps.length === 0) {
-            ctx.parentElement.innerHTML = '<p class="text-muted">Nenhuma TP</p>';
+            (function(_el){
+                var _m = _el.querySelector('.chart-empty-msg');
+                if (!_m) { _m = document.createElement('p'); _m.className = 'text-center text-muted py-3 chart-empty-msg'; _el.appendChild(_m); }
+                _m.textContent = 'Nenhuma TP';
+                _m.style.display = '';
+                var _c = _el.querySelector('canvas');
+                if (_c) _c.style.display = 'none';
+            })(ctx.parentElement);
             return;
         }
 
@@ -449,6 +481,7 @@ class DashboardCharts {
             this.charts.slaGauge.destroy();
         }
 
+        this._restaurarCanvas(ctx);
         this.charts.slaGauge = new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -508,7 +541,14 @@ class DashboardCharts {
         const { tmcs } = estatisticas;
 
         if (tmcs.length === 0) {
-            ctx.parentElement.innerHTML = '<p class="text-center text-muted">Nenhuma TMC no período selecionado</p>';
+            (function(_el){
+                var _m = _el.querySelector('.chart-empty-msg');
+                if (!_m) { _m = document.createElement('p'); _m.className = 'text-center text-muted py-3 chart-empty-msg'; _el.appendChild(_m); }
+                _m.textContent = 'Nenhuma TMC no período selecionado';
+                _m.style.display = '';
+                var _c = _el.querySelector('canvas');
+                if (_c) _c.style.display = 'none';
+            })(ctx.parentElement);
             return;
         }
 
@@ -521,6 +561,7 @@ class DashboardCharts {
             this.charts.tmcsComparacao.destroy();
         }
 
+        this._restaurarCanvas(ctx);
         this.charts.tmcsComparacao = new Chart(ctx, {
             type: 'bar',
             data: {
@@ -966,7 +1007,14 @@ class DashboardCharts {
         const { tss } = estatisticas;
 
         if (!tss || tss.length === 0) {
-            ctx.parentElement.innerHTML = '<p class="text-center text-muted">Nenhuma TS no período</p>';
+            (function(_el){
+                var _m = _el.querySelector('.chart-empty-msg');
+                if (!_m) { _m = document.createElement('p'); _m.className = 'text-center text-muted py-3 chart-empty-msg'; _el.appendChild(_m); }
+                _m.textContent = 'Nenhuma TS no período';
+                _m.style.display = '';
+                var _c = _el.querySelector('canvas');
+                if (_c) _c.style.display = 'none';
+            })(ctx.parentElement);
             return;
         }
 
@@ -984,6 +1032,7 @@ class DashboardCharts {
             this.charts.slaGaugeTS.destroy();
         }
 
+        this._restaurarCanvas(ctx);
         this.charts.slaGaugeTS = new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -1042,7 +1091,14 @@ class DashboardCharts {
         const { tss } = estatisticas;
 
         if (!tss || tss.length === 0) {
-            ctx.parentElement.innerHTML = '<p class="text-center text-muted">Nenhuma TS no período</p>';
+            (function(_el){
+                var _m = _el.querySelector('.chart-empty-msg');
+                if (!_m) { _m = document.createElement('p'); _m.className = 'text-center text-muted py-3 chart-empty-msg'; _el.appendChild(_m); }
+                _m.textContent = 'Nenhuma TS no período';
+                _m.style.display = '';
+                var _c = _el.querySelector('canvas');
+                if (_c) _c.style.display = 'none';
+            })(ctx.parentElement);
             return;
         }
 
@@ -1058,6 +1114,7 @@ class DashboardCharts {
             this.charts.evolucaoTS.destroy();
         }
 
+        this._restaurarCanvas(ctx);
         this.charts.evolucaoTS = new Chart(ctx, {
             type: 'line',
             data: {
@@ -1122,7 +1179,14 @@ class DashboardCharts {
         const { tss } = estatisticas;
 
         if (!tss || tss.length === 0) {
-            ctx.parentElement.innerHTML = '<p class="text-center text-muted">Nenhuma TS no período</p>';
+            (function(_el){
+                var _m = _el.querySelector('.chart-empty-msg');
+                if (!_m) { _m = document.createElement('p'); _m.className = 'text-center text-muted py-3 chart-empty-msg'; _el.appendChild(_m); }
+                _m.textContent = 'Nenhuma TS no período';
+                _m.style.display = '';
+                var _c = _el.querySelector('canvas');
+                if (_c) _c.style.display = 'none';
+            })(ctx.parentElement);
             return;
         }
 
@@ -1138,6 +1202,7 @@ class DashboardCharts {
             this.charts.tssComparacao.destroy();
         }
 
+        this._restaurarCanvas(ctx);
         this.charts.tssComparacao = new Chart(ctx, {
             type: 'bar',
             data: {

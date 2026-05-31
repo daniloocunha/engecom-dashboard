@@ -19,7 +19,6 @@
 
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/dashboard.css">
-    <link rel="stylesheet" href="css/minimal-view.css">
 
     <!-- Favicon - Usar emoji como fallback -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📊</text></svg>">
@@ -37,21 +36,6 @@
             </span>
 
             <!-- Toggle de Visualização -->
-            <div class="view-toggle me-3">
-                <div class="btn-group btn-group-sm" role="group">
-                    <input type="radio" class="btn-check" name="viewMode" id="viewClassic" autocomplete="off" checked>
-                    <label class="btn btn-outline-light" for="viewClassic" title="Visualização Clássica">
-                        <i class="fas fa-th-large"></i>
-                        <span class="d-none d-md-inline ms-1">Clássico</span>
-                    </label>
-
-                    <input type="radio" class="btn-check" name="viewMode" id="viewMinimal" autocomplete="off">
-                    <label class="btn btn-outline-light" for="viewMinimal" title="Visualização Minimalista">
-                        <i class="fas fa-list"></i>
-                        <span class="d-none d-md-inline ms-1">Minimalista</span>
-                    </label>
-                </div>
-            </div>
 
             <button class="btn btn-outline-warning btn-sm position-relative me-2"
                     id="btnAuditoriaOS"
@@ -680,316 +664,6 @@
         </div>
         <!-- FIM VIEW CLÁSSICA -->
 
-        <!-- VIEW MINIMALISTA (Nova) -->
-        <div id="minimalView" style="display: none;">
-
-            <!-- Filtros Offcanvas -->
-            <div class="offcanvas offcanvas-end" tabindex="-1" id="filtrosOffcanvas">
-                <div class="offcanvas-header">
-                    <h5 class="offcanvas-title">
-                        <i class="fas fa-filter me-2"></i>
-                        Filtros
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="offcanvas"></button>
-                </div>
-                <div class="offcanvas-body">
-                    <div class="mb-3">
-                        <label class="form-label">Período</label>
-                        <div class="row g-2">
-                            <div class="col-7">
-                                <select class="form-select" id="filtroMesMinimal">
-                                    <option value="1">Janeiro</option>
-                                    <option value="2">Fevereiro</option>
-                                    <option value="3">Março</option>
-                                    <option value="4">Abril</option>
-                                    <option value="5">Maio</option>
-                                    <option value="6">Junho</option>
-                                    <option value="7">Julho</option>
-                                    <option value="8">Agosto</option>
-                                    <option value="9">Setembro</option>
-                                    <option value="10">Outubro</option>
-                                    <option value="11">Novembro</option>
-                                    <option value="12">Dezembro</option>
-                                </select>
-                            </div>
-                            <div class="col-5">
-                                <select class="form-select" id="filtroAnoMinimal">
-                                    <!-- Gerado dinamicamente via JS -->
-                                </select>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="mb-3">
-                        <label class="form-label">Turma</label>
-                        <select class="form-select" id="filtroTurmaMinimal">
-                            <option value="todas">Todas as Turmas</option>
-                        </select>
-                    </div>
-
-                    <div class="mb-4">
-                        <label class="form-label">Tipo de Turma</label>
-                        <div class="d-grid gap-2">
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="filtroTPMinimal" checked>
-                                <label class="form-check-label" for="filtroTPMinimal">
-                                    <span class="badge bg-primary">TPs</span> Turmas de Produção
-                                </label>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="filtroTMCMinimal" checked>
-                                <label class="form-check-label" for="filtroTMCMinimal">
-                                    <span class="badge bg-warning">TMCs</span> Turmas de Manutenção
-                                </label>
-                            </div>
-                            <div class="form-check form-switch">
-                                <input class="form-check-input" type="checkbox" id="filtroTSMinimal" checked>
-                                <label class="form-check-label" for="filtroTSMinimal">
-                                    <span class="badge bg-danger">TSs</span> Turmas de Solda
-                                </label>
-                            </div>
-                        </div>
-                    </div>
-
-                    <button class="btn btn-primary w-100 mb-2" onclick="aplicarFiltrosMinimal()">
-                        <i class="fas fa-check me-2"></i>
-                        Aplicar Filtros
-                    </button>
-                    <button class="btn btn-outline-secondary w-100" onclick="limparFiltrosMinimal()">
-                        <i class="fas fa-times me-2"></i>
-                        Limpar Filtros
-                    </button>
-                </div>
-            </div>
-
-            <!-- Card Hero - Faturamento -->
-            <div class="hero-kpi-card mb-4" id="heroCard">
-                <div class="row align-items-center">
-                    <div class="col-md-8">
-                        <div class="hero-label">Faturamento Total do Período</div>
-                        <div class="hero-value" id="heroFaturamento">R$ 0,00</div>
-                        <div class="hero-trend" id="heroTrend">
-                            <i class="fas fa-minus"></i> Calculando...
-                        </div>
-                        <div class="hero-meta mt-2" id="heroMeta">
-                            <span id="heroPeriodo"></span>
-                        </div>
-                    </div>
-                    <div class="col-md-4 text-end">
-                        <canvas id="heroSparkline" width="200" height="80"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- KPIs Secundários -->
-            <div class="row mb-4" id="kpisSecundarios">
-                <div class="col-md-4">
-                    <div class="card kpi-card-mini">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="kpi-mini-label">Total de RDOs</div>
-                                    <div class="kpi-mini-value" id="kpiRDOs">0</div>
-                                </div>
-                                <div class="kpi-mini-icon bg-info">
-                                    <i class="fas fa-file-alt"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card kpi-card-mini">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="kpi-mini-label">Total HH (TPs)</div>
-                                    <div class="kpi-mini-value" id="kpiHH">0</div>
-                                </div>
-                                <div class="kpi-mini-icon bg-primary">
-                                    <i class="fas fa-clock"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                <div class="col-md-4">
-                    <div class="card kpi-card-mini">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <div class="kpi-mini-label">SLA Médio (TPs)</div>
-                                    <div class="kpi-mini-value" id="kpiSLA">0%</div>
-                                </div>
-                                <div class="kpi-mini-icon bg-success">
-                                    <i class="fas fa-chart-line"></i>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Accordions por Tipo -->
-            <div class="accordion mb-4" id="turmasAccordion">
-
-                <!-- TPs -->
-                <div class="accordion-item">
-                    <h2 class="accordion-header">
-                        <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTPs">
-                            <i class="fas fa-industry me-2 text-primary"></i>
-                            <strong>TPs - Turmas de Produção</strong>
-                            <span class="badge bg-primary ms-2" id="badgeTPs">0 turmas</span>
-                            <span class="ms-auto me-3 text-muted" id="resumoTPs">0 HH | 0% SLA</span>
-                        </button>
-                    </h2>
-                    <div id="collapseTPs" class="accordion-collapse collapse show" data-bs-parent="#turmasAccordion">
-                        <div class="accordion-body">
-                            <div class="table-responsive">
-                                <table class="table table-hover table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Turma</th>
-                                            <th>HH Total</th>
-                                            <th>SLA %</th>
-                                            <th>Faturamento</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="tabelaTPsMinimal">
-                                        <tr>
-                                            <td colspan="5" class="text-center text-muted">
-                                                <em>Nenhuma TP encontrada para o período selecionado</em>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TMCs -->
-                <div class="accordion-item">
-                    <h2 class="accordion-header">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTMCs">
-                            <i class="fas fa-tools me-2 text-warning"></i>
-                            <strong>TMCs - Turmas de Manutenção</strong>
-                            <span class="badge bg-warning ms-2" id="badgeTMCs">0 turmas</span>
-                            <span class="ms-auto me-3 text-muted" id="resumoTMCs">0 dias trabalhados</span>
-                        </button>
-                    </h2>
-                    <div id="collapseTMCs" class="accordion-collapse collapse" data-bs-parent="#turmasAccordion">
-                        <div class="accordion-body">
-                            <div class="table-responsive">
-                                <table class="table table-hover table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Turma</th>
-                                            <th>Dias Trab.</th>
-                                            <th>Média Efetivo</th>
-                                            <th>Faturamento</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="tabelaTMCsMinimal">
-                                        <tr>
-                                            <td colspan="5" class="text-center text-muted">
-                                                <em>Nenhuma TMC encontrada para o período selecionado</em>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- TSs -->
-                <div class="accordion-item">
-                    <h2 class="accordion-header">
-                        <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTSs">
-                            <i class="fas fa-fire me-2 text-danger"></i>
-                            <strong>TSs - Turmas de Solda</strong>
-                            <span class="badge bg-danger ms-2" id="badgeTSs">0 turmas</span>
-                            <span class="ms-auto me-3 text-muted" id="resumoTSs">0 HH Soldador</span>
-                        </button>
-                    </h2>
-                    <div id="collapseTSs" class="accordion-collapse collapse" data-bs-parent="#turmasAccordion">
-                        <div class="accordion-body">
-                            <div class="table-responsive">
-                                <table class="table table-hover table-sm">
-                                    <thead>
-                                        <tr>
-                                            <th>Turma</th>
-                                            <th>HH Soldador</th>
-                                            <th>SLA %</th>
-                                            <th>Faturamento</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="tabelaTSsMinimal">
-                                        <tr>
-                                            <td colspan="5" class="text-center text-muted">
-                                                <em>Nenhuma TS encontrada para o período selecionado</em>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-            </div>
-
-            <!-- Calendário de Produtividade -->
-            <div class="card mb-4">
-                <div class="card-header">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <h5 class="mb-0">
-                            <i class="fas fa-calendar-alt me-2"></i>
-                            Calendário de Produtividade
-                        </h5>
-                        <div class="btn-group btn-group-sm">
-                            <input type="radio" class="btn-check" name="tipoCalendarioMinimal" id="calTPMinimal" checked>
-                            <label class="btn btn-outline-primary" for="calTPMinimal">TPs</label>
-
-                            <input type="radio" class="btn-check" name="tipoCalendarioMinimal" id="calTMCMinimal">
-                            <label class="btn btn-outline-warning" for="calTMCMinimal">TMCs</label>
-
-                            <input type="radio" class="btn-check" name="tipoCalendarioMinimal" id="calTSMinimal">
-                            <label class="btn btn-outline-danger" for="calTSMinimal">TSs</label>
-                        </div>
-                    </div>
-                </div>
-                <div class="card-body" id="calendarioMinimalContainer">
-                    <!-- Calendário será renderizado aqui -->
-                    <div class="text-center text-muted py-5">
-                        <i class="fas fa-calendar-alt fa-3x mb-3"></i>
-                        <p>Selecione um período nos filtros para visualizar o calendário</p>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Botão de Ações -->
-            <div class="d-grid gap-2 d-md-flex justify-content-md-center mb-4">
-                <button class="btn btn-outline-primary" onclick="abrirAnaliseAvancada()">
-                    <i class="fas fa-chart-bar me-2"></i>
-                    Ver Análises Avançadas
-                </button>
-            </div>
-
-        </div>
-        <!-- FIM VIEW MINIMALISTA -->
-
-    </div>
-
-    <!-- Botão Flutuante de Filtros (apenas no modo minimalista) -->
-    <button class="btn-filtros-float" id="btnFiltrosFloat" data-bs-toggle="offcanvas" data-bs-target="#filtrosOffcanvas" style="display: none;">
-        <i class="fas fa-filter"></i>
-        <span class="badge bg-danger filter-badge" id="filterBadge" style="display: none;">0</span>
-    </button>
 
     <!-- Footer -->
     <footer class="footer mt-5 py-3 bg-light">
@@ -997,7 +671,7 @@
             <p class="text-muted mb-0">
                 <strong>Engecom Engenharia / Encogel</strong> - Consórcio RUMO Logística
                 <br>
-                <small>Dashboard v1.0.0 | <i class="fas fa-shield-alt"></i> Acesso Restrito</small>
+                <small>Dashboard v2.0.1 | <i class="fas fa-shield-alt"></i> Acesso Restrito</small>
             </p>
         </div>
     </footer>
@@ -1020,9 +694,6 @@
     <script src="js/editor-rdo.js?v=1.0.0"></script>
     <script src="js/calendario-tp.js?v=3.0.13"></script>
     <script src="js/calendario-ts.js?v=3.0.13"></script>
-    <script src="js/view-manager.js?v=3.0.13"></script>
-
-    <script src="js/analise-tmc.js?v=3.0.13"></script>
     <script src="js/period-comparison.js?v=3.0.13"></script>
     <script src="js/gestao-os.js?v=3.0.20"></script>
     <script src="js/os-auditoria.js?v=3.0.20"></script>
@@ -1038,18 +709,7 @@
             tentativasCarregamento++;
 
             try {
-                // Inicializar view manager primeiro (se existir)
-                if (typeof viewManager !== 'undefined') {
-                    viewManager.inicializar();
-                }
-
-                // Depois inicializar dashboard
                 await dashboardMain.inicializar();
-
-                // Renderizar view minimalista se estiver ativa
-                if (typeof viewManager !== 'undefined' && viewManager.currentView === 'minimal') {
-                    viewManager.renderizarViewMinimal();
-                }
             } catch (error) {
                 console.error(`[Dashboard] Erro ao inicializar (tentativa ${tentativasCarregamento}/${MAX_TENTATIVAS}):`, error);
 

@@ -1,0 +1,129 @@
+RELATORIO DE REVISAO MINUCIOSA - DASHBOARD
+Data: 2026-05-31
+Escopo: index.html, css/, js/ e arquivos de apoio do dashboard
+
+METODOLOGIA
+- Leitura por pasta e por arquivo.
+- Checagem de sintaxe com `node --check` em todos os JS.
+- Auditoria de ids do DOM versus referencias estaticas.
+- Validacao de sincronismo entre `servicos.json` e `js/servicos-data.js`.
+
+RESUMO EXECUTIVO
+- Nenhum erro de sintaxe foi encontrado nos JS.
+- `servicos.json` e `js/servicos-data.js` estao sincronizados.
+- Os principais riscos sao drift entre UI e logica, estados de erro que prendem a tela e seguranca fraca no acesso.
+
+ACHADOS CRITICOS E ALTOS
+
+1) View minimalista ignora filtros e controles do calendario
+- Arquivos: `index.html:734`, `index.html:955`, `js/view-manager.js:378`, `js/view-manager.js:404`
+- Problema: os checkboxes `filtroTPMinimal`, `filtroTMCMinimal` e `filtroTSMinimal`, alem dos radios `calTPMinimal`, `calTMCMinimal` e `calTSMinimal`, existem na interface, mas `aplicarFiltrosMinimal()` so usa mes/ano/turma e `renderizarCalendarioMinimal()` sempre renderiza TP.
+- Impacto: o usuario acha que filtrou, mas a view continua mostrando dados nao filtrados ou sempre o calendario de TP.
+- Recomendacao: ler os controles da view minimalista no fluxo de filtragem e usar o radio selecionado para escolher a renderizacao do calendario.
+
+2) Erro em filtros ou recarga deixa o dashboard preso no loading
+- Arquivos: `js/main.js:672`, `js/main.js:716`, `js/main.js:730`, `js/main.js:804`, `js/main.js:819`
+- Problema: `aplicarFiltros()` e `recarregar()` exibem o loading overlay antes da operacao, mas no `catch` nao restauram a visibilidade da interface nem ocultam o overlay.
+- Impacto: se algo falhar durante o recalculo, o usuario fica preso na tela de carregamento ate recarregar manualmente.
+- Recomendacao: mover a restauracao da UI para um `finally` ou repetir a restauracao no `catch`.
+
+3) Graficos descartam o canvas quando ficam sem dados
+- Arquivos: `js/charts.js:335`, `js/charts.js:342`, `js/charts.js:434`, `js/charts.js:511`, `js/charts.js:969`, `js/charts.js:1045`, `js/charts.js:1125`
+- Problema: nos estados vazios, varios metodos fazem `ctx.parentElement.innerHTML = ...`, o que remove o canvas do DOM. Depois disso, as chamadas seguintes de renderizacao nao conseguem recriar o grafico porque o elemento nao existe mais.
+- Impacto: um periodo sem dados pode derrubar permanentemente o grafico ate um reload da pagina.
+- Recomendacao: manter o canvas no DOM e alternar apenas uma mensagem de estado vazio dentro de um container separado.
+
+4) Autenticacao e segredo estao no cliente
+- Arquivos: `js/config.js:39`, `js/auth.js:15`, `js/auth.js:26`, `js/auth.js:111`
+- Problema: a chave de acesso e validada totalmente no browser e o segredo fica embutido no JS. O bloqueio por tentativas usa apenas `localStorage`/`sessionStorage`, entao pode ser contornado.
+- Impacto: nao e uma barreira de seguranca real para dados sensiveis.
+- Recomendacao: mover a autenticacao e qualquer decisao de acesso para um backend/proxy confiavel; se isso nao for possivel, tratar o mecanismo atual como apenas restricao operacional, nao como seguranca.
+
+ACHADOS DE MEDIA PRIORIDADE
+
+5) `config.example.js` esta desatualizado e incompleto
+- Arquivos: `js/config.example.js:92`, `js/config.example.js:143`, `js/config.example.js:173`, `js/config.example.js:230`, `js/config.js:39`, `js/config.js:42`
+- Problema: o arquivo exemplo ainda reflete a versao antiga do dashboard: nao traz `APPS_SCRIPT_URL`, nao tem suporte completo a TS e seu `getTipoTurma()` nao reconhece `TS`.
+- Impacto: uma instalacao nova baseada no exemplo perde funcionalidades de TS e pode quebrar edicao/upload que dependem do Apps Script.
+- Recomendacao: alinhar o exemplo com o `config.js` real e manter os dois arquivos gerados a partir da mesma fonte.
+
+6) Exportacao esta orfa no fluxo atual
+- Arquivos: `index.html:1008`, `index.html:1030`, `js/view-manager.js:472`, `js/view-manager.js:481`
+- Problema: `view-manager.js` expoe `exportarRelatorio()`, mas `index.html` nao carrega `js/export.js` nem `js/export-helper.js`, e nao existe botao visivel no HTML para disparar essa funcao.
+- Impacto: a funcionalidade de exportacao nao e alcancavel pela interface e, se chamada, vai depender de um global que nao foi carregado.
+- Recomendacao: ou incluir os scripts e o botao na UI, ou remover o codigo morto para evitar manutencao enganosa.
+
+7) Modulo de analise TMC nao tem ponto de entrada na UI
+- Arquivos: `js/analise-tmc.js:60`, `js/analise-tmc.js:260`, `js/analise-tmc.js:443`
+- Problema: o modulo procura `filtroTMCAnalise` e `analiseTMCContainer`, mas nao ha markup correspondente nem chamada do fluxo principal.
+- Impacto: a funcionalidade existe no codigo, mas nao e acessivel no dashboard atual.
+- Recomendacao: ou plugar o modulo em uma tela real, ou remover/arquivar o arquivo ate a feature voltar.
+
+8) KPI geral de efetivo foi calculado, mas nao tem markup correspondente
+- Arquivos: `js/main.js:476`, `js/main.js:484`, `js/main.js:485`
+- Problema: `renderizarKPIMediaEfetivoGeral()` tenta escrever em `kpiMediaEfetivoAcomp` e `kpiMediaEfetivoTotalAcomp`, mas esses elementos nao existem no HTML atual.
+- Impacto: a metrica some silenciosamente e a funcao trabalha sem efeito visivel.
+- Recomendacao: ou restaurar os cards no HTML, ou remover a rotina para nao manter codigo morto.
+
+ACHADOS DE BAIXA PRIORIDADE
+
+9) Botao de filtros nao volta ao estado padrao apos aplicar
+- Arquivos: `js/filters.js:162`, `js/filters.js:174`, `js/main.js:672`
+- Problema: o fluxo marca o botao como "pendente" com `marcarComoPendente()`, mas `resetarBotao()` nao e chamado apos a aplicacao bem-sucedida.
+- Impacto: a interface continua sugerindo que os filtros ainda estao alterados, mesmo depois de aplicar.
+- Recomendacao: chamar `dashboardFilters.resetarBotao()` ao final de `aplicarFiltros()` e do fluxo minimalista.
+
+10) Rodape com versao antiga
+- Arquivos: `index.html:1000`, `index.html:1009`, `index.html:1030`
+- Problema: o rodape mostra `Dashboard v1.0.0`, enquanto os assets estao versionados em `3.0.x`.
+- Impacto: confunde a rastreabilidade de suporte e pode induzir ao diagnostico errado.
+- Recomendacao: atualizar o rodape para refletir a versao real do release.
+
+REVISAO POR PASTA / ARQUIVO
+
+`index.html`
+- Estrutura geral consistente e ordem de scripts correta.
+- Pontos a corrigir: controles da view minimalista nao estao ligados ao fluxo de filtragem; exportacao nao tem UI; rodape mostra versao desatualizada.
+
+`js/main.js`
+- Controla bem o fluxo principal e os calculos centrais.
+- Pontos a corrigir: overlay pode ficar preso em falhas de filtro/recarga; KPI geral de efetivo nao encontra markup; filtros minimalistas nao sao considerados no recalculo.
+
+`js/view-manager.js`
+- Alternancia de views esta funcional.
+- Pontos a corrigir: filtros da view minimalista nao sao aplicados de fato; calendario minimal so contempla TP; exportacao depende de helper nao carregado.
+
+`js/charts.js`
+- A maior parte dos graficos e renderizada corretamente quando ha dados.
+- Ponto critico: os estados vazios removem o canvas e quebram a renderizacao futura.
+
+`js/filters.js`
+- Boa separacao entre feedback visual e leitura dos filtros.
+- Ponto a corrigir: o botao nao volta ao estado padrao apos aplicar.
+
+`js/auth.js` e `js/config.js`
+- Fluxo de acesso funciona como barreira operacional.
+- Risco de seguranca: o segredo fica no cliente e o bloqueio e local.
+
+`js/config.example.js`
+- Template ficou atras da implementacao atual.
+- Falta alinhar com TS e com o `APPS_SCRIPT_URL`.
+
+`js/analise-tmc.js`
+- Codigo existe, mas nao ha ponto de entrada ativo.
+
+`js/export.js` e `js/export-helper.js`
+- Codigo existe, mas nao esta ligado ao HTML atual.
+
+`js/sheets-api.js`, `js/calculations.js`, `js/field-helper.js`, `js/calendario-tp.js`, `js/calendario-ts.js`, `js/gestao-os.js`, `js/os-auditoria.js`, `js/visao-geral.js`, `js/period-comparison.js`, `js/safe-html.js`, `js/alerts-system.js`, `js/servicos-data.js`
+- Revisados sem achados bloqueantes adicionais.
+- Risco residual: varios destes modulos dependem de HTML gerado dinamicamente, entao qualquer mudanca de markup precisa ser revisada junto com o JS.
+
+CSS
+- `css/dashboard.css` e `css/minimal-view.css` nao apresentaram problemas funcionais bloqueantes na leitura rapida.
+- O principal risco continua sendo sincronizar layout com os ids e containers que o JS espera.
+
+CONCLUSAO
+- O dashboard esta bem estruturado, mas existe drift entre interface, controle de estado e codigo legado.
+- Os pontos mais urgentes sao: filtros da view minimalista, estados de erro que travam a UI, graficos que perdem o canvas e o modelo de autenticacao no cliente.
+- Depois disso, vale limpar os modulos orfaos e alinhar `config.example.js` com a implementacao real.
