@@ -1643,7 +1643,11 @@ class VisaoGeral {
             return d >= 60 ? `${Math.floor(d/60)}h${String(d%60).padStart(2,'0')}m` : `${d}min`;
         };
 
-        const rows = regs.map(r => `
+        // Ordem atual: null | 'dur-asc' | 'dur-desc' | 'hh-asc' | 'hh-desc'
+        let _ordemAptm = null;
+        let _regsOrdenados = regs.slice(); // cópia mutável
+
+        const renderRows = arr => arr.map(r => `
             <tr>
                 <td style="font-size:.78rem;white-space:nowrap;">${escapeHtml(r.data || '–')}</td>
                 <td style="font-size:.78rem;white-space:nowrap;">${escapeHtml(r.numRDO || '–')}</td>
@@ -1653,6 +1657,45 @@ class VisaoGeral {
                 ${r.descricao ? `<td style="font-size:.78rem;word-break:break-word;white-space:normal;">${escapeHtml(r.descricao)}</td>` : '<td class="text-muted" style="font-size:.78rem;">–</td>'}
                 <td class="text-end fw-bold text-danger" style="font-size:.78rem;">${r.hh.toFixed(2)}</td>
             </tr>`).join('');
+
+        // Função de sort acessível pelo onclick inline do thead
+        window._vgSortAptm = (campo, dir) => {
+            const chaveOrdem = `${campo}-${dir}`;
+            if (_ordemAptm === chaveOrdem) {
+                _ordemAptm = null;
+                _regsOrdenados = regs.slice(); // restaurar ordem original
+            } else {
+                _ordemAptm = chaveOrdem;
+                _regsOrdenados = regs.slice().sort((a, b) => {
+                    let va, vb;
+                    if (campo === 'dur') {
+                        va = toMin(a.horaFim) - toMin(a.horaInicio);
+                        vb = toMin(b.horaFim) - toMin(b.horaInicio);
+                        if (va < 0) va += 1440; if (vb < 0) vb += 1440;
+                    } else {
+                        va = a.hh || 0; vb = b.hh || 0;
+                    }
+                    return dir === 'asc' ? va - vb : vb - va;
+                });
+            }
+            const tbody = document.getElementById('vg-hi-aptm-tbody');
+            if (tbody) tbody.innerHTML = renderRows(_regsOrdenados);
+            // Atualizar aparência dos botões
+            ['dur-asc','dur-desc','hh-asc','hh-desc'].forEach(id => {
+                const btn = document.getElementById('vgaptm-' + id);
+                if (btn) {
+                    const ativo = _ordemAptm === id.replace('-', '-');
+                    btn.className = ativo
+                        ? 'btn btn-secondary btn-sm py-0 px-1'
+                        : 'btn btn-outline-secondary btn-sm py-0 px-1';
+                }
+            });
+        };
+
+        const sortBtn = (campo, dir, label) =>
+            `<button id="vgaptm-${campo}-${dir}" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1"
+                     style="font-size:.6rem;" onclick="window._vgSortAptm('${campo}','${dir}')"
+                     title="${dir==='asc'?'Menor':'Maior'} primeiro">${label}</button>`;
 
         const html = `
         <div class="modal fade" id="${existingId}" tabindex="-1" aria-hidden="true">
@@ -1672,13 +1715,17 @@ class VisaoGeral {
                       <th style="font-size:.72rem;">Data</th>
                       <th style="font-size:.72rem;">Número RDO</th>
                       <th style="font-size:.72rem;">Horário</th>
-                      <th class="text-center" style="font-size:.72rem;">Duração</th>
+                      <th class="text-center" style="font-size:.72rem;">
+                        Duração${sortBtn('dur','asc','▲')}${sortBtn('dur','desc','▼')}
+                      </th>
                       <th class="text-center" style="font-size:.72rem;">Op.</th>
                       <th style="font-size:.72rem;">Descrição</th>
-                      <th class="text-end" style="font-size:.72rem;">HH</th>
+                      <th class="text-end" style="font-size:.72rem;">
+                        HH${sortBtn('hh','asc','▲')}${sortBtn('hh','desc','▼')}
+                      </th>
                     </tr>
                   </thead>
-                  <tbody>${rows}</tbody>
+                  <tbody id="vg-hi-aptm-tbody">${renderRows(_regsOrdenados)}</tbody>
                   <tfoot class="table-light">
                     <tr>
                       <td colspan="6" class="text-end fw-semibold" style="font-size:.78rem;">Total</td>
