@@ -1157,9 +1157,13 @@ class VisaoGeral {
 
         // Navegar ao dia no calendário a partir do Número RDO
         window._vgNavDia = (numRDO, dataStr, turma) => {
-            // Fechar offcanvas primeiro
+            // Fechar offcanvas (painel lateral de serviços/turmas) se estiver aberto
             const oc = document.getElementById('vg-offcanvas');
             if (oc) bootstrap.Offcanvas.getInstance(oc)?.hide();
+
+            // Fechar modal de Apontamentos HI se estiver aberto
+            const hiModal = document.getElementById('vg-hi-detalhe-modal');
+            if (hiModal) bootstrap.Modal.getInstance(hiModal)?.hide();
 
             // Determinar se é TP ou TS
             const tipoTurma = turma.toUpperCase().startsWith('TS') ? 'TS' : 'TP';
@@ -1647,17 +1651,26 @@ class VisaoGeral {
         let _ordemAptm = null;
         let _regsOrdenados = regs.slice(); // cópia mutável
 
-        const renderRows = arr => arr.map(r => `
-            <tr>
+        const renderRows = arr => arr.map(r => {
+            const navAttr = (r.numRDO && r.data && r.turma)
+                ? `style="cursor:pointer;" title="Abrir dia ${escapeHtml(r.data)} no calendário"
+                   onclick="window._vgNavDia('${escapeHtml(r.numRDO)}','${escapeHtml(r.data)}','${escapeHtml(r.turma)}')"`
+                : '';
+            return `
+            <tr ${navAttr}>
                 <td style="font-size:.78rem;white-space:nowrap;">${escapeHtml(r.data || '–')}</td>
                 <td style="font-size:.78rem;white-space:nowrap;"><span class="badge bg-secondary bg-opacity-75">${escapeHtml(r.turma || '–')}</span></td>
-                <td style="font-size:.78rem;white-space:nowrap;">${escapeHtml(r.numRDO || '–')}</td>
+                <td style="font-size:.78rem;white-space:nowrap;" class="fw-bold text-primary text-decoration-underline">
+                    ${escapeHtml(r.numRDO || '–')}
+                    ${r.numRDO ? '<i class="fas fa-external-link-alt ms-1" style="font-size:.55rem;opacity:.5;"></i>' : ''}
+                </td>
                 <td style="font-size:.78rem;">${r.horaInicio || '–'} → ${r.horaFim || '–'}</td>
                 <td class="text-center text-muted" style="font-size:.78rem;">${fmtDur(r.horaInicio, r.horaFim)}</td>
                 <td class="text-center" style="font-size:.78rem;">${r.operadores || '–'}</td>
                 ${r.descricao ? `<td style="font-size:.78rem;word-break:break-word;white-space:normal;">${escapeHtml(r.descricao)}</td>` : '<td class="text-muted" style="font-size:.78rem;">–</td>'}
                 <td class="text-end fw-bold text-danger" style="font-size:.78rem;">${r.hh.toFixed(2)}</td>
-            </tr>`).join('');
+            </tr>`;
+        }).join('');
 
         // Função de sort acessível pelo onclick inline do thead
         window._vgSortAptm = (campo, dir) => {
