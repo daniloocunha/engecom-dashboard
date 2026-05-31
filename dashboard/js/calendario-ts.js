@@ -318,17 +318,17 @@ class CalendarioTS {
                             <small class="opacity-75">Encarregado: ${escapeHtml(stats.encarregado)}</small>
                         </div>
                         <div class="col-md-8">
-                            <div class="row g-2">
+                            <div class="row g-1">
                                 <div class="col-4 text-center">
-                                    <small class="d-block opacity-75 mb-1">Dias Trabalhados</small>
+                                    <small class="d-block opacity-75" style="font-size:.7rem;">Dias Trabalhados</small>
                                     <strong class="d-block">${stats.diasTrabalhados}</strong>
                                 </div>
                                 <div class="col-4 text-center">
-                                    <small class="d-block opacity-75 mb-1">HH Soldador</small>
+                                    <small class="d-block opacity-75" style="font-size:.7rem;">HH Produtivas</small>
                                     <strong class="d-block">${stats.hhSoldadorTotal.toFixed(1)}</strong>
                                 </div>
                                 <div class="col-4 text-center">
-                                    <small class="d-block opacity-75 mb-1">SLA %</small>
+                                    <small class="d-block opacity-75" style="font-size:.7rem;">SLA %</small>
                                     <strong class="d-block">${stats.slaPercentual}%</strong>
                                 </div>
                             </div>
@@ -763,8 +763,13 @@ class CalendarioTS {
                                             <tr>
                                                 <th>Tipo</th>
                                                 <th>Descrição</th>
-                                                <th class="text-center">Hora Início</th>
-                                                <th class="text-center">Hora Fim</th>
+                                                <th class="text-center">Início</th>
+                                                <th class="text-center">Fim</th>
+                                                <th class="text-center">
+                                                    Dur.
+                                                    <button id="hi-sort-asc" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1" style="font-size:.65rem;" onclick="editorRDO.ordenarHI('asc')" title="Menor duração primeiro">▲</button>
+                                                    <button id="hi-sort-desc" class="btn btn-outline-secondary btn-sm py-0 px-1" style="font-size:.65rem;" onclick="editorRDO.ordenarHI('desc')" title="Maior duração primeiro">▼</button>
+                                                </th>
                                                 <th class="text-end">HH</th>
                                                 <th class="edit-ctrl" style="display:none;"></th>
                                             </tr>
@@ -811,10 +816,10 @@ class CalendarioTS {
                                 </div>
                             </div>
 
-                            <!-- Observações -->
-                            <div class="alert alert-info mb-0">
+                            <!-- Observações (salvas no Sheets) -->
+                            <div class="alert alert-info mb-2">
                                 <h6 class="alert-heading d-flex align-items-center gap-2">
-                                    <i class="fas fa-sticky-note me-1"></i>Observações
+                                    <i class="fas fa-comment-dots me-1"></i>Observações do RDO
                                     <span class="edit-ctrl" style="display:none;">
                                         <button class="btn btn-link btn-sm p-0" onclick="editorRDO.mostrarEditObservacoes()" title="Editar observações"><i class="fas fa-pencil-alt" style="font-size:.75rem;"></i></button>
                                     </span>
@@ -825,6 +830,25 @@ class CalendarioTS {
                                     <div class="d-flex gap-2">
                                         <button class="btn btn-sm btn-success" onclick="editorRDO.salvarObservacoes(this)"><i class="fas fa-save me-1"></i>Salvar</button>
                                         <button class="btn btn-sm btn-outline-secondary" onclick="editorRDO.cancelarEditObservacoes()"><i class="fas fa-times me-1"></i>Cancelar</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Nota local do dia (salva no navegador — não vai para o Sheets) -->
+                            <div class="alert mb-0" style="background:#f3e8ff; border-color:#9c27b0; color:#4a0072;">
+                                <h6 class="alert-heading d-flex align-items-center gap-2" style="color:#4a0072;">
+                                    <i class="fas fa-sticky-note me-1"></i>Nota Local do Dia
+                                    <span class="badge" style="background:#9c27b0; font-size:.6rem;">salvo no navegador</span>
+                                    <button class="btn btn-sm py-0 ms-auto" style="color:#4a0072;" onclick="editorRDO.toggleNotaLocal()">
+                                        <i class="fas fa-pencil-alt" style="font-size:.75rem;"></i>
+                                    </button>
+                                </h6>
+                                <div id="nota-local-view" class="small"></div>
+                                <div id="nota-local-form" style="display:none;" class="mt-2">
+                                    <textarea id="nota-local-input" class="form-control form-control-sm mb-2" rows="2" placeholder="Anotação particular sobre este dia..."></textarea>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm" style="background:#9c27b0; color:#fff;" onclick="editorRDO.salvarNotaLocal(this)"><i class="fas fa-save me-1"></i>Salvar nota</button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="editorRDO.toggleNotaLocal()"><i class="fas fa-times me-1"></i>Cancelar</button>
                                     </div>
                                 </div>
                             </div>
@@ -855,8 +879,9 @@ class CalendarioTS {
         const modal = new bootstrap.Modal(modalElement);
         modal.show();
 
-        // Renderizar gráfico após modal ser exibido
+        // Renderizar gráfico e nota local após modal ser exibido
         modalElement.addEventListener('shown.bs.modal', () => {
+            editorRDO._renderNotaLocal();
             this.renderizarGraficoPerformance(dados);
         });
 

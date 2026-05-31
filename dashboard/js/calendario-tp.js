@@ -428,30 +428,34 @@ class CalendarioTP {
                             <h5 class="mb-0"><i class="fas fa-industry me-2"></i>${escapeHtml(turma)}</h5>
                         </div>
                         <div class="col-md-9">
-                            <div class="row g-2">
-                                <div class="col-3 text-center">
-                                    <small class="d-block opacity-75 mb-1">Média Operadores</small>
+                            <div class="row g-1">
+                                <div class="col-4 text-center">
+                                    <small class="d-block opacity-75" style="font-size:.7rem;">Dias Trabalhados</small>
+                                    <strong class="d-block">${stats.diasTrabalhados}</strong>
+                                </div>
+                                <div class="col-4 text-center">
+                                    <small class="d-block opacity-75" style="font-size:.7rem;">Média Operadores</small>
                                     <strong class="d-block">${stats.mediaOperadores}</strong>
                                 </div>
-                                <div class="col-3 text-center">
-                                    <small class="d-block opacity-75 mb-1">Nº de O.S</small>
+                                <div class="col-4 text-center">
+                                    <small class="d-block opacity-75" style="font-size:.7rem;">Nº de O.S</small>
                                     <span class="d-block fw-bold"
-                                          data-bs-toggle="modal"
-                                          data-bs-target="#${modalId}"
-                                          role="button"
-                                          tabindex="0"
-                                          style="cursor: pointer; transition: opacity 0.2s;"
-                                          onmouseover="this.style.opacity='0.7'"
-                                          onmouseout="this.style.opacity='1'">
-                                        ${stats.numeroOS} <i class="fas fa-list-ul ms-1" style="font-size: 0.7em; opacity: 0.8;"></i>
+                                          data-bs-toggle="modal" data-bs-target="#${modalId}"
+                                          role="button" tabindex="0"
+                                          style="cursor:pointer;" onmouseover="this.style.opacity='.7'" onmouseout="this.style.opacity='1'">
+                                        ${stats.numeroOS} <i class="fas fa-list-ul ms-1" style="font-size:.7em;opacity:.8;"></i>
                                     </span>
                                 </div>
-                                <div class="col-3 text-center">
-                                    <small class="d-block opacity-75 mb-1">HH Improdutivas</small>
+                                <div class="col-4 text-center border-top border-white border-opacity-25 pt-1 mt-1">
+                                    <small class="d-block opacity-75" style="font-size:.7rem;">HH Produtivas</small>
+                                    <strong class="d-block">${stats.hhProdutivas.toFixed(1)}</strong>
+                                </div>
+                                <div class="col-4 text-center border-top border-white border-opacity-25 pt-1 mt-1">
+                                    <small class="d-block opacity-75" style="font-size:.7rem;">HH Improdutivas</small>
                                     <strong class="d-block">${stats.hhImprodutivas.toFixed(1)}</strong>
                                 </div>
-                                <div class="col-3 text-center">
-                                    <small class="d-block opacity-75 mb-1">HH Total</small>
+                                <div class="col-4 text-center border-top border-white border-opacity-25 pt-1 mt-1">
+                                    <small class="d-block opacity-75" style="font-size:.7rem;">HH Total</small>
                                     <strong class="d-block">${stats.hhTotal.toFixed(1)}</strong>
                                 </div>
                             </div>
@@ -650,12 +654,18 @@ class CalendarioTP {
         });
         const hhTotal = hhProdutivas + hhImprodutivas;
 
+        // Dias trabalhados = datas únicas dos RDOs do mês (pode haver 2 RDOs no mesmo dia)
+        const datasUnicas = new Set(rdosTurma.map(r => (r['Data'] || r.data || '').trim()).filter(Boolean));
+        const diasTrabalhados = datasUnicas.size;
+
         return {
             mediaOperadores,
             numeroOS,
-            osSet,  // Retornar o Set para usar no modal
+            osSet,
             hhImprodutivas,
-            hhTotal
+            hhProdutivas,
+            hhTotal,
+            diasTrabalhados
         };
     }
 
@@ -702,22 +712,60 @@ class CalendarioTP {
                                         ${dados.multiplosRDOs ? `<span class="badge bg-warning text-dark ms-2"><i class="fas fa-layer-group me-1"></i>${dados.qtdRDOs} RDOs neste dia</span>` : ''}
                                     </h6>
                                     ${dados.multiplosRDOs ? `
-                                        <div class="d-flex flex-column gap-1 mt-1">
-                                            ${dados.hhPorOS.map(os => `
-                                                <div class="d-flex align-items-center gap-2 flex-wrap">
-                                                    <span class="badge bg-secondary">${escapeHtml(os.numeroOS)}</span>
-                                                    <span class="text-muted small">
-                                                        <i class="fas fa-map-marker-alt me-1"></i>${escapeHtml(os.local)}
-                                                        &nbsp;|&nbsp;<i class="fas fa-road me-1"></i>KM ${escapeHtml(os.kmInicio || '-')} – ${escapeHtml(os.kmFim || '-')}
-                                                        &nbsp;|&nbsp;<i class="fas fa-clock me-1"></i>${escapeHtml(os.horarioInicio)} – ${escapeHtml(os.horarioFim)}
-                                                    </span>
-                                                    <span class="edit-ctrl" style="display:none;">
-                                                        <button class="btn btn-outline-danger btn-sm py-0 px-1"
-                                                                onclick="editorRDO.excluirRDO('${escapeHtml(os.numeroRDO || '')}')"
-                                                                title="Excluir RDO desta O.S">
-                                                            <i class="fas fa-trash" style="font-size:.7rem;"></i>
-                                                        </button>
-                                                    </span>
+                                        <div class="d-flex flex-column gap-2 mt-1">
+                                            ${dados.hhPorOS.map((os, osIdx) => `
+                                                <div>
+                                                    <div id="cab-view-os-${osIdx}" class="d-flex align-items-center gap-2 flex-wrap">
+                                                        <span class="badge bg-secondary">${escapeHtml(os.numeroOS)}</span>
+                                                        <span class="text-muted small">
+                                                            <i class="fas fa-map-marker-alt me-1"></i>${escapeHtml(os.local || '-')}
+                                                            &nbsp;|&nbsp;<i class="fas fa-road me-1"></i>KM ${escapeHtml(os.kmInicio || '-')} – ${escapeHtml(os.kmFim || '-')}
+                                                            &nbsp;|&nbsp;<i class="fas fa-clock me-1"></i>${escapeHtml(os.horarioInicio || '-')} – ${escapeHtml(os.horarioFim || '-')}
+                                                        </span>
+                                                        <span class="edit-ctrl" style="display:none;">
+                                                            <button class="btn btn-link btn-sm p-0 me-1"
+                                                                    onclick="editorRDO.mostrarEditCabecalhoOS(${osIdx})" title="Editar O.S">
+                                                                <i class="fas fa-pencil-alt" style="font-size:.7rem;"></i>
+                                                            </button>
+                                                            <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                                                    onclick="editorRDO.excluirRDO('${escapeHtml(os.numeroRDO || '')}')"
+                                                                    title="Excluir RDO desta O.S">
+                                                                <i class="fas fa-trash" style="font-size:.7rem;"></i>
+                                                            </button>
+                                                        </span>
+                                                    </div>
+                                                    <div id="cab-form-os-${osIdx}" class="card card-body p-2 mt-1" style="display:none;">
+                                                        <div class="row g-2">
+                                                            <div class="col-6 col-md-2">
+                                                                <label class="form-label form-label-sm mb-0 text-muted">O.S</label>
+                                                                <input id="cab-os-os-${osIdx}" type="text" class="form-control form-control-sm" value="${escapeHtml(os.numeroOS)}">
+                                                            </div>
+                                                            <div class="col-6 col-md-3">
+                                                                <label class="form-label form-label-sm mb-0 text-muted">Local</label>
+                                                                <input id="cab-local-os-${osIdx}" type="text" class="form-control form-control-sm" value="${escapeHtml(os.local || '')}">
+                                                            </div>
+                                                            <div class="col-4 col-md-2">
+                                                                <label class="form-label form-label-sm mb-0 text-muted">KM Início</label>
+                                                                <input id="cab-km-ini-os-${osIdx}" type="text" class="form-control form-control-sm" value="${escapeHtml(os.kmInicio || '')}" placeholder="000+000">
+                                                            </div>
+                                                            <div class="col-4 col-md-2">
+                                                                <label class="form-label form-label-sm mb-0 text-muted">KM Fim</label>
+                                                                <input id="cab-km-fim-os-${osIdx}" type="text" class="form-control form-control-sm" value="${escapeHtml(os.kmFim || '')}" placeholder="000+000">
+                                                            </div>
+                                                            <div class="col-4 col-md-1">
+                                                                <label class="form-label form-label-sm mb-0 text-muted">Início</label>
+                                                                <input id="cab-hr-ini-os-${osIdx}" type="text" class="form-control form-control-sm" value="${escapeHtml(os.horarioInicio || '')}" placeholder="HH:MM" maxlength="5">
+                                                            </div>
+                                                            <div class="col-4 col-md-1">
+                                                                <label class="form-label form-label-sm mb-0 text-muted">Fim</label>
+                                                                <input id="cab-hr-fim-os-${osIdx}" type="text" class="form-control form-control-sm" value="${escapeHtml(os.horarioFim || '')}" placeholder="HH:MM" maxlength="5">
+                                                            </div>
+                                                            <div class="col-12 col-md-1 d-flex align-items-end gap-1">
+                                                                <button class="btn btn-sm btn-success flex-fill" onclick="editorRDO.salvarCabecalhoOS(${osIdx}, this)"><i class="fas fa-save"></i></button>
+                                                                <button class="btn btn-sm btn-outline-secondary" onclick="editorRDO.cancelarEditCabecalhoOS(${osIdx})"><i class="fas fa-times"></i></button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
                                                 </div>
                                             `).join('')}
                                         </div>
@@ -859,7 +907,14 @@ class CalendarioTP {
                                     </button>
                                     <div id="form-adicionar-servico" class="card card-body mt-2 p-2" style="display:none;">
                                         <div class="row g-2 align-items-end">
-                                            <div class="col-12 col-md-5">
+                                            ${dados.multiplosRDOs ? `
+                                            <div class="col-12 col-md-2">
+                                                <label class="form-label form-label-sm mb-0 text-muted">O.S destino</label>
+                                                <select id="novo-srv-os" class="form-select form-select-sm">
+                                                    ${dados.hhPorOS.map(o => `<option value="${escapeHtml(o.numeroRDO || o.numeroOS)}">${escapeHtml(o.numeroOS)}</option>`).join('')}
+                                                </select>
+                                            </div>` : ''}
+                                            <div class="col-12 col-md-${dados.multiplosRDOs ? '4' : '5'}">
                                                 <label class="form-label form-label-sm mb-0 text-muted">Serviço</label>
                                                 <select id="novo-srv-sel" class="form-select form-select-sm" onchange="editorRDO._previewNovoHH()">
                                                     <option value="">-- Selecione o serviço --</option>
@@ -881,7 +936,7 @@ class CalendarioTP {
                                                 <label class="form-label form-label-sm mb-0 text-muted">HH</label>
                                                 <div class="badge bg-info text-dark w-100 py-2"><span id="novo-srv-hh-pre">?</span></div>
                                             </div>
-                                            <div class="col-12 col-md-3">
+                                            <div class="col-12 col-md-2">
                                                 <button class="btn btn-sm btn-success w-100" onclick="editorRDO.salvarNovoServico(this)">
                                                     <i class="fas fa-save me-1"></i>Salvar
                                                 </button>
@@ -902,8 +957,13 @@ class CalendarioTP {
                                                 ${dados.multiplosRDOs ? '<th>O.S</th>' : ''}
                                                 <th>Tipo</th>
                                                 <th>Descrição</th>
-                                                <th class="text-center">Hora Início</th>
-                                                <th class="text-center">Hora Fim</th>
+                                                <th class="text-center">Início</th>
+                                                <th class="text-center">Fim</th>
+                                                <th class="text-center">
+                                                    Dur.
+                                                    <button id="hi-sort-asc" class="btn btn-outline-secondary btn-sm py-0 px-1 ms-1" style="font-size:.65rem;" onclick="editorRDO.ordenarHI('asc')" title="Menor duração primeiro">▲</button>
+                                                    <button id="hi-sort-desc" class="btn btn-outline-secondary btn-sm py-0 px-1" style="font-size:.65rem;" onclick="editorRDO.ordenarHI('desc')" title="Maior duração primeiro">▼</button>
+                                                </th>
                                                 <th class="text-end">HH</th>
                                                 <th class="edit-ctrl" style="display:none;"></th>
                                             </tr>
@@ -920,6 +980,13 @@ class CalendarioTP {
                                     </button>
                                     <div id="form-adicionar-hi" class="card card-body mt-2 p-2" style="display:none;">
                                         <div class="row g-2">
+                                            ${dados.multiplosRDOs ? `
+                                            <div class="col-12 col-md-2">
+                                                <label class="form-label form-label-sm mb-0 text-muted">O.S destino</label>
+                                                <select id="nova-hi-os" class="form-select form-select-sm">
+                                                    ${dados.hhPorOS.map(o => `<option value="${escapeHtml(o.numeroRDO || o.numeroOS)}">${escapeHtml(o.numeroOS)}</option>`).join('')}
+                                                </select>
+                                            </div>` : ''}
                                             <div class="col-12 col-md-3">
                                                 <select id="nova-hi-tipo" class="form-select form-select-sm">
                                                     <option>Chuva</option><option>Falta de Material</option>
@@ -928,21 +995,21 @@ class CalendarioTP {
                                                     <option>Deslocamento</option><option>Outros</option>
                                                 </select>
                                             </div>
-                                            <div class="col-12 col-md-3">
+                                            <div class="col-12 col-md-2">
                                                 <input id="nova-hi-desc" type="text" class="form-control form-control-sm" placeholder="Descrição (opcional)">
                                             </div>
-                                            <div class="col-4 col-md-2">
+                                            <div class="col-4 col-md-1">
                                                 <input id="nova-hi-ini" type="text" class="form-control form-control-sm" placeholder="HH:MM" maxlength="5">
                                             </div>
-                                            <div class="col-4 col-md-2">
+                                            <div class="col-4 col-md-1">
                                                 <input id="nova-hi-fim" type="text" class="form-control form-control-sm" placeholder="HH:MM" maxlength="5">
                                             </div>
                                             <div class="col-4 col-md-1">
                                                 <input id="nova-hi-ops" type="number" class="form-control form-control-sm" value="12" min="1" title="Operadores">
                                             </div>
-                                            <div class="col-12 col-md-1">
+                                            <div class="col-12 col-md-2">
                                                 <button class="btn btn-sm btn-warning w-100" onclick="editorRDO.salvarNovaHI(this)">
-                                                    <i class="fas fa-save"></i>
+                                                    <i class="fas fa-save me-1"></i>Salvar HI
                                                 </button>
                                             </div>
                                         </div>
@@ -950,10 +1017,10 @@ class CalendarioTP {
                                 </div>
                             </div>
 
-                            <!-- Observações -->
-                            <div class="alert alert-info mb-0">
+                            <!-- Observações (salvas no Sheets) -->
+                            <div class="alert alert-info mb-2">
                                 <h6 class="alert-heading d-flex align-items-center gap-2">
-                                    <i class="fas fa-comment-dots me-1"></i>Observações
+                                    <i class="fas fa-comment-dots me-1"></i>Observações do RDO
                                     <span class="edit-ctrl" style="display:none;">
                                         <button class="btn btn-link btn-sm p-0" onclick="editorRDO.mostrarEditObservacoes()" title="Editar observações"><i class="fas fa-pencil-alt" style="font-size:.75rem;"></i></button>
                                     </span>
@@ -964,6 +1031,25 @@ class CalendarioTP {
                                     <div class="d-flex gap-2">
                                         <button class="btn btn-sm btn-success" onclick="editorRDO.salvarObservacoes(this)"><i class="fas fa-save me-1"></i>Salvar</button>
                                         <button class="btn btn-sm btn-outline-secondary" onclick="editorRDO.cancelarEditObservacoes()"><i class="fas fa-times me-1"></i>Cancelar</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Nota local do dia (salva no navegador — não vai para o Sheets) -->
+                            <div class="alert mb-0" style="background:#f3e8ff; border-color:#9c27b0; color:#4a0072;">
+                                <h6 class="alert-heading d-flex align-items-center gap-2" style="color:#4a0072;">
+                                    <i class="fas fa-sticky-note me-1"></i>Nota Local do Dia
+                                    <span class="badge" style="background:#9c27b0; font-size:.6rem;">salvo no navegador</span>
+                                    <button class="btn btn-sm py-0 ms-auto" style="color:#4a0072;" onclick="editorRDO.toggleNotaLocal()">
+                                        <i class="fas fa-pencil-alt" style="font-size:.75rem;"></i>
+                                    </button>
+                                </h6>
+                                <div id="nota-local-view" class="small"></div>
+                                <div id="nota-local-form" style="display:none;" class="mt-2">
+                                    <textarea id="nota-local-input" class="form-control form-control-sm mb-2" rows="2" placeholder="Anotação particular sobre este dia..."></textarea>
+                                    <div class="d-flex gap-2">
+                                        <button class="btn btn-sm" style="background:#9c27b0; color:#fff;" onclick="editorRDO.salvarNotaLocal(this)"><i class="fas fa-save me-1"></i>Salvar nota</button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="editorRDO.toggleNotaLocal()"><i class="fas fa-times me-1"></i>Cancelar</button>
                                     </div>
                                 </div>
                             </div>
@@ -996,8 +1082,11 @@ class CalendarioTP {
         const modal = new bootstrap.Modal(document.getElementById('modalDetalhesDia'));
         modal.show();
 
-        // Renderizar gráficos após o modal ser exibido
-        setTimeout(() => this.renderizarGraficosModal(dados), 100);
+        // Renderizar gráficos e nota local após o modal ser exibido
+        setTimeout(() => {
+            this.renderizarGraficosModal(dados);
+            editorRDO._renderNotaLocal();
+        }, 100);
     }
 
     /**

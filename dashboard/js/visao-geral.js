@@ -1134,7 +1134,11 @@ class VisaoGeral {
                 const extra = tipo === 'semCoef' ? `<td class="small text-muted">${escapeHtml(r.desc || '—')}</td>`
                             : tipo === 'semHorario' ? `<td class="small"><span class="badge bg-warning text-dark">${escapeHtml(r.tipo || '—')}</span></td>`
                             : '';
-                return `<tr><td class="small fw-bold text-primary">${escapeHtml(r.numRDO || '—')}</td><td class="small">${escapeHtml(r.data || '—')}</td><td class="small">${escapeHtml(r.turma || '—')}</td>${extra}</tr>`;
+                // Navegar ao dia no calendário ao clicar no Número RDO
+                const onclickNav = r.data && r.turma
+                    ? `onclick="window._vgNavDia('${escapeHtml(r.numRDO||'')}','${escapeHtml(r.data||'')}','${escapeHtml(r.turma||'')}')" style="cursor:pointer;" title="Abrir dia no calendário"`
+                    : '';
+                return `<tr><td class="small fw-bold text-primary text-decoration-underline" ${onclickNav}>${escapeHtml(r.numRDO || '—')}</td><td class="small">${escapeHtml(r.data || '—')}</td><td class="small">${escapeHtml(r.turma || '—')}</td>${extra}</tr>`;
             }).join('');
             document.getElementById('vg-oc-body').innerHTML = `
                 <div class="p-3">
@@ -1150,6 +1154,38 @@ class VisaoGeral {
 
         // Registra handlers globais temporários
         window._vgQD = abrirDetalheQD;
+
+        // Navegar ao dia no calendário a partir do Número RDO
+        window._vgNavDia = (numRDO, dataStr, turma) => {
+            // Fechar offcanvas primeiro
+            const oc = document.getElementById('vg-offcanvas');
+            if (oc) bootstrap.Offcanvas.getInstance(oc)?.hide();
+
+            // Determinar se é TP ou TS
+            const tipoTurma = turma.toUpperCase().startsWith('TS') ? 'TS' : 'TP';
+
+            // Parsear data "DD/MM/YYYY"
+            const partes = (dataStr || '').split('/');
+            if (partes.length < 3) return;
+            const dia = parseInt(partes[0]);
+            const mes = parseInt(partes[1]);
+            const ano = parseInt(partes[2]);
+            if (isNaN(dia) || isNaN(mes) || isNaN(ano)) return;
+
+            // Navegar para a aba de Calendário correta
+            const abaId = tipoTurma === 'TS' ? 'nav-calendario-ts-tab' : 'nav-calendario-tp-tab';
+            const abaEl = document.getElementById(abaId);
+            if (abaEl) abaEl.click();
+
+            // Abrir o modal do dia com pequeno delay para a aba renderizar
+            setTimeout(() => {
+                if (tipoTurma === 'TS' && typeof calendarioTS !== 'undefined') {
+                    calendarioTS.mostrarDetalhesDia(turma, dia, mes, ano);
+                } else if (typeof calendarioTP !== 'undefined') {
+                    calendarioTP.mostrarDetalhesDia(turma, dia, mes, ano);
+                }
+            }, 350);
+        };
 
         const items = [
             { key: 'semEfetivo', label: 'RDOs sem efetivo',        count: q.rdosSemEfetivo,  icon: 'fa-users-slash', color: 'warning'  },

@@ -16,6 +16,8 @@ class EditorRDO {
         this.tipo       = null;   // 'TP' | 'TS'
         this.numeroRDO  = null;   // primeiro Número RDO do dia
         this.modoEdicao = false;
+        this._hiOrdem   = null;   // null | 'asc' | 'desc' — ordem atual da tabela HI
+        this._editOSIdx = null;   // índice do hhPorOS em edição (modo multi-OS)
     }
 
     /**
@@ -157,6 +159,9 @@ class EditorRDO {
         const cabForm = document.getElementById('cabecalho-form');
         if (cabForm && cabForm.style.display !== 'none') this.cancelarEditCabecalho();
 
+        // Fechar formulários de cabeçalho multi-OS abertos
+        if (this._editOSIdx !== null) { this.cancelarEditCabecalhoOS(this._editOSIdx); }
+
         // Restaurar linhas que estejam em modo de edição
         this._qa('tr[data-em-edicao]').forEach(tr => {
             if (tr.dataset.htmlOriginal) {
@@ -261,6 +266,134 @@ class EditorRDO {
 
             this.cancelarEditCabecalho();
         });
+    }
+
+    // ── Cabeçalho multi-OS (quando há 2+ O.S no mesmo dia) ───────────────────
+
+    mostrarEditCabecalhoOS(idx) {
+        this._editOSIdx = idx;
+        const view = document.getElementById('cab-view-os-' + idx);
+        const form = document.getElementById('cab-form-os-' + idx);
+        if (view) view.style.display = 'none';
+        if (form) form.style.display = 'block';
+        document.getElementById('cab-os-os-' + idx)?.focus();
+    }
+
+    cancelarEditCabecalhoOS(idx) {
+        const view = document.getElementById('cab-view-os-' + idx);
+        const form = document.getElementById('cab-form-os-' + idx);
+        if (view) view.style.display = '';
+        if (form) form.style.display = 'none';
+        this._editOSIdx = null;
+    }
+
+    async salvarCabecalhoOS(idx, btn) {
+        const g = sfx => document.getElementById(sfx + idx)?.value.trim() || '';
+        const novaOS     = g('cab-os-os-');
+        const local      = g('cab-local-os-');
+        const kmInicio   = g('cab-km-ini-os-');
+        const kmFim      = g('cab-km-fim-os-');
+        const horaInicio = g('cab-hr-ini-os-');
+        const horaFim    = g('cab-hr-fim-os-');
+
+        if (!novaOS) { this._erro('O número da O.S não pode ser vazio'); return; }
+
+        const osRef   = this.dados.hhPorOS[idx];
+        const rdoAlvo = osRef.numeroRDO || this.numeroRDO;
+        const osChanged = novaOS !== osRef.numeroOS;
+
+        await this._comFeedback(btn, async () => {
+            let rdoTarget = rdoAlvo;
+
+            if (osChanged) {
+                const partes = rdoAlvo.split('-');
+                const sufixo = partes.slice(1).join('-');
+                const novoNumeroRDO = novaOS + '-' + sufixo;
+                await this._api({ acao: 'renomearRDO', oldNumeroRDO: rdoAlvo, newNumeroRDO: novoNumeroRDO, novaOS });
+                osRef.numeroRDO = novoNumeroRDO;
+                rdoTarget = novoNumeroRDO;
+                if (idx === 0) this.numeroRDO = novoNumeroRDO;
+            }
+
+            await this._api({
+                acao: 'atualizarCampoRDO',
+                numeroRDO: rdoTarget,
+                campos: { local, kmInicio, kmFim, horarioInicio: horaInicio, horarioFim: horaFim, ...(osChanged ? { numeroOS: novaOS } : {}) }
+            });
+
+            // Atualizar memória
+            osRef.numeroOS = novaOS; osRef.local = local;
+            osRef.kmInicio = kmInicio; osRef.kmFim = kmFim;
+            osRef.horarioInicio = horaInicio; osRef.horarioFim = horaFim;
+
+            // Atualizar view
+            const view = document.getElementById('cab-view-os-' + idx);
+            if (view) {
+                view.innerHTML = `
+                    <span class="badge bg-secondary">${escapeHtml(novaOS)}</span>
+                    <span class="text-muted small">
+                        <i class="fas fa-map-marker-alt me-1"></i>${escapeHtml(local || '-')}
+                        &nbsp;|&nbsp;<i class="fas fa-road me-1"></i>KM ${escapeHtml(kmInicio || '-')} – ${escapeHtml(kmFim || '-')}
+                        &nbsp;|&nbsp;<i class="fas fa-clock me-1"></i>${escapeHtml(horaInicio || '-')} – ${escapeHtml(horaFim || '-')}
+                    </span>
+                    <span class="edit-ctrl" style="${this.modoEdicao ? '' : 'display:none;'}">
+                        <button class="btn btn-link btn-sm p-0 me-1" onclick="editorRDO.mostrarEditCabecalhoOS(${idx})" title="Editar">
+                            <i class="fas fa-pencil-alt" style="font-size:.7rem;"></i>
+                        </button>
+                        <button class="btn btn-outline-danger btn-sm py-0 px-1"
+                                onclick="editorRDO.excluirRDO('${escapeHtml(rdoTarget)}')" title="Excluir RDO">
+                            <i class="fas fa-trash" style="font-size:.7rem;"></i>
+                        </button>
+                    </span>`;
+            }
+            this.cancelarEditCabecalhoOS(idx);
+        });
+    }
+
+    // ── Nota local do dia (localStorage — não vai para o Sheets) ──────────────
+
+    _notaLocalKey() {
+        return 'nota_dia_' + (this.dados?.turma || '') + '_' + (this.dados?.data || '');
+    }
+
+    toggleNotaLocal() {
+        const form  = document.getElementById('nota-local-form');
+        const input = document.getElementById('nota-local-input');
+        if (!form) return;
+        const visible = form.style.display !== 'none';
+        form.style.display = visible ? 'none' : 'block';
+        if (!visible && input) {
+            input.value = localStorage.getItem(this._notaLocalKey()) || '';
+            input.focus();
+        }
+    }
+
+    salvarNotaLocal(btn) {
+        const input = document.getElementById('nota-local-input');
+        const view  = document.getElementById('nota-local-view');
+        if (!input) return;
+        const val = input.value.trim();
+        if (val) localStorage.setItem(this._notaLocalKey(), val);
+        else     localStorage.removeItem(this._notaLocalKey());
+        if (view) {
+            view.innerHTML = val
+                ? escapeHtml(val).replace(/\n/g, '<br>')
+                : '<em class="text-muted small">Nenhuma nota local.</em>';
+        }
+        document.getElementById('nota-local-form').style.display = 'none';
+        const orig = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check me-1"></i>Salvo';
+        setTimeout(() => btn.innerHTML = orig, 1500);
+    }
+
+    /** Carrega a nota local salva no localStorage e atualiza o widget no modal. */
+    _renderNotaLocal() {
+        const el = document.getElementById('nota-local-view');
+        if (!el) return;
+        const nota = localStorage.getItem(this._notaLocalKey()) || '';
+        el.innerHTML = nota
+            ? escapeHtml(nota).replace(/\n/g, '<br>')
+            : '<em class="text-muted small">Nenhuma nota local.</em>';
     }
 
     // ── Serviços — helpers de select ─────────────────────────────────────────
@@ -455,12 +588,21 @@ class EditorRDO {
         if (!descricao) { this._erro('Selecione um serviço'); return; }
         if (!quantidade || isNaN(quantidade) || quantidade <= 0) { this._erro('Quantidade deve ser maior que zero'); return; }
 
-        const osRef = this.dados.hhPorOS?.[0] || {};
+        // Multi-OS: usar a O.S selecionada pelo usuário
+        let osRef = this.dados.hhPorOS?.[0] || {};
+        let rdoAlvoSrv = this.numeroRDO;
+        if (this.dados.multiplosRDOs) {
+            const osSel = document.getElementById('novo-srv-os')?.value;
+            if (osSel) {
+                const match = this.dados.hhPorOS.find(o => (o.numeroRDO || o.numeroOS) === osSel);
+                if (match) { osRef = match; rdoAlvoSrv = match.numeroRDO || rdoAlvoSrv; }
+            }
+        }
 
         await this._comFeedback(btn, async () => {
             await this._api({
                 acao:        'adicionarServico',
-                numeroRDO:   this.numeroRDO,
+                numeroRDO:   rdoAlvoSrv,
                 numeroOS:    osRef.numeroOS    || '',
                 data:        this.dados.data   || '',
                 codigoTurma: this.dados.turma  || '',
@@ -545,7 +687,7 @@ class EditorRDO {
         if (hi.tipo && !tipos.includes(hi.tipo)) tipos.unshift(hi.tipo);
 
         tr.innerHTML = `
-            <td colspan="${this.dados.multiplosRDOs ? 7 : 6}" class="p-2">
+            <td colspan="${this.dados.multiplosRDOs ? 8 : 7}" class="p-2">
                 <div class="row g-2 align-items-center">
                     <div class="col-12 col-md-3">
                         <select id="hi-tipo-${idx}" class="form-select form-select-sm">
@@ -643,12 +785,21 @@ class EditorRDO {
 
         if (!tipo || !horaInicio || !horaFim) { this._erro('Tipo, Hora Início e Hora Fim são obrigatórios'); return; }
 
-        const osRef = this.dados.hhPorOS?.[0] || {};
+        // Multi-OS: usar a O.S selecionada pelo usuário
+        let osRef = this.dados.hhPorOS?.[0] || {};
+        let rdoAlvoHI = this.numeroRDO;
+        if (this.dados.multiplosRDOs) {
+            const osSel = document.getElementById('nova-hi-os')?.value;
+            if (osSel) {
+                const match = this.dados.hhPorOS.find(o => (o.numeroRDO || o.numeroOS) === osSel);
+                if (match) { osRef = match; rdoAlvoHI = match.numeroRDO || rdoAlvoHI; }
+            }
+        }
 
         await this._comFeedback(btn, async () => {
             await this._api({
                 acao:        'adicionarHI',
-                numeroRDO:   this.numeroRDO,
+                numeroRDO:   rdoAlvoHI,
                 numeroOS:    osRef.numeroOS    || '',
                 data:        this.dados.data   || '',
                 codigoTurma: this.dados.turma  || '',
@@ -685,6 +836,7 @@ class EditorRDO {
 
     _htmlHIRow(idx, hi) {
         const multiplo = this.dados.multiplosRDOs;
+        const dur = this._durDisplay(hi.horaInicio, hi.horaFim);
         return `
             ${multiplo ? `<td><span class="badge bg-secondary">${escapeHtml(hi.numeroOS || '-')}</span></td>` : ''}
             <td>
@@ -694,6 +846,7 @@ class EditorRDO {
             <td>${escapeHtml(hi.descricao || '')}</td>
             <td class="text-center">${escapeHtml(hi.horaInicio)}</td>
             <td class="text-center">${escapeHtml(hi.horaFim)}</td>
+            <td class="text-center text-muted small">${escapeHtml(dur)}</td>
             <td class="text-end"><strong>${escapeHtml(String(hi.hh))}</strong></td>
             <td class="edit-ctrl text-center" style="${this.modoEdicao ? '' : 'display:none'}">
                 <div class="edit-ctrl-btns-hi">${this._htmlHIBtns(idx)}</div>
@@ -724,6 +877,67 @@ class EditorRDO {
                     onclick="editorRDO.excluirHI(${idx})" title="Excluir HI">
                 <i class="fas fa-trash" style="font-size:.75rem;"></i>
             </button>`;
+    }
+
+    // ── Duração e ordenação de HI ─────────────────────────────────────────────
+
+    /** Converte "HH:MM" → minutos totais. */
+    _toMin(t) {
+        const p = (t || '').split(':').map(Number);
+        return (p[0] || 0) * 60 + (p[1] || 0);
+    }
+
+    /** Duração em minutos entre início e fim (suporta overnight). */
+    _calcDurMin(ini, fim) {
+        if (!ini || !fim || ini === '-' || fim === '-') return 0;
+        let dur = this._toMin(fim) - this._toMin(ini);
+        if (dur < 0) dur += 24 * 60;
+        return dur;
+    }
+
+    /** Duração formatada "Xh YYmin" (ou "YYmin" se < 1h). */
+    _durDisplay(ini, fim) {
+        const min = this._calcDurMin(ini, fim);
+        if (min === 0) return '—';
+        const h = Math.floor(min / 60), m = min % 60;
+        if (h > 0 && m > 0) return `${h}h${String(m).padStart(2,'0')}m`;
+        if (h > 0) return `${h}h`;
+        return `${m}min`;
+    }
+
+    /**
+     * Ordena a tabela de HI por duração.
+     * @param {'asc'|'desc'} dir
+     */
+    ordenarHI(dir) {
+        if (this._hiOrdem === dir) {
+            // Segundo clique no mesmo sentido → restaurar ordem original
+            this._hiOrdem = null;
+            this.dados.horasImprodutivas.sort((a, b) => (a._origemIdx || 0) - (b._origemIdx || 0));
+        } else {
+            this._hiOrdem = dir;
+            // Registrar índice original para poder restaurar
+            this.dados.horasImprodutivas.forEach((hi, i) => { hi._origemIdx = hi._origemIdx ?? i; });
+            this.dados.horasImprodutivas.sort((a, b) => {
+                const da = this._calcDurMin(a.horaInicio, a.horaFim);
+                const db = this._calcDurMin(b.horaInicio, b.horaFim);
+                return dir === 'asc' ? da - db : db - da;
+            });
+        }
+
+        const tbody = document.getElementById('tbody-hi');
+        if (!tbody) return;
+        tbody.innerHTML = this.dados.horasImprodutivas
+            .map((hi, i) => `<tr id="hi-row-${i}">${this._htmlHIRow(i, hi)}</tr>`)
+            .join('');
+
+        // Atualizar visuais dos botões de ordem
+        const upBtn   = document.getElementById('hi-sort-asc');
+        const downBtn = document.getElementById('hi-sort-desc');
+        if (upBtn)   upBtn.classList.toggle('btn-secondary', this._hiOrdem === 'asc');
+        if (upBtn)   upBtn.classList.toggle('btn-outline-secondary', this._hiOrdem !== 'asc');
+        if (downBtn) downBtn.classList.toggle('btn-secondary', this._hiOrdem === 'desc');
+        if (downBtn) downBtn.classList.toggle('btn-outline-secondary', this._hiOrdem !== 'desc');
     }
 }
 
