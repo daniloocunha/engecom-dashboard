@@ -279,11 +279,10 @@ com.example.calculadorahh/
 
 ```
 dashboard/
-├── index.html                  # SPA principal (1200+ linhas, Bootstrap 5.3 + Chart.js 4.4)
+├── index.html                  # SPA principal (Bootstrap 5.3 + Chart.js 4.4)
 ├── servicos.json               # Cópia de app/src/main/res/raw/servicos.json (AUTO-GERADO)
 ├── css/
-│   ├── dashboard.css           # Estilos do dashboard
-│   └── minimal-view.css        # Tema minimalista
+│   └── dashboard.css           # Estilos do dashboard
 └── js/
     ├── config.js               # Secrets + constantes (GITIGNORED — ver config.example.js)
     ├── config.example.js       # Template público do config.js
@@ -292,22 +291,21 @@ dashboard/
     ├── field-helper.js         # Normalização de campos (datas ISO, nomes de campos)
     ├── calculations.js         # Cálculos TMC/TP/TS com índices O(1) e merge de HI
     ├── visao-geral.js          # Visão Geral: KPIs, composição de horas, scorecard, perdas
-    ├── calendario-tp.js        # Calendário interativo para turmas TP
-    ├── calendario-ts.js        # Calendário interativo para turmas TS
+    ├── calendario-tp.js        # Calendário interativo para turmas TP (com EditorRDO)
+    ├── calendario-ts.js        # Calendário interativo para turmas TS (com EditorRDO)
+    ├── editor-rdo.js           # EditorRDO: edição in-modal de RDO via Apps Script
     ├── gestao-os.js            # Gestão de Ordens de Serviço com upload de anexos
-    ├── analise-tmc.js          # Análise TMC por turma e período
     ├── period-comparison.js    # Comparação entre períodos
     ├── charts.js               # Wrappers Chart.js com thresholds dinâmicos
     ├── filters.js              # Filtros globais (mês, ano, turma)
     ├── alerts-system.js        # Sistema de alertas com escapeHtml (anti-XSS)
     ├── safe-html.js            # Utilitários de sanitização HTML
-    ├── export.js               # Exportação de dados
-    ├── export-helper.js        # Helpers de exportação
     ├── auth.js                 # Autenticação (SECRET_KEY simples)
-    ├── view-manager.js         # Alternância clássico/minimalista
-    ├── os-auditoria.js         # Auditoria de OS
+    ├── os-auditoria.js         # Auditoria de OS com divisão e correção de OS
     └── servicos-data.js        # Constante JS com serviços (AUTO-GERADO, fallback CORS)
 ```
+
+> **Arquivos removidos (descontinuados):** `css/minimal-view.css`, `js/view-manager.js` (View Minimalista), `js/analise-tmc.js` (Análise TMC), `js/export.js`, `js/export-helper.js` (Exportação sem UI).
 
 ### Key Architectural Components
 
@@ -653,6 +651,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 10
 - **Sheets HEADERS_VERSION**: 6
+- **Dashboard Version**: 2.1.0
 
 ## Release Information
 
@@ -686,6 +685,76 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 > **IMPORTANTE**: Após gerar o APK release, atualizar `hash_md5`, `tamanho_apk_mb`, `versao_recomendada` e `url_download` na aba Config. O `versao_minima` usa `versionCode` (número inteiro), não `versionName`.
 
 ## Version History
+
+### Dashboard 2.1.0 — 2026-05-31
+**Edição In-Modal de RDOs + Limpeza de Código Morto**
+
+**Edição de RDOs diretamente pelo Dashboard (editor-rdo.js):**
+- `EditorRDO` — classe singleton que gerencia edição in-modal sem sair do calendário
+- Modo de edição ativo/inativo por botão "Editar" no rodapé de cada modal
+- Cabeçalho da RDO editável (OS, Local, KM Início/Fim, Hora Início/Fim)
+- Quando O.S muda, renomeia o Número RDO em cascata em **todas** as abas do Sheets via `renomearRDO`
+- Serviços: editar (spinner com ~104 serviços + coeficiente), excluir, adicionar
+- Horas Improdutivas: editar tipo/horários, excluir, adicionar
+- Observações da RDO: editar e salvar no Sheets
+- **Nota Local do Dia**: anotação privada por dia/turma, salva no `localStorage`, não vai para o Sheets
+- Excluir RDO (marca `Deletado = "Sim"` — não apaga fisicamente)
+- Dividir O.S: divide um RDO em dois, movendo serviços e HI selecionados para o novo RDO
+
+**Multi-O.S no mesmo dia (TP):**
+- Cada O.S exibe formulário de edição inline independente (antes só tinha botão excluir)
+- Formulários "Adicionar Serviço" e "Adicionar HI" exibem seletor "O.S destino" quando há múltiplas OS
+
+**Spinner de serviços:**
+- Seleção por `<select>` populado com `SERVICOS_BASE` (todos os ~104 serviços)
+- Preview de HH calculado em tempo real ao mudar serviço ou quantidade
+
+**Ordenação de HI por duração:**
+- Coluna "Dur." adicionada na tabela de HI dos calendários TP e TS
+- Botões ▲▼ ordenam por duração; segundo clique restaura ordem original
+- Mesmos botões na tabela de Apontamentos da Visão Geral (ordena por Duração e HH)
+
+**Cabeçalho do calendário TP/TS reorganizado:**
+- TP: 2 linhas com 6 métricas — Dias Trabalhados, Média Op, Nº O.S / HH Produtivas, HH Improdutivas, HH Total
+- TS: mesmo padrão com HH Produtivas (HH Soldador), Dias Trabalhados, SLA%
+- `calcularEstatisticasTurma` agora retorna `diasTrabalhados` e `hhProdutivas`
+
+**Navegação Qualidade dos Dados → Calendário:**
+- Clicar no Número RDO em "Qualidade dos Dados" navega automaticamente ao dia no calendário TP/TS
+
+**Apontamentos HI (Visão Geral):**
+- Modal ampliado de `modal-lg` para `modal-xl`
+- Coluna Turma adicionada (badge cinza) entre Data e Número RDO
+- Clicar em qualquer linha navega ao dia no calendário correspondente
+
+**Offcanvas de Serviços (Visão Geral):**
+- Largura padrão aumentada de 760 px para 1000 px
+
+**Limpeza de código morto:**
+- Removidos: `css/minimal-view.css`, `js/view-manager.js` (View Minimalista descontinuada)
+- Removidos: `js/analise-tmc.js` (Análise TMC descontinuada)
+- Removidos: `js/export.js`, `js/export-helper.js` (sem UI nem chamadores)
+- `index.html`: removidos bloco minimalView, toggle Clássico/Minimalista, botão flutuante
+
+**Bug fixes (relatório de revisão externa):**
+- Loading overlay não trava mais em erros de `aplicarFiltros()` / `recarregar()` (faltava `finally`)
+- Botão "Aplicar Filtros" volta ao azul após aplicação bem-sucedida (`resetarBotao()`)
+- `charts.js`: canvas não é mais destruído em estado vazio — `_restaurarCanvas()` preserva o elemento
+- Rodapé atualizado de `v1.0.0` para `v2.0.1`
+
+**Apps Script (proxy de escrita):**
+- `renomearRDO`: renomeia Número RDO e Número OS em cascata nas 7 abas do Sheets
+- `dividirOS`: divide um RDO em dois, duplica Efetivo, move Serviços e HI para o novo RDO
+- `atualizarCampoRDO`: atualiza campos do cabeçalho (Local, OS, KM, Horário, Observações)
+- `atualizarServico`, `adicionarServico`, `excluirServico`: CRUD de serviços
+- `atualizarHI`, `adicionarHI`, `excluirHI`: CRUD de Horas Improdutivas
+- `deletarRDO`: marca RDO como deletado
+- Bug fix: roteamento `renomearRDO` usava `acao` não definido (corrigido para `dados.acao`)
+- Bug fix: `dividirOS` recebia argumentos separados mas esperava objeto (corrigido para `dividirOS(dados)`)
+- Bug fix: `renomearRDO` e `dividirOS` usavam `openById(SPREADSHEET_ID)` indefinido (corrigido para `getActiveSpreadsheet()`)
+- Removidas 5 funções mortas: `_dividirOSInterno`, `_moverLinhasParaNovoRDO`, `_proximoSequencial`, `_escreverIgnorandoValidacao`, `_adicionarOSNaValidacao`
+
+---
 
 ### Version 5.1.6 (versionCode 23) - 2026-05-27
 **Programa de Qualidade — Bug Fixes & Limpeza de Código**

@@ -94,16 +94,24 @@ dashboard/
 │   ├── charts.js           # Chart rendering (Chart.js wrapper)
 │   ├── filters.js          # Filter utilities
 │   ├── main.js             # DashboardMain class - orchestration
-│   ├── acompanhamento-diario.js  # Daily tracking module
-│   ├── analise-tmc.js      # TMC analysis module
-│   ├── calendario-tp.js    # TP calendar visualization
-│   ├── calendario-ts.js    # TS calendar visualization
+│   ├── editor-rdo.js       # EditorRDO — edição in-modal de RDOs via Apps Script
+│   ├── calendario-tp.js    # TP calendar visualization + EditorRDO integration
+│   ├── calendario-ts.js    # TS calendar visualization + EditorRDO integration
+│   ├── visao-geral.js      # Visão Geral: KPIs, scorecard, perdas, qualidade
+│   ├── gestao-os.js        # Gestão de OS com upload de anexos
+│   ├── os-auditoria.js     # Auditoria de OS (suspeitas, dividir, corrigir)
+│   ├── period-comparison.js # Comparação entre períodos
+│   ├── alerts-system.js    # Sistema de alertas com anti-XSS
+│   ├── safe-html.js        # Utilitários de sanitização HTML
+│   ├── field-helper.js     # Normalização de campos (datas ISO, nomes)
 │   └── servicos-data.js    # ❌ GENERATED - service coefficients fallback
 │
 ├── servicos.json           # ❌ GENERATED - service coefficients via HTTP
 │
 └── [Documentation files]   # README.md, FLUXO_DE_DADOS.md, etc.
 ```
+
+> **Arquivos removidos (descontinuados em 2026-05-31):** `css/minimal-view.css`, `js/view-manager.js` (View Minimalista), `js/analise-tmc.js` (Análise TMC), `js/export.js`, `js/export-helper.js`.
 
 ### Key Classes
 
@@ -178,10 +186,15 @@ renderizarHeatmap()          // Daily productivity heatmap
 - Shows service details and unproductive hours per day
 - Provides day-by-day progress view
 
-**analise-tmc.js**: TMC-specific analysis and reporting
-- Deep dive into TMC team performance
-- Staff utilization analysis
-- Equipment usage tracking
+**editor-rdo.js**: EditorRDO — Edição in-modal de RDOs
+- Classe singleton `EditorRDO` (instância global `editorRDO`)
+- Ativado via botão "Editar" no rodapé dos modais de Detalhes do Dia
+- Edição de cabeçalho: OS, Local, KM Início/Fim, Hora Início/Fim (single e multi-OS)
+- CRUD de Serviços (spinner com SERVICOS_BASE + preview HH em tempo real)
+- CRUD de Horas Improdutivas (tipos Android, ordenação por duração)
+- Nota Local do Dia: anotação privada em `localStorage`
+- Renomear Número RDO em cascata quando O.S muda (`renomearRDO` Apps Script)
+- Excluir RDO (marca Deletado = "Sim" no Sheets)
 
 **calendario-tp.js**: TP calendar visualization
 - Monthly calendar view for TP teams
@@ -672,6 +685,43 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.1.0 (2026-05-31)** - Edição In-Modal de RDOs + Limpeza:
+
+**Novo módulo `editor-rdo.js` (classe EditorRDO):**
+- Edição completa de RDOs diretamente nos modais dos Calendários TP e TS
+- Cabeçalho (OS, Local, KM, Horário) editável — renomeia Número RDO em cascata quando OS muda
+- Multi-OS: formulários inline por O.S + seletor "O.S destino" nos formulários de adição
+- Serviços: spinner com todos os ~104 serviços (SERVICOS_BASE) + preview HH em tempo real
+- HI: tabela com coluna Duração calculada + botões ▲▼ para ordenar por duração
+- Nota Local do Dia: anotação privada por turma/data em `localStorage`
+- Excluir RDO / Dividir OS
+
+**Visão Geral — melhorias:**
+- Apontamentos HI: modal ampliado para `modal-xl`, coluna Turma adicionada
+- Apontamentos HI: clicar em linha navega ao Calendário TP/TS e abre o dia
+- Apontamentos HI: botões ▲▼ para ordenar por Duração e por HH
+- Qualidade dos Dados: clicar em Número RDO navega ao dia no calendário
+- Offcanvas de Serviços: largura padrão 760 → 1000 px
+
+**Cabeçalho dos calendários TP/TS:**
+- TP: 6 métricas em 2 linhas (Dias Trabalhados, Média Op, Nº OS / HH Produtivas, HH Impr, HH Total)
+- TS: rótulo "HH Produtivas" (antes "HH Soldador")
+
+**Bug fixes (relatório de revisão externa):**
+- Loading overlay não trava mais em erros de `aplicarFiltros()` / `recarregar()`
+- Botão "Aplicar Filtros" volta ao estado primário após sucesso (`resetarBotao()`)
+- `charts.js`: canvas preservado em estado vazio (`_restaurarCanvas()`), não mais destruído
+- Rodapé atualizado para `v2.0.1`
+
+**Limpeza de código morto:**
+- Removidos: View Minimalista (view-manager.js + minimal-view.css), Análise TMC (analise-tmc.js), Exportação (export.js + export-helper.js)
+
+**Apps Script (proxy de escrita) — novo e corrigido:**
+- Funções: `renomearRDO`, `dividirOS`, `atualizarCampoRDO`, `atualizarServico`, `adicionarServico`, `excluirServico`, `atualizarHI`, `adicionarHI`, `excluirHI`, `deletarRDO`
+- Bugs corrigidos: roteamento `renomearRDO` (`acao` → `dados.acao`), `dividirOS` args, `openById(SPREADSHEET_ID)` → `getActiveSpreadsheet()`
+
+---
+
 **Version 2.0.1 (2026-05-27)** - Bug Fixes (Programa de Qualidade):
 - Fix: `visao-geral.js` — TypeError ao trocar sub-abas TP/TS (método `_renderizarGraficoEvolucao` nunca implementado)
 - Fix: `visao-geral.js` — label "% Meta" corrigido para incluir HH Improdutivo no cálculo
@@ -741,7 +791,7 @@ if (tipo.includes('NovoTipo')) {
 
 ## Version Information
 
-- **Current Version**: 2.0.1
+- **Current Version**: 2.1.0
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)
