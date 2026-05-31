@@ -148,7 +148,7 @@ class VisaoGeral {
                     const hiDesc = hi['Descrição'] || hi.descricao || '';
                     const chave = tipo || hiDesc || 'Outros';
                     const nc    = this._isNaoControlavel(tipo, hiDesc);
-                    const reg   = { numRDO, data: dataNorm, horaInicio: inicio, horaFim: fim, operadores: op, hh, descricao: hiDesc };
+                    const reg   = { numRDO, data: dataNorm, turma: turmaId, horaInicio: inicio, horaFim: fim, operadores: op, hh, descricao: hiDesc };
                     [perdasGlobal, perdasTurma].forEach(m => {
                         if (!m[chave]) m[chave] = { hh: 0, count: 0, tipo, controlavel: !nc, registros: [] };
                         m[chave].hh += hh; m[chave].count++;
@@ -1225,7 +1225,7 @@ class VisaoGeral {
         // Forçar largura com !important para sobrescrever CSS estático do Bootstrap build
         let savedW = 0;
         try { savedW = parseInt(localStorage.getItem('vg_oc_width') || '0'); } catch (_) { /* private browsing */ }
-        const initW  = savedW > 0 ? savedW : Math.min(760, Math.round(window.innerWidth * 0.9));
+        const initW  = savedW > 0 ? savedW : Math.min(1000, Math.round(window.innerWidth * 0.9));
         el.style.setProperty('width', `${initW}px`, 'important');
         el.style.transition = 'none';
 
@@ -1650,6 +1650,7 @@ class VisaoGeral {
         const renderRows = arr => arr.map(r => `
             <tr>
                 <td style="font-size:.78rem;white-space:nowrap;">${escapeHtml(r.data || '–')}</td>
+                <td style="font-size:.78rem;white-space:nowrap;"><span class="badge bg-secondary bg-opacity-75">${escapeHtml(r.turma || '–')}</span></td>
                 <td style="font-size:.78rem;white-space:nowrap;">${escapeHtml(r.numRDO || '–')}</td>
                 <td style="font-size:.78rem;">${r.horaInicio || '–'} → ${r.horaFim || '–'}</td>
                 <td class="text-center text-muted" style="font-size:.78rem;">${fmtDur(r.horaInicio, r.horaFim)}</td>
@@ -1699,7 +1700,7 @@ class VisaoGeral {
 
         const html = `
         <div class="modal fade" id="${existingId}" tabindex="-1" aria-hidden="true">
-          <div class="modal-dialog modal-lg modal-dialog-scrollable">
+          <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
               <div class="modal-header py-2 px-3" style="background:${isNC?'#C62828':'#FF7043'};color:#fff;">
                 <h6 class="modal-title mb-0">
@@ -1713,6 +1714,7 @@ class VisaoGeral {
                   <thead class="table-light" style="position:sticky;top:0;z-index:1;">
                     <tr>
                       <th style="font-size:.72rem;">Data</th>
+                      <th style="font-size:.72rem;">Turma</th>
                       <th style="font-size:.72rem;">Número RDO</th>
                       <th style="font-size:.72rem;">Horário</th>
                       <th class="text-center" style="font-size:.72rem;">
@@ -1728,7 +1730,7 @@ class VisaoGeral {
                   <tbody id="vg-hi-aptm-tbody">${renderRows(_regsOrdenados)}</tbody>
                   <tfoot class="table-light">
                     <tr>
-                      <td colspan="6" class="text-end fw-semibold" style="font-size:.78rem;">Total</td>
+                      <td colspan="7" class="text-end fw-semibold" style="font-size:.78rem;">Total</td>
                       <td class="text-end fw-bold text-danger" style="font-size:.78rem;">${regs.reduce((a,r)=>a+r.hh,0).toFixed(2)} HH</td>
                     </tr>
                   </tfoot>
