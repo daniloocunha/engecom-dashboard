@@ -565,6 +565,7 @@ class VisaoGeral {
 
         datasets.forEach(ds => { ds.barThickness = 60; });
 
+        const metaComposicao = totais.metaMensal || 0;
         this._charts[id] = new Chart(canvas, {
             type: 'bar',
             data: { labels: [''], datasets },
@@ -578,13 +579,13 @@ class VisaoGeral {
                         callbacks: {
                             label: ctx => {
                                 const v   = ctx.raw;
-                                const tot = totais.metaMensal || 1;
+                                const tot = metaComposicao || 1;
                                 return ` ${ctx.dataset.label} — ${(v/tot*100).toFixed(1)}% da meta`;
                             }
                         }
                     },
                     datalabels: {
-                        display: ctx => ctx.raw > (totais.metaMensal * 0.03),
+                        display: ctx => ctx.raw > (metaComposicao * 0.03),
                         color: ctx => {
                             const bg = ctx.dataset.backgroundColor;
                             const dark = ['#1565C0','#B71C1C','#E53935','#E65100'];
@@ -596,11 +597,32 @@ class VisaoGeral {
                 },
                 scales: {
                     x: { stacked: true, display: true, title: { display: true, text: 'HH' },
-                         max: Math.ceil(Math.max(totais.metaMensal, totais.hhServicos + totais.hhImprodutivas) * 1.05) },
+                         max: Math.ceil(Math.max(metaComposicao, totais.hhServicos + totais.hhImprodutivas) * 1.05) },
                     y: { stacked: true, display: false },
                 },
             },
-            plugins: [ChartDataLabels],
+            plugins: [ChartDataLabels, {
+                id: 'metaLineComp',
+                afterDraw: chart => {
+                    if (!metaComposicao) return;
+                    const { ctx, chartArea, scales: { x } } = chart;
+                    const xPx = x.getPixelForValue(metaComposicao);
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(xPx, chartArea.top);
+                    ctx.lineTo(xPx, chartArea.bottom);
+                    ctx.strokeStyle = '#dc3545';
+                    ctx.lineWidth   = 2;
+                    ctx.setLineDash([6, 4]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.fillStyle  = '#dc3545';
+                    ctx.font       = 'bold 10px sans-serif';
+                    ctx.textAlign  = 'center';
+                    ctx.fillText('META', xPx, chartArea.top - 4);
+                    ctx.restore();
+                }
+            }],
         });
     }
 
@@ -744,6 +766,7 @@ class VisaoGeral {
 
         const chartH = Math.max(300, labels.length * 80);
         canvas.parentElement.style.height = `${chartH}px`;
+        const metaDia = isTP ? METAS.META_DIARIA_TP : METAS.META_DIARIA_TS;
 
         this._charts[id] = new Chart(canvas, {
             type: 'bar',
@@ -772,7 +795,29 @@ class VisaoGeral {
                     y: { stacked: true, ticks: { font: { size: 13 } } },
                 },
             },
-            plugins: [ChartDataLabels],
+            plugins: [ChartDataLabels, {
+                id: 'metaLineProd',
+                afterDraw: chart => {
+                    // Linha de meta visível apenas na escala "por dia"
+                    if (escala !== 'por_dia') return;
+                    const { ctx, chartArea, scales: { x } } = chart;
+                    const xPx = x.getPixelForValue(metaDia);
+                    ctx.save();
+                    ctx.beginPath();
+                    ctx.moveTo(xPx, chartArea.top);
+                    ctx.lineTo(xPx, chartArea.bottom);
+                    ctx.strokeStyle = '#dc3545';
+                    ctx.lineWidth   = 2;
+                    ctx.setLineDash([6, 4]);
+                    ctx.stroke();
+                    ctx.setLineDash([]);
+                    ctx.fillStyle  = '#dc3545';
+                    ctx.font       = 'bold 10px sans-serif';
+                    ctx.textAlign  = 'center';
+                    ctx.fillText(`META ${metaDia}`, xPx, chartArea.top - 4);
+                    ctx.restore();
+                }
+            }],
         });
     }
 
@@ -1509,17 +1554,17 @@ class VisaoGeral {
             ${turma.ordens?.length > 0 ? `
             <div class="border-top p-3">
                 <p class="small text-muted fw-semibold mb-2"><i class="fas fa-clipboard-list me-1 text-info"></i>Ordens de Serviço (${turma.ordens.length})</p>
-                <div style="max-height:240px;overflow-y:auto;">
+                <div style="max-height:420px;overflow-y:auto;">
                     <table class="table table-sm table-hover mb-0">
                         <thead class="table-light" style="position:sticky;top:0;z-index:1;">
                             <tr>
-                                <th style="font-size:.72rem;">O.S</th>
-                                <th style="font-size:.72rem;">KM</th>
-                                <th style="font-size:.72rem;">Data(s)</th>
-                                <th style="font-size:.72rem;">Local</th>
-                                <th class="text-end" style="font-size:.72rem;width:60px;">HH Prod</th>
-                                <th class="text-end" style="font-size:.72rem;width:50px;">HI</th>
-                                <th class="text-end" style="font-size:.72rem;width:50px;">Total</th>
+                                <th style="font-size:.78rem;">O.S</th>
+                                <th style="font-size:.78rem;">KM</th>
+                                <th style="font-size:.78rem;">Data(s)</th>
+                                <th style="font-size:.78rem;">Local</th>
+                                <th class="text-end" style="font-size:.78rem;">HH Prod</th>
+                                <th class="text-end" style="font-size:.78rem;">HI</th>
+                                <th class="text-end" style="font-size:.78rem;">Total</th>
                             </tr>
                         </thead>
                         <tbody>${turma.ordens.map(o => {
@@ -1531,13 +1576,13 @@ class VisaoGeral {
                             });
                             const kmLabel = (o.kmInicio && o.kmFim) ? `${escapeHtml(o.kmInicio)}–${escapeHtml(o.kmFim)}` : (o.kmInicio ? escapeHtml(o.kmInicio) : '—');
                             return `<tr style="cursor:pointer;" onclick="visaoGeral._abrirDetalheOS('${escAttr(turma.turma)}', '${escAttr(o.os)}', '${escAttr(isTP ? 'tp' : 'ts')}')">
-                                <td class="fw-bold text-primary small">${escapeHtml(o.os)} <i class="fas fa-external-link-alt ms-1" style="font-size:.5rem;opacity:.4;"></i></td>
-                                <td class="small text-muted">${kmLabel}</td>
-                                <td class="small text-muted">${datasUnicas.length > 2 ? datasUnicas[0]+' … '+datasUnicas[datasUnicas.length-1] : datasUnicas.join(', ')}</td>
-                                <td class="small text-truncate" style="max-width:100px;" title="${escAttr(o.local)}">${escapeHtml(o.local || '-')}</td>
-                                <td class="text-end fw-bold small text-primary">${o.hhProd.toFixed(1)}</td>
-                                <td class="text-end small text-warning">${o.hhImpr.toFixed(1)}</td>
-                                <td class="text-end small fw-bold">${totalOS.toFixed(1)}</td>
+                                <td class="fw-bold text-primary" style="font-size:.82rem;">${escapeHtml(o.os)} <i class="fas fa-external-link-alt ms-1" style="font-size:.55rem;opacity:.4;"></i></td>
+                                <td style="font-size:.8rem;" class="text-muted">${kmLabel}</td>
+                                <td style="font-size:.8rem;" class="text-muted">${datasUnicas.length > 2 ? datasUnicas[0]+' … '+datasUnicas[datasUnicas.length-1] : datasUnicas.join(', ')}</td>
+                                <td style="font-size:.8rem;max-width:110px;" class="text-truncate" title="${escAttr(o.local)}">${escapeHtml(o.local || '-')}</td>
+                                <td class="text-end fw-bold text-primary" style="font-size:.82rem;">${o.hhProd.toFixed(1)}</td>
+                                <td class="text-end text-warning" style="font-size:.82rem;">${o.hhImpr.toFixed(1)}</td>
+                                <td class="text-end fw-bold" style="font-size:.82rem;">${totalOS.toFixed(1)}</td>
                             </tr>`;
                         }).join('')}</tbody>
                     </table>
@@ -1591,14 +1636,17 @@ class VisaoGeral {
         this._destroyChart('vg-oc-chart-serv');
         const canvas = document.getElementById('vg-oc-chart-serv');
         if (!canvas) return;
-        const isTP   = dados.tipoTurma === 'TP';
+        const isTP     = dados.tipoTurma === 'TP';
+        const suffix   = isTP ? 'tp' : 'ts';
+        const turmaId  = turma.turma;
         const classPDM = isTP ? 'PDM_TPS' : 'PDM_SOLDA';
-        const top8   = turma.servicos.slice(0, 8);
+        const top8     = turma.servicos.slice(0, 8);
         if (!top8.length) return;
-        const labels = top8.map(s => s.descricao.length > 25 ? s.descricao.substring(0,23)+'…' : s.descricao);
-        const vals   = top8.map(s => +s.hh.toFixed(1));
-        const colors = top8.map(s => s.classificacao === classPDM ? '#1976D2' : '#64B5F6');
-        canvas.height = Math.max(160, top8.length * 32);
+        const fullDesc = top8.map(s => s.descricao); // descrições originais para o drill-down
+        const labels   = top8.map(s => s.descricao.length > 25 ? s.descricao.substring(0,23)+'…' : s.descricao);
+        const vals     = top8.map(s => +s.hh.toFixed(1));
+        const colors   = top8.map(s => s.classificacao === classPDM ? '#1976D2' : '#64B5F6');
+        canvas.height  = Math.max(160, top8.length * 32);
         this._charts['vg-oc-chart-serv'] = new Chart(canvas, {
             type: 'bar',
             data: { labels, datasets: [{ data: vals, backgroundColor: colors, borderWidth: 0 }] },
@@ -1606,11 +1654,25 @@ class VisaoGeral {
                 indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                 plugins: {
                     legend: { display: false },
+                    subtitle: {
+                        display: true,
+                        text: 'Clique para ver detalhes do serviço',
+                        font: { size: 10 },
+                        color: '#6c757d',
+                        padding: { bottom: 4 }
+                    },
                     tooltip: { callbacks: { label: ctx => ` ${ctx.raw.toFixed(1)} HH` } },
                     datalabels: {
                         anchor: 'end', align: 'right', color: '#333', font: { size: 10 },
                         formatter: v => v.toFixed(0),
                     },
+                },
+                onClick: (event, elements) => {
+                    if (!elements.length) return;
+                    this._abrirDrilldownServico(suffix, fullDesc[elements[0].index], turmaId);
+                },
+                onHover: (event, elements) => {
+                    event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
                 },
                 scales: {
                     x: { beginAtZero: true, title: { display: true, text: 'HH' } },

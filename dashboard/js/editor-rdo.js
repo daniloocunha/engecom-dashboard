@@ -350,52 +350,6 @@ class EditorRDO {
         });
     }
 
-    // ── Nota local do dia (localStorage — não vai para o Sheets) ──────────────
-
-    _notaLocalKey() {
-        return 'nota_dia_' + (this.dados?.turma || '') + '_' + (this.dados?.data || '');
-    }
-
-    toggleNotaLocal() {
-        const form  = document.getElementById('nota-local-form');
-        const input = document.getElementById('nota-local-input');
-        if (!form) return;
-        const visible = form.style.display !== 'none';
-        form.style.display = visible ? 'none' : 'block';
-        if (!visible && input) {
-            input.value = localStorage.getItem(this._notaLocalKey()) || '';
-            input.focus();
-        }
-    }
-
-    salvarNotaLocal(btn) {
-        const input = document.getElementById('nota-local-input');
-        const view  = document.getElementById('nota-local-view');
-        if (!input) return;
-        const val = input.value.trim();
-        if (val) localStorage.setItem(this._notaLocalKey(), val);
-        else     localStorage.removeItem(this._notaLocalKey());
-        if (view) {
-            view.innerHTML = val
-                ? escapeHtml(val).replace(/\n/g, '<br>')
-                : '<em class="text-muted small">Nenhuma nota local.</em>';
-        }
-        document.getElementById('nota-local-form').style.display = 'none';
-        const orig = btn.innerHTML;
-        btn.innerHTML = '<i class="fas fa-check me-1"></i>Salvo';
-        setTimeout(() => btn.innerHTML = orig, 1500);
-    }
-
-    /** Carrega a nota local salva no localStorage e atualiza o widget no modal. */
-    _renderNotaLocal() {
-        const el = document.getElementById('nota-local-view');
-        if (!el) return;
-        const nota = localStorage.getItem(this._notaLocalKey()) || '';
-        el.innerHTML = nota
-            ? escapeHtml(nota).replace(/\n/g, '<br>')
-            : '<em class="text-muted small">Nenhuma nota local.</em>';
-    }
-
     // ── Serviços — helpers de select ─────────────────────────────────────────
 
     /** Constrói <option> elements a partir de SERVICOS_BASE global. */

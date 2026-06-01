@@ -417,8 +417,13 @@ class DashboardCharts {
                 responsive: true,
                 maintainAspectRatio: true,
                 plugins: {
-                    legend: {
-                        position: 'top'
+                    legend: { position: 'top' },
+                    subtitle: {
+                        display: true,
+                        text: 'Clique numa barra para ver detalhes da turma',
+                        font: { size: 11 },
+                        color: '#6c757d',
+                        padding: { bottom: 6 }
                     },
                     tooltip: {
                         callbacks: {
@@ -430,16 +435,22 @@ class DashboardCharts {
                         }
                     }
                 },
+                onClick: (event, elements) => {
+                    if (!elements.length) return;
+                    const turma = labels[elements[0].index];
+                    if (turma && typeof visaoGeral !== 'undefined') {
+                        visaoGeral._abrirDetalhesTurma(turma, 'tp');
+                    }
+                },
+                onHover: (event, elements) => {
+                    event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+                },
                 scales: {
-                    x: {
-                        stacked: true
-                    },
+                    x: { stacked: true },
                     y: {
                         stacked: true,
                         beginAtZero: true,
-                        ticks: {
-                            callback: (value) => value + ' HH'
-                        }
+                        ticks: { callback: (value) => value + ' HH' }
                     }
                 }
             }
@@ -1224,8 +1235,13 @@ class DashboardCharts {
                 responsive: true,
                 maintainAspectRatio: true,
                 plugins: {
-                    legend: {
-                        position: 'top'
+                    legend: { position: 'top' },
+                    subtitle: {
+                        display: true,
+                        text: 'Clique numa barra para ver detalhes da turma',
+                        font: { size: 11 },
+                        color: '#6c757d',
+                        padding: { bottom: 6 }
                     },
                     tooltip: {
                         callbacks: {
@@ -1235,16 +1251,22 @@ class DashboardCharts {
                         }
                     }
                 },
+                onClick: (event, elements) => {
+                    if (!elements.length) return;
+                    const turma = labels[elements[0].index];
+                    if (turma && typeof visaoGeral !== 'undefined') {
+                        visaoGeral._abrirDetalhesTurma(turma, 'ts');
+                    }
+                },
+                onHover: (event, elements) => {
+                    event.native.target.style.cursor = elements.length ? 'pointer' : 'default';
+                },
                 scales: {
-                    x: {
-                        stacked: true
-                    },
+                    x: { stacked: true },
                     y: {
                         stacked: true,
                         beginAtZero: true,
-                        ticks: {
-                            callback: (value) => formatarMoeda(value)
-                        }
+                        ticks: { callback: (value) => formatarMoeda(value) }
                     }
                 }
             }

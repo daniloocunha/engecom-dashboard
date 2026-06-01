@@ -15,13 +15,14 @@ class CalendarioTP {
     /**
      * Carrega dados
      */
-    carregarDados(rdos, servicos, horasImprodutivas, efetivos) {
+    carregarDados(rdos, servicos, horasImprodutivas, efetivos, notas) {
         this.dados = {
             rdos: rdos || [],
             servicos: servicos || [],
             horasImprodutivas: horasImprodutivas || [],
             efetivos: efetivos || []
         };
+        this.notas = notas || [];
     }
 
     /**
@@ -221,11 +222,20 @@ class CalendarioTP {
 
         // Buscar TODOS os RDOs do dia (pode haver mais de um quando a turma
         // trabalha em duas O.S e gera dois RDOs para a mesma data)
-        const rdosDia = this.dados.rdos.filter(rdo => {
+        const _rdosDiaBruto = this.dados.rdos.filter(rdo => {
             const codigoTurma = rdo['Código Turma'] || rdo.codigoTurma || '';
             const data        = rdo.Data || rdo.data || '';
             const deletado    = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
             return codigoTurma === turma && data === dataFormatada && deletado !== 'sim';
+        });
+        // Deduplicar por Número RDO — duplicatas reais (mesmo Número RDO) são
+        // ignoradas para evitar que renomear/excluir afete dois registros ao mesmo tempo
+        const _rdosVistos = new Set();
+        const rdosDia = _rdosDiaBruto.filter(rdo => {
+            const n = (rdo['Número RDO'] || rdo.numeroRDO || '').trim();
+            if (_rdosVistos.has(n)) return false;
+            _rdosVistos.add(n);
+            return true;
         });
 
         if (rdosDia.length === 0) return null;
@@ -547,11 +557,18 @@ class CalendarioTP {
                     </div>
                 `;
             } else {
-                // Dia sem trabalho
+                // Dia sem trabalho — verificar nota no Sheets (cache local)
+                const _dataFmtNota = `${String(dia).padStart(2,'0')}/${String(this.mesAtual).padStart(2,'0')}/${this.anoAtual}`;
+                const _notaSemRDO = (this.notas || []).find(n => n.turma === turma && n.data === _dataFmtNota)?.nota || '';
                 html += `
-                    <div class="calendario-dia sem-trabalho">
+                    <div class="calendario-dia sem-trabalho${_notaSemRDO ? ' tem-nota-local' : ''}"
+                         data-turma="${escapeHtml(turma)}" data-dia="${dia}" data-mes="${this.mesAtual}" data-ano="${this.anoAtual}"
+                         onclick="calendarioTP.abrirNotaDiaSemRDO(this.dataset.turma, +this.dataset.dia, +this.dataset.mes, +this.dataset.ano)"
+                         style="cursor:pointer;" title="${_notaSemRDO ? escapeHtml(_notaSemRDO) : 'Adicionar nota (feriado, folga…)'}">
                         <div class="dia-numero">${dia}</div>
-                        <div class="dia-status">-</div>
+                        ${_notaSemRDO
+                            ? `<div class="dia-nota-sem-rdo">📝 ${escapeHtml(_notaSemRDO.substring(0, 22))}${_notaSemRDO.length > 22 ? '…' : ''}</div>`
+                            : '<div class="dia-status" style="opacity:.25;font-size:.6rem;margin-top:4px;">+ nota</div>'}
                     </div>
                 `;
             }
@@ -1035,24 +1052,6 @@ class CalendarioTP {
                                 </div>
                             </div>
 
-                            <!-- Nota local do dia (salva no navegador — não vai para o Sheets) -->
-                            <div class="alert mb-0" style="background:#f3e8ff; border-color:#9c27b0; color:#4a0072;">
-                                <h6 class="alert-heading d-flex align-items-center gap-2" style="color:#4a0072;">
-                                    <i class="fas fa-sticky-note me-1"></i>Nota Local do Dia
-                                    <span class="badge" style="background:#9c27b0; font-size:.6rem;">salvo no navegador</span>
-                                    <button class="btn btn-sm py-0 ms-auto" style="color:#4a0072;" onclick="editorRDO.toggleNotaLocal()">
-                                        <i class="fas fa-pencil-alt" style="font-size:.75rem;"></i>
-                                    </button>
-                                </h6>
-                                <div id="nota-local-view" class="small"></div>
-                                <div id="nota-local-form" style="display:none;" class="mt-2">
-                                    <textarea id="nota-local-input" class="form-control form-control-sm mb-2" rows="2" placeholder="Anotação particular sobre este dia..."></textarea>
-                                    <div class="d-flex gap-2">
-                                        <button class="btn btn-sm" style="background:#9c27b0; color:#fff;" onclick="editorRDO.salvarNotaLocal(this)"><i class="fas fa-save me-1"></i>Salvar nota</button>
-                                        <button class="btn btn-sm btn-outline-secondary" onclick="editorRDO.toggleNotaLocal()"><i class="fas fa-times me-1"></i>Cancelar</button>
-                                    </div>
-                                </div>
-                            </div>
                         </div>
                         <div class="modal-footer">
                             <button id="btn-toggle-edicao" type="button" class="btn btn-outline-warning me-auto"
@@ -1082,10 +1081,9 @@ class CalendarioTP {
         const modal = new bootstrap.Modal(document.getElementById('modalDetalhesDia'));
         modal.show();
 
-        // Renderizar gráficos e nota local após o modal ser exibido
+        // Renderizar gráficos após o modal ser exibido
         setTimeout(() => {
             this.renderizarGraficosModal(dados);
-            editorRDO._renderNotaLocal();
         }, 100);
     }
 
@@ -1250,6 +1248,82 @@ class CalendarioTP {
 
         container.innerHTML = html;
         debugLog('[CalendarioTP] Calendários renderizados com sucesso');
+    }
+
+    /**
+     * Abre um pequeno modal para anotar observações em dias sem RDO (feriados, folgas…).
+     * A nota é salva no Google Sheets via Apps Script — visível em todos os dispositivos.
+     */
+    abrirNotaDiaSemRDO(turma, dia, mes, ano) {
+        const dataFmt   = `${String(dia).padStart(2,'0')}/${String(mes).padStart(2,'0')}/${ano}`;
+        const notaAtual = (this.notas || []).find(n => n.turma === turma && n.data === dataFmt)?.nota || '';
+
+        const modalId = 'modalNotaSemRDO';
+        document.getElementById(modalId)?.remove();
+
+        document.body.insertAdjacentHTML('beforeend', `
+            <div class="modal fade" id="${modalId}" tabindex="-1">
+                <div class="modal-dialog modal-sm">
+                    <div class="modal-content">
+                        <div class="modal-header py-2" style="background:#9c27b0;color:#fff;">
+                            <h6 class="modal-title mb-0">
+                                <i class="fas fa-sticky-note me-1"></i>${escapeHtml(dataFmt)} · ${escapeHtml(turma)}
+                            </h6>
+                            <button type="button" class="btn-close btn-close-white btn-sm" data-bs-dismiss="modal"></button>
+                        </div>
+                        <div class="modal-body pb-2">
+                            <label class="form-label small text-muted mb-1">
+                                Observação do dia <span class="badge" style="background:#9c27b0;font-size:.6rem;">Google Sheets</span>
+                            </label>
+                            <textarea id="nota-sem-rdo-input" class="form-control form-control-sm" rows="3"
+                                      placeholder="Ex: Feriado Nacional, Folga compensatória…">${escapeHtml(notaAtual)}</textarea>
+                            <div class="d-flex gap-2 mt-2">
+                                <button id="nota-sem-rdo-salvar" class="btn btn-sm flex-fill" style="background:#9c27b0;color:#fff;">
+                                    <i class="fas fa-save me-1"></i>Salvar
+                                </button>
+                                ${notaAtual ? `<button id="nota-sem-rdo-apagar" class="btn btn-sm btn-outline-danger">
+                                    <i class="fas fa-trash me-1"></i>Apagar
+                                </button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>`);
+
+        const modal = new bootstrap.Modal(document.getElementById(modalId));
+
+        const _salvar = async (val) => {
+            const btn = document.getElementById('nota-sem-rdo-salvar');
+            if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; }
+            try {
+                await editorRDO._api({ acao: 'salvarNotaDia', turma, data: dataFmt, nota: val });
+                // Atualizar cache local
+                const idx = (this.notas || []).findIndex(n => n.turma === turma && n.data === dataFmt);
+                if (val) {
+                    if (idx >= 0) this.notas[idx].nota = val;
+                    else (this.notas = this.notas || []).push({ turma, data: dataFmt, nota: val });
+                } else {
+                    if (idx >= 0) this.notas.splice(idx, 1);
+                }
+                modal.hide();
+                setTimeout(() => this.renderizarTodos(), 60);
+            } catch (err) {
+                if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save me-1"></i>Salvar'; }
+                alert('Erro ao salvar nota: ' + err.message);
+            }
+        };
+
+        document.getElementById('nota-sem-rdo-salvar').addEventListener('click', () => {
+            const val = (document.getElementById('nota-sem-rdo-input')?.value || '').trim();
+            _salvar(val);
+        });
+
+        document.getElementById('nota-sem-rdo-apagar')?.addEventListener('click', () => {
+            _salvar('');
+        });
+
+        modal.show();
+        setTimeout(() => document.getElementById('nota-sem-rdo-input')?.focus(), 350);
     }
 }
 

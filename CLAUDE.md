@@ -651,7 +651,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 10
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.1.0
+- **Dashboard Version**: 2.2.0
 
 ## Release Information
 
@@ -685,6 +685,35 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 > **IMPORTANTE**: Após gerar o APK release, atualizar `hash_md5`, `tamanho_apk_mb`, `versao_recomendada` e `url_download` na aba Config. O `versao_minima` usa `versionCode` (número inteiro), não `versionName`.
 
 ## Version History
+
+### Dashboard 2.2.0 — 2026-05-31
+**Correções e melhorias de UX**
+
+**Notas de dias sem RDO → Google Sheets:**
+- "Nota Local do Dia" (localStorage, privada) removida dos modais TP e TS
+- Dias cinza (sem RDO) agora permitem anotações compartilhadas (Feriado, Folga, etc.)
+- Notas salvas no Sheets via Apps Script (`salvarNotaDia` / `obterNotasDia` — aba "Notas")
+- Visível em todos os dispositivos/navegadores; requer atualização manual do Apps Script (código em `dashboard/CLAUDE.md`)
+- Fallback silencioso: se Apps Script ainda não atualizado, carrega sem notas
+
+**Bug fix — RDO duplicado afeta múltiplos registros:**
+- `obterDadosDia()` (TP e TS) agora deduplica por `Número RDO` antes de processar
+- Impede que `renomearRDO` e `deletarRDO` afetem dois registros com o mesmo número
+
+**Aba TMC removida:**
+- Aba "TMCs (Manutenção)" removida da navegação e do HTML
+- TMC removido do filtro de tipo
+- Código de cálculo TMC preservado em `calculations.js` (sem UI)
+
+**Comparação de Períodos movida para o final:**
+- Card de Comparação de Períodos agora aparece após os painéis TP/TS na aba Visão Geral
+
+**Melhorias visuais:**
+- Linha de meta (vermelha tracejada) nos gráficos de Composição de Horas e Produtividade/dia
+- Tabela OS no offcanvas de turma: max-height 240→420 px, fonte maior
+- Hover lilás em dias cinza; dias com nota ficam com fundo lilás claro
+
+---
 
 ### Dashboard 2.1.0 — 2026-05-31
 **Edição In-Modal de RDOs + Limpeza de Código Morto**

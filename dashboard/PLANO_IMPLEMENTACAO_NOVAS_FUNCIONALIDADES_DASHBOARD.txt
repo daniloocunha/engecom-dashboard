@@ -1,0 +1,730 @@
+PLANO TECNICO DE IMPLEMENTACAO - NOVAS FUNCIONALIDADES DO DASHBOARD
+Data: 2026-05-31
+Escopo: evolucao do dashboard atual de Medicao / Controle de Campo
+
+OBJETIVO
+Este documento descreve como eu implementaria, de forma tecnica e incremental, as seguintes funcionalidades:
+- Dashboard de qualidade de dados
+- Busca global inteligente
+- Comparacao entre periodos mais rica
+- Exportacao avancada
+- Drill-down mais intuitivo nos graficos
+- Modo mobile mais forte
+- Tema visual mais consistente
+- Resumo executivo automatico
+- Ranking de performance
+
+PREMISSA CENTRAL
+Minha recomendacao e evitar um "big bang rewrite". O dashboard ja possui uma base funcional, com calculos, filtros, calendario, gestao de OS, auditoria e visoes de produtividade. O melhor caminho e criar uma camada comum de dados normalizados e, sobre ela, adicionar componentes especializados.
+
+ARQUITETURA COMUM RECOMENDADA
+Antes de atacar cada feature individualmente, eu criaria uma base tecnica compartilhada.
+
+1) Camada de normalizacao de dados
+- Centralizar a limpeza de `RDO`, `Servicos`, `Horas Improdutivas`, `Efetivos`, `Equipamentos` e `Materiais`.
+- Padronizar campos como `numeroRDO`, `numeroOS`, `codigoTurma`, `data`, `horaInicio`, `horaFim`, `descricao`, `coeficiente`, `operadores`.
+- Resolver alias de colunas em um unico local, preferencialmente em `FieldHelper` e `sheets-api.js`.
+- Garantir uma estrutura "view model" consistente para todo o dashboard.
+
+2) Camada de indices e consultas
+- Construir indices em memoria apos o carregamento:
+  - por `numeroRDO`
+  - por `numeroOS`
+  - por `codigoTurma`
+  - por `data`
+  - por `tipo de registro`
+- Esses indices seriam reutilizados por busca global, ranking, drill-down, comparacao e qualidade de dados.
+- A meta e reduzir varreduras O(n) repetidas em datasets grandes.
+
+3) Camada de eventos entre modulos
+- Criar um "event bus" leve com `CustomEvent` no `document` ou um pequeno mediator global.
+- Exemplo de eventos:
+  - `dashboard:data-loaded`
+  - `dashboard:search`
+  - `dashboard:drilldown`
+  - `dashboard:filter-changed`
+  - `dashboard:quality-issue-clicked`
+- Isso desacopla `charts.js`, `visao-geral.js`, `main.js`, `view-manager.js` e modulos futuros.
+
+4) Camada de UI baseada em estados
+- Cada bloco da interface deveria saber lidar com:
+  - loading
+  - empty state
+  - error state
+  - partial state
+  - success state
+- Hoje o dashboard tem partes disso, mas de forma dispersa. Vale transformar isso em padrao reutilizavel.
+
+5) Camada de exportacao e narrativas
+- O mesmo "modelo consolidado" alimenta:
+  - graficos
+  - tabelas
+  - exportacao
+  - resumo executivo
+  - ranking
+  - comparacao de periodos
+
+ORDEM DE IMPLEMENTACAO RECOMENDADA
+Eu faria nesta sequencia:
+1. Dashboard de qualidade de dados
+2. Busca global inteligente
+3. Drill-down nos graficos
+4. Comparacao entre periodos mais rica
+5. Ranking de performance
+6. Exportacao avancada
+7. Resumo executivo automatico
+8. Tema visual consistente
+9. Modo mobile mais forte
+
+Essa ordem e proposital:
+- Primeiro eu garanto confianca nos dados.
+- Depois eu melhoro descoberta e navegacao.
+- Em seguida eu potencializo analise e entrega.
+- Por fim eu refino experiencia visual e mobile.
+
+1. DASHBOARD DE QUALIDADE DE DADOS
+Ideia geral
+- Criar um modulo dedicado a medir saude da base de dados e mostrar isso de forma objetiva para o usuario.
+- O dashboard de qualidade nao deve ser apenas um alerta; ele precisa orientar correcao.
+
+O que eu mediria
+- Completude: campos obrigatorios vazios.
+- Validade: formatos invalidos de data, hora, OS, quantidade, coeficiente.
+- Consistencia: mismatch entre RDO pai e registros filhos.
+- Duplicidade: RDOs repetidos, servicos duplicados, HI duplicada.
+- Integridade referencial: filho sem pai, pai sem filhos esperados.
+- Integridade semantica: valores que fazem sentido tecnico, mas nao fazem sentido de negocio.
+
+Regras de validacao sugeridas
+- RDO sem `Numero RDO` ou com formato fora do padrao.
+- RDO sem `Data`.
+- RDO sem `Codigo Turma`.
+- RDO com `Numero OS` invalido ou placeholder.
+- Servico sem `Descricao`, `Quantidade` ou `Coeficiente`.
+- Servico customizado sem `HH Manual`.
+- HI sem `Hora Inicio` ou `Hora Fim`.
+- HI com tempo invertido sem tratamento de overnight.
+- HI sem `Operadores` quando a regra exigir.
+- Efetivo sem base minima para a turma.
+- Registros em planilhas filhas apontando para `Numero RDO` inexistente.
+- Repeticoes de OS suspeitas em mesma data/turma.
+
+Estrutura de dados para as inconsistencias
+- `id`
+- `severity` (`info`, `low`, `medium`, `high`, `critical`)
+- `entityType` (`rdo`, `servico`, `hi`, `efetivo`, `equipamento`, `material`)
+- `entityId`
+- `sheetName`
+- `field`
+- `message`
+- `suggestion`
+- `expected`
+- `actual`
+- `numeroRDO`
+- `numeroOS`
+- `codigoTurma`
+- `data`
+- `actionable`
+- `dismissible`
+
+Score de saude
+- Eu criaria um score de 0 a 100.
+- Cada regra teria um peso.
+- Penalidades maiores para:
+  - pai inexistente
+  - OS invalida
+  - data invalida
+  - duplicidade
+  - inconsistencias de sincronismo
+- O score final poderia ser:
+  - 90 a 100: base saudavel
+  - 75 a 89: atencao
+  - 50 a 74: degradacao
+  - abaixo de 50: critica
+
+Visualizacao
+- Um card hero com score geral.
+- Cards por categoria:
+  - completude
+  - consistencia
+  - duplicidade
+  - sincronismo
+- Uma tabela de issues com filtros por severidade, tipo de entidade e planilha.
+- Acoes rapidas:
+  - abrir RDO
+  - copiar referencia
+  - marcar como ignorado
+  - exportar lista de problemas
+
+Implementacao tecnica
+- Criar `DataQualityEngine`.
+- Rodar a analise logo apos `sheetsAPI.carregarTodosDados()`.
+- Reaproveitar `FieldHelper` para normalizacao.
+- Reaproveitar `debugLog` e `mostrarToast` para feedback.
+- Se o volume crescer, mover a analise para `Web Worker`.
+
+Minha opiniao
+- Esse e um dos melhores investimentos do projeto, porque melhora confianca, auditoria e suporte.
+- Eu colocaria isso quase como "health check" de abertura do dashboard.
+
+Arquivos provavelmente impactados
+- `js/sheets-api.js`
+- `js/field-helper.js`
+- `js/main.js`
+- `js/visao-geral.js`
+- `index.html`
+- `css/dashboard.css`
+
+2. BUSCA GLOBAL INTELIGENTE
+Ideia geral
+- Criar uma busca unica no topo do dashboard que encontre qualquer coisa: RDO, OS, turma, encarregado, local, servico, HI, nota, observacao e item da auditoria.
+
+Modelo de busca
+- Eu nao faria apenas `includes()` em lista bruta.
+- Eu criaria um indice invertido em memoria:
+  - token -> lista de documentos
+- Cada documento teria:
+  - tipo
+  - id
+  - campos exibidos
+  - contexto
+  - score base
+  - data de atualizacao
+
+Normalizacao
+- Remover acentos.
+- Converter para lowercase.
+- Eliminar pontuacao.
+- Quebrar em tokens.
+- Tratar abreviacoes e sinonimos.
+
+Sinonimos uteis
+- `os`, `o.s`, `numero os`
+- `rdo`, `registro diario`
+- `hh`, `hora homem`
+- `tp`, `tmc`, `ts`
+- `encarregado`, `lider`, `responsavel`
+- `hi`, `improdutiva`
+
+Estrategia de ranking
+- Relevancia por campo:
+  - match exato no numeroRDO ou numeroOS: peso maior
+  - match em turma: peso medio
+  - match em descricao: peso medio
+  - match em observacao: peso menor
+- Bonus por recencia.
+- Bonus por correspondencia prefixada.
+- Penalidade para resultados muito genericos.
+
+UX sugerida
+- Barra fixa no topo.
+- Debounce de 150 a 250 ms.
+- Autocomplete com 5 a 8 sugestoes.
+- Separacao de resultados por categoria:
+  - RDOs
+  - Servicos
+  - HIs
+  - Turmas
+  - Auditorias
+  - Notas
+- Cada resultado deve ter:
+  - titulo forte
+  - subtitulo com contexto
+  - chips com metadados
+  - acao "ir para"
+
+Comportamento esperado
+- Ao clicar em um resultado, o dashboard deveria:
+  - aplicar filtro contextual
+  - abrir o modulo certo
+  - destacar o item
+  - opcionalmente abrir o drill-down
+
+Implementacao tecnica
+- Criar `GlobalSearchIndex`.
+- Indexar dados apos o carregamento.
+- Atualizar indice apos edicoes locais ou sincronizacao.
+- Usar `Map`, `Set` e, se necessario, `Intl.Collator` para ordenacao.
+- Se o dataset ficar pesado, migrar a busca para `Web Worker`.
+
+Minha opiniao
+- A busca global e uma feature de alta percepcao de valor.
+- Ela reduz muito tempo operacional e e o tipo de melhoria que o usuario nota na hora.
+
+Arquivos provavelmente impactados
+- `js/main.js`
+- `js/view-manager.js`
+- `js/filters.js`
+- `js/sheets-api.js`
+- `index.html`
+- `css/dashboard.css`
+
+3. COMPARACAO ENTRE PERIODOS MAIS RICA
+Ideia geral
+- Sair do simples "mes atual vs mes anterior" e criar uma analise multi-camada.
+
+Modos de comparacao
+- Mes contra mes anterior
+- Mes contra mesmo mes do ano anterior
+- Trimestre movel contra trimestre anterior
+- Ano acumulado vs ano anterior
+- Comparacao por turma
+- Comparacao por tipo de turma
+
+Metricas comparaveis
+- faturamento total
+- faturamento Engecom
+- faturamento Encogel
+- HH servicos
+- HH improdutivas
+- SLA medio
+- media de efetivo
+- dias trabalhados
+- numero de RDOs
+- score de qualidade de dados
+- volume de anomalias
+
+Analise de decomposicao
+- Para entender a variacao, eu separaria:
+  - efeito de volume
+  - efeito de mix de turmas
+  - efeito de produtividade
+  - efeito de improdutivas
+  - efeito de qualidade de dados
+
+Visualizacoes recomendadas
+- Cards delta com cor semantica.
+- Grafico waterfall.
+- Sparkline por metricas.
+- Heatmap de variacao por turma.
+- Tabela "o que subiu / o que caiu".
+- Bloco textual com interpretação automatica.
+
+Exemplo de insight util
+- "O faturamento subiu 8,4%, mas o SLA caiu 3,1 p.p. por aumento de improdutivas na TP-274."
+- "A TMC compensou parte da queda da TP, mas houve aumento de dias com baixa cobertura de efetivo."
+
+Implementacao tecnica
+- Expandir `PeriodComparison`.
+- Criar estrutura de metadados por periodo comparado.
+- Suportar comparacao hierarquica: global -> tipo -> turma.
+- Integrar com `visao-geral.js` e `charts.js`.
+- Para cada card, salvar um contexto de drill-down.
+
+Minha opiniao
+- O ideal e transformar comparacao em analise explicativa, e nao apenas em delta numerico.
+- Dado bruto sem interpretacao costuma gerar pouco valor para decisao.
+
+Arquivos provavelmente impactados
+- `js/period-comparison.js`
+- `js/visao-geral.js`
+- `js/charts.js`
+- `js/main.js`
+- `index.html`
+
+4. EXPORTACAO AVANCADA
+Ideia geral
+- Exportacao nao deve ser apenas "baixar CSV".
+- Ela precisa atender perfis diferentes: operacional, gerencial e auditoria.
+
+Perfis de exportacao
+- Resumo executivo
+- Detalhado operacional
+- Auditoria completa
+- Comparacao de periodos
+- Dados brutos filtrados
+- Drill-down de um item especifico
+
+Formatos
+- CSV para planilhas e auditoria rapida.
+- XLSX para analise com multiplas abas.
+- PDF para distribuicao e apresentacao.
+- JSON para integracao tecnica.
+
+Estrutura de workbook XLSX
+- `Resumo`
+- `Comparacao`
+- `RDOs`
+- `Servicos`
+- `HIs`
+- `Qualidade de dados`
+- `Ranking`
+- `Anomalias`
+
+PDF mais robusto
+- Capa com periodo, filtros e score geral.
+- Sumario executivo.
+- Cards de KPI.
+- Tabelas resumidas.
+- Graficos renderizados como imagem.
+- Rodape com data de geracao e assinatura do dashboard.
+
+Melhorias tecnicas importantes
+- Usar `Blob` com BOM no CSV para compatibilidade com Excel.
+- Usar separador adequado para locale, preferencialmente `;` em CSV brasileiro.
+- Escapar corretamente aspas, quebras de linha e delimitadores.
+- Gerar nomes de arquivo com carimbo temporal.
+- Mostrar progresso quando o exporte for pesado.
+
+Tratamento de grande volume
+- Gerar exportacao em blocos.
+- Executar em `Web Worker` quando houver muita linha.
+- Evitar congelar a UI durante a serializacao.
+
+Opinioes tecnicas
+- Eu evitaria duplicar logica de formatacao em varios modulos.
+- Criaria um `ExportComposer` que recebe o modelo consolidado e devolve os formatos.
+
+Arquivos provavelmente impactados
+- `js/export.js`
+- `js/export-helper.js`
+- `js/view-manager.js`
+- `js/main.js`
+- `index.html`
+
+5. DRILL-DOWN MAIS INTUITIVO NOS GRAFICOS
+Ideia geral
+- Toda interacao de grafico deveria abrir um contexto detalhado imediatamente util.
+- O usuario nao deveria "adivinhar" para onde clicar.
+
+Padrao de interacao
+- Clique em barra, setor ou linha.
+- Abrir um offcanvas ou modal lateral.
+- Carregar detalhes do contexto selecionado.
+- Permitir voltar para o nivel anterior sem perder filtros.
+
+Niveis de drill-down
+- Nivel 1: KPI ou grafico geral
+- Nivel 2: tipo de turma ou periodo
+- Nivel 3: turma especifica
+- Nivel 4: RDO ou evento especifico
+- Nivel 5: detalhe operacional do registro
+
+Conteudo do drill-down
+- cards contextuais
+- tabela de registros relacionados
+- top servicos
+- HI relacionadas
+- observacoes
+- historico de OS
+- mini comparacao do item com a media
+
+Comportamentos importantes
+- Cross-filtering: ao clicar em uma barra, os outros graficos se ajustam.
+- Breadcrumbs de navegacao.
+- Estado persistente enquanto o modal estiver aberto.
+- Destaque visual do item clicado.
+- Acoes rapidas:
+  - abrir RDO
+  - exportar item
+  - copiar link interno
+  - ir para comparacao
+
+Implementacao tecnica
+- Criar `DrilldownController`.
+- Criar mapa entre pontos do grafico e documentos originais.
+- Em `charts.js`, salvar `context metadata` junto com datasets.
+- Usar eventos para acionar outras views sem acoplamento forte.
+
+Minha opiniao
+- Isso transforma graficos de "visualizacao bonita" em ferramenta analitica real.
+- Vale muito a pena porque reduz ida e volta entre telas.
+
+Arquivos provavelmente impactados
+- `js/charts.js`
+- `js/visao-geral.js`
+- `js/main.js`
+- `index.html`
+
+6. MODO MOBILE MAIS FORTE
+Ideia geral
+- O dashboard precisa ficar realmente navegavel no celular, nao apenas "responsivo".
+
+Principios mobile-first
+- Priorizar leitura vertical.
+- Reduzir densidade de informacao.
+- Aumentar areas clicaveis.
+- Minimizar scroll horizontal.
+- Evitar tabelas gigantes sem tratamento.
+
+O que eu mudaria
+- Filtros em offcanvas por padrao.
+- Cards de KPI em carrossel ou grid 2x2.
+- Tabelas convertidas em cards colapsaveis no mobile.
+- Graficos com legenda simplificada.
+- Menos elementos simultaneos na tela.
+
+Melhorias tecnicas
+- `ResizeObserver` para adaptar layouts.
+- `matchMedia` para trocar densidade de renderizacao.
+- `IntersectionObserver` para lazy render de blocos abaixo da dobra.
+- Suspender graficos secundarios ate o usuario acessar a secao.
+
+UX mobile
+- Botao flutuante de filtro mais proeminente.
+- Acao rapida para trocar periodo.
+- Abas com scroll horizontal controlado.
+- Nao sobrecarregar o usuario com cards e tabelas ao mesmo tempo.
+
+Tabela responsiva
+- Em mobile, trocar tabela por lista de cards com:
+  - titulo
+  - 3 a 5 metricas principais
+  - badge de status
+  - botao de expandir
+
+Minha opiniao
+- O mobile forte nao e apenas CSS; e estrategia de priorizacao de conteudo.
+- Se tudo competir pela mesma largura, o resultado fica pesado e pouco usavel.
+
+Arquivos provavelmente impactados
+- `css/dashboard.css`
+- `css/minimal-view.css`
+- `index.html`
+- `js/view-manager.js`
+- `js/charts.js`
+
+7. TEMA VISUAL MAIS CONSISTENTE
+Ideia geral
+- Hoje a interface ja usa Bootstrap, mas ainda ha muita variacao visual entre modulos.
+- Eu criaria um sistema de design com tokens semanticamente consistentes.
+
+Tokens recomendados
+- `--color-primary`
+- `--color-secondary`
+- `--color-success`
+- `--color-warning`
+- `--color-danger`
+- `--color-info`
+- `--color-surface`
+- `--color-surface-alt`
+- `--color-border`
+- `--color-text`
+- `--radius-sm`
+- `--radius-md`
+- `--radius-lg`
+- `--shadow-sm`
+- `--shadow-md`
+- `--shadow-lg`
+
+Padronizacoes
+- Mesma cor para o mesmo significado em todo o dashboard.
+- Mesmo padding e border radius para cards equivalentes.
+- Mesmo estilo de badge para status similares.
+- Mesma tipografia para titulos, subtitulos e dados numericos.
+- Mesma regra de hover e focus.
+
+Tema claro / escuro
+- Eu trataria isso como evolucao natural.
+- Mesmo que o dark mode nao seja prioridade agora, a base em CSS variables deixa a porta aberta.
+
+Charts
+- Paleta de graficos derivada dos tokens.
+- Cores color-blind-safe.
+- Evitar depender de cores muito proximas entre si.
+
+Minha opiniao
+- Consistencia visual melhora muito a percepcao de qualidade mesmo sem mexer em logica.
+- E uma das maneiras mais baratas de elevar o produto.
+
+Arquivos provavelmente impactados
+- `css/dashboard.css`
+- `css/minimal-view.css`
+- `index.html`
+- `js/charts.js`
+
+8. RESUMO EXECUTIVO AUTOMATICO
+Ideia geral
+- Gerar automaticamente um texto executivo que sintetize o periodo filtrado.
+- Esse resumo pode ser usado em e-mail, WhatsApp, ata de reuniao ou relatorio mensal.
+
+Minha recomendacao tecnica
+- Comecar com motor deterministico baseado em templates.
+- So depois pensar em IA generativa, se houver necessidade.
+- Assim evitamos risco de "alucinacao" e mantemos previsibilidade.
+
+Estrutura do resumo
+- Visao geral do periodo.
+- Destaques positivos.
+- Pontos de atencao.
+- Anomalias detectadas.
+- Comparacao com periodo anterior.
+- Recomendacoes operacionais.
+
+Fontes de dados
+- `totalRDOs`
+- `totalGeral`
+- `totalEngecom`
+- `totalEncogel`
+- `mediaSLA`
+- ranking
+- score de qualidade
+- comparacao de periodos
+- contagem de inconsistencias
+- top turmas
+
+Modelagem textual
+- Templates com variaveis.
+- Frases dinamicas por faixa de desempenho.
+- Regras de severidade.
+- Ajuste do tom:
+  - executivo
+  - operacional
+  - tecnico
+
+Exemplo de saídas
+- "No periodo analisado, a turma X liderou em faturamento, enquanto a turma Y concentrou as maiores improdutivas."
+- "A qualidade da base apresentou 12 inconsistencias, com 3 criticas, exigindo revisao imediata."
+- "A comparacao mensal indica queda de SLA em TP, compensada por melhora em TMC."
+
+Entrega do resumo
+- Card no dashboard.
+- Botao "copiar resumo".
+- Exportacao em `.txt` e PDF.
+- Opcionalmente, insercao no Excel na aba `Resumo`.
+
+Minha opiniao
+- Esse recurso aumenta muito o valor para lideranca.
+- E a ponte entre dados operacionais e leitura gerencial.
+
+Arquivos provavelmente impactados
+- `js/visao-geral.js`
+- `js/main.js`
+- `js/export-helper.js`
+- `index.html`
+
+9. RANKING DE PERFORMANCE
+Ideia geral
+- Criar um ranking comparativo entre turmas, com criterios claros e auditaveis.
+
+O que ranquear
+- TPs
+- TMCs
+- TSs
+- ranking geral normalizado, se fizer sentido
+
+Modelo de score
+- Eu nao usaria somente faturamento.
+- Um ranking serio precisa ponderar:
+  - produtividade
+  - eficiencia
+  - regularidade
+  - qualidade de dados
+  - consistencia temporal
+
+Exemplo de composicao de score
+- 35% SLA / entrega
+- 20% produtividade
+- 15% consistencia operacional
+- 15% qualidade de dados
+- 10% estabilidade no periodo
+- 5% ausencia de anomalias
+
+Regras de justiça
+- Normalizar por tipo de turma.
+- Evitar comparar diretamente TMC com TP sem ajuste.
+- Aplicar confidencia minima por volume de dados.
+- Tratar outliers com cautela.
+- Permitir desempate por tendencia positiva.
+
+Visualizacao do ranking
+- Tabela principal com:
+  - posicao
+  - turma
+  - score
+  - variacao
+  - badges de destaque
+  - mini sparkline
+- Aba lateral com justificativa do score.
+- Botao para abrir drill-down da turma.
+
+Interpretabilidade
+- O ranking precisa explicar "por que" a turma subiu ou caiu.
+- Cada score deve ter decomposicao por componente.
+- Isso evita a sensacao de ranking arbitrario.
+
+Minha opiniao
+- Ranking funciona muito bem quando ele e explicavel.
+- Se o usuario nao entende o score, ele vira apenas um numero bonito.
+
+Arquivos provavelmente impactados
+- `js/visao-geral.js`
+- `js/period-comparison.js`
+- `js/main.js`
+- `index.html`
+
+PROPOSTA DE NOVOS MODULOS
+Se eu fosse organizar o codigo com mais clareza, eu criaria:
+- `js/data-quality.js`
+- `js/search-index.js`
+- `js/comparison-engine.js`
+- `js/export-engine.js`
+- `js/drilldown-controller.js`
+- `js/theme-manager.js`
+- `js/executive-summary.js`
+- `js/ranking-engine.js`
+
+Nao necessariamente todos precisam nascer agora, mas esse mapa ajuda a evitar que tudo continue crescendo dentro de `main.js` e `visao-geral.js`.
+
+IMPACTO NOS ARQUIVOS EXISTENTES
+`index.html`
+- Adicionar barra de busca global.
+- Adicionar cards do dashboard de qualidade.
+- Adicionar container de ranking.
+- Adicionar area do resumo executivo.
+- Adicionar modal ou offcanvas para drill-down.
+- Expor opcoes de exportacao avancada.
+
+`js/main.js`
+- Orquestrar os novos motores.
+- Receber o payload consolidado.
+- Recalcular resumos e rankings apos filtros.
+- Publicar eventos de atualizacao.
+
+`js/sheets-api.js`
+- Entregar dados normalizados.
+- Criar indices auxiliares.
+- Evitar retrabalho nas leituras.
+
+`js/charts.js`
+- Garantir metadados por ponto.
+- Suportar cross-filtering.
+- Evitar destruir canvas em estado vazio.
+
+`js/visao-geral.js`
+- Exibir insights, ranking, comparacao rica e resumo.
+- Reaproveitar o mesmo modelo consolidado.
+
+`css/dashboard.css` e `css/minimal-view.css`
+- Consolidar tokens.
+- Melhorar responsividade.
+- Padronizar estados visuais.
+
+RISCOS TECNICOS E MITIGACOES
+1) Complexidade de manutencao
+- Mitigacao: criar modulos pequenos e uma camada comum de estado.
+
+2) Performance
+- Mitigacao: indices em memoria, Web Workers, debounce e renderizacao sob demanda.
+
+3) Inconsistencia entre telas
+- Mitigacao: usar uma unica fonte de verdade para filtros e metadados.
+
+4) Excesso de informacao
+- Mitigacao: progressive disclosure, drill-down e resumo executivo.
+
+5) Divergencia visual
+- Mitigacao: design tokens e componentes reutilizaveis.
+
+DEFINITION OF DONE SUGERIDO
+Uma feature so estaria "pronta" quando:
+- tivesse UI dedicada
+- usasse os dados normalizados
+- respeitasse filtros globais
+- funcionasse em desktop e mobile
+- tivesse empty state e error state
+- nao quebrasse fluxos existentes
+- tivesse logs e rastreabilidade basica
+- fosse exportavel ou auditavel, quando aplicavel
+
+Isso entrega base solida, melhora a experiencia e cria uma plataforma boa para evolucoes futuras sem virar um emaranhado de logica no front-end.

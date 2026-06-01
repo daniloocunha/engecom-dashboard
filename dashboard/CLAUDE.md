@@ -4,11 +4,11 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-**Dashboard de Medição** is a client-side web application for analyzing RDO (Relatório Diário de Obras / Daily Work Reports) data and calculating billing for railway maintenance operations at Engecom Engenharia / Encogel. The dashboard loads data from Google Sheets via the Sheets API and performs real-time calculations for three types of work teams: TPs (Production Teams), TMCs (Maintenance Teams), and TSs (Welding Teams).
+**Dashboard de Medição** is a client-side web application for analyzing RDO (Relatório Diário de Obras / Daily Work Reports) data and calculating billing for railway maintenance operations at Engecom Engenharia / Encogel. The dashboard loads data from Google Sheets via the Sheets API and performs real-time calculations for two active types of work teams: TPs (Production Teams) and TSs (Welding Teams). TMC (Maintenance) was removed from the UI in v2.2.0 but calculation code is preserved in `calculations.js`.
 
 ### Key Features
 - **Real-time Data Loading**: Fetches data from 7 Google Sheets tabs via API
-- **Multi-Team Support**: Handles TP (Production), TMC (Maintenance), and TS (Welding) teams
+- **Multi-Team Support**: Handles TP (Production) and TS (Welding) teams (TMC removed from UI)
 - **Financial Calculations**: Automated billing calculations based on HH (Homem-Hora / Man-Hour) metrics and SLA targets
 - **Interactive Visualizations**: Charts, heatmaps, calendars, and KPI cards using Chart.js
 - **Smart Filtering**: Filter by month, year, team, and type with dynamic updates
@@ -192,7 +192,7 @@ renderizarHeatmap()          // Daily productivity heatmap
 - Edição de cabeçalho: OS, Local, KM Início/Fim, Hora Início/Fim (single e multi-OS)
 - CRUD de Serviços (spinner com SERVICOS_BASE + preview HH em tempo real)
 - CRUD de Horas Improdutivas (tipos Android, ordenação por duração)
-- Nota Local do Dia: anotação privada em `localStorage`
+- Notas de dias sem RDO: salvas no Google Sheets via Apps Script (`salvarNotaDia` / `obterNotasDia`)
 - Renomear Número RDO em cascata quando O.S muda (`renomearRDO` Apps Script)
 - Excluir RDO (marca Deletado = "Sim" no Sheets)
 
@@ -717,7 +717,7 @@ if (tipo.includes('NovoTipo')) {
 - Removidos: View Minimalista (view-manager.js + minimal-view.css), Análise TMC (analise-tmc.js), Exportação (export.js + export-helper.js)
 
 **Apps Script (proxy de escrita) — novo e corrigido:**
-- Funções: `renomearRDO`, `dividirOS`, `atualizarCampoRDO`, `atualizarServico`, `adicionarServico`, `excluirServico`, `atualizarHI`, `adicionarHI`, `excluirHI`, `deletarRDO`
+- Funções: `renomearRDO`, `dividirOS`, `atualizarCampoRDO`, `atualizarServico`, `adicionarServico`, `excluirServico`, `atualizarHI`, `adicionarHI`, `excluirHI`, `deletarRDO`, `salvarNotaDia`, `obterNotasDia`
 - Bugs corrigidos: roteamento `renomearRDO` (`acao` → `dados.acao`), `dividirOS` args, `openById(SPREADSHEET_ID)` → `getActiveSpreadsheet()`
 
 ---
@@ -789,9 +789,55 @@ if (tipo.includes('NovoTipo')) {
 **Version 1.1.0 (2024-12-01)**:
 - Field normalization, null checks, getCampoNormalizado utility
 
+## Apps Script — Ações de Notas (requer atualização manual)
+
+As ações `salvarNotaDia` e `obterNotasDia` precisam ser adicionadas ao Apps Script para que as notas de dias sem RDO funcionem em todos os dispositivos. Adicione ao `doPost` switch e as funções correspondentes:
+
+```javascript
+// No switch de doPost:
+case 'salvarNotaDia':  return salvarNotaDia(dados);
+case 'obterNotasDia':  return obterNotasDia();
+
+// Funções a adicionar:
+function salvarNotaDia(dados) {
+  const { turma, data, nota } = dados;
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  let notas   = ss.getSheetByName('Notas');
+  if (!notas) {
+    notas = ss.insertSheet('Notas');
+    notas.appendRow(['Turma', 'Data', 'Nota', 'Atualizado Em']);
+  }
+  const rows = notas.getDataRange().getValues();
+  for (let i = 1; i < rows.length; i++) {
+    if (rows[i][0] === turma && rows[i][1] === data) {
+      if (nota) notas.getRange(i+1, 3, 1, 2).setValues([[nota, new Date().toISOString()]]);
+      else notas.deleteRow(i+1);
+      return ContentService.createTextOutput(JSON.stringify({ sucesso: true }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  if (nota) notas.appendRow([turma, data, nota, new Date().toISOString()]);
+  return ContentService.createTextOutput(JSON.stringify({ sucesso: true }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function obterNotasDia() {
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const notas = ss.getSheetByName('Notas');
+  const arr   = notas ? notas.getDataRange().getValues().slice(1)
+    .filter(r => r[0] && r[1])
+    .map(r => ({ turma: String(r[0]), data: String(r[1]), nota: String(r[2] || '') }))
+    : [];
+  return ContentService.createTextOutput(JSON.stringify({ sucesso: true, notas: arr }))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+```
+
+Enquanto o Apps Script não for atualizado, o dashboard carrega sem notas (array vazio) e as tentativas de salvar mostram um alerta de erro.
+
 ## Version Information
 
-- **Current Version**: 2.1.0
+- **Current Version**: 2.2.0
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)

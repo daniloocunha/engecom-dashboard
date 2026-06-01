@@ -67,12 +67,23 @@ class DashboardMain {
             this.dados.equipamentos
         );
 
+        // Carregar notas de dias sem RDO (salvas no Sheets via Apps Script)
+        try {
+            const notasResp = await editorRDO._api({ acao: 'obterNotasDia' });
+            this.dados.notas = notasResp.notas || [];
+            debugLog('[Dashboard] Notas carregadas:', this.dados.notas.length);
+        } catch (_e) {
+            this.dados.notas = [];
+            debugLog('[Dashboard] Notas não disponíveis (Apps Script pendente de atualização)');
+        }
+
         // Carregar dados no calendário de TPs
         calendarioTP.carregarDados(
             this.dados.rdos,
             this.dados.servicos,
             this.dados.horasImprodutivas,
-            this.dados.efetivos
+            this.dados.efetivos,
+            this.dados.notas
         );
 
         // Carregar dados no calendário de TSs
@@ -80,7 +91,8 @@ class DashboardMain {
             this.dados.rdos,
             this.dados.servicos,
             this.dados.horasImprodutivas,
-            this.dados.efetivos
+            this.dados.efetivos,
+            this.dados.notas
         );
 
         // Carregar dados na gestão de O.S
@@ -100,6 +112,17 @@ class DashboardMain {
                 this.dados.efetivos
             );
             osAuditoria.atualizarBadge();
+        }
+
+        // Análise de qualidade dos dados (toda a base, sem filtro de período)
+        if (typeof dataQuality !== 'undefined') {
+            dataQuality.analisar(
+                this.dados.rdos,
+                this.dados.servicos,
+                this.dados.horasImprodutivas,
+                this.dados.efetivos
+            );
+            dataQuality._atualizarBadge();
         }
 
         const customizadosSemHH = sheetsAPI.getCustomizadosSemHH();
@@ -378,8 +401,6 @@ class DashboardMain {
         dashboardCharts.renderizarTotaisMensais(dadosFiltrados);
 
         // 3. Tabelas
-        // this.renderizarTabelaTPs(); // ❌ REMOVIDO: Tabela "Detalhamento das TPs" foi removida do HTML
-        this.renderizarTabelaTMCs();
         this.renderizarTabelaTSs();
 
         // 4. Heatmap
@@ -400,6 +421,17 @@ class DashboardMain {
         // 10. Visão Geral — análise de produtividade PDM/Correlato
         if (typeof visaoGeral !== 'undefined') {
             visaoGeral.renderizar(this.estatisticas, this.calculadora, this.filtros);
+        }
+
+        // 11. Qualidade de dados (renderiza resultado da última análise, sem re-analisar)
+        if (typeof dataQuality !== 'undefined') {
+            dataQuality.renderizar('dq-container');
+        }
+
+        // 12. Comparação de Períodos (no final da aba Visão Geral)
+        if (typeof periodComparison !== 'undefined') {
+            periodComparison.analisar(this.estatisticas, this.calculadora, this.filtros.mes, this.filtros.ano);
+            periodComparison.renderizar('comparacaoContainer');
         }
     }
 

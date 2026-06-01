@@ -127,7 +127,6 @@
                         <select class="form-select" id="filtroTipo">
                             <option value="todos">Todos</option>
                             <option value="TP">TPs</option>
-                            <option value="TMC">TMCs</option>
                             <option value="TS">TSs</option>
                         </select>
                     </div>
@@ -218,11 +217,6 @@
                 </button>
             </li>
             <li class="nav-item" role="presentation">
-                <button class="nav-link" id="tab-tmcs" data-bs-toggle="tab" data-bs-target="#panel-tmcs" type="button">
-                    <i class="fas fa-tools me-2"></i>TMCs (Manutenção)
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tab-tss" data-bs-toggle="tab" data-bs-target="#panel-tss" type="button">
                     <i class="fas fa-fire me-2"></i>TSs (Solda)
                 </button>
@@ -230,6 +224,12 @@
             <li class="nav-item" role="presentation">
                 <button class="nav-link" id="tab-gestao-os" data-bs-toggle="tab" data-bs-target="#panel-gestao-os" type="button">
                     <i class="fas fa-clipboard-list me-2"></i>Gestão de O.S
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="tab-qualidade" data-bs-toggle="tab" data-bs-target="#panel-qualidade" type="button">
+                    <i class="fas fa-clipboard-check me-2"></i>Qualidade
+                    <span class="badge bg-danger ms-1 d-none" id="dq-badge">0</span>
                 </button>
             </li>
         </ul>
@@ -270,6 +270,9 @@
                         </div>
                     </div>
                 </div>
+
+                <!-- Comparação de Períodos (no final da aba) -->
+                <div id="comparacaoContainer" class="mt-4"></div>
             </div>
 
             <!-- TPs (Produção) -->
@@ -295,7 +298,7 @@
 
                     <!-- HH Produtivas vs Improdutivas -->
                     <div class="col-md-8 mb-4">
-                        <div class="card">
+                        <div class="card card-chart">
                             <div class="card-header">
                                 <h5 class="mb-0"><i class="fas fa-clock me-2"></i>HH Produtivas vs Improdutivas</h5>
                             </div>
@@ -419,73 +422,6 @@
                 </div>
             </div>
 
-            <!-- TMCs (Manutenção) -->
-            <div class="tab-pane fade" id="panel-tmcs">
-                <div class="row">
-                    <!-- KPI Média de Efetivo -->
-                    <div class="col-md-12 mb-4">
-                        <div class="card kpi-card" style="border-left-color: #FF9800;">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <h6 class="text-muted mb-2">Média de Efetivo (Operadores)</h6>
-                                        <h3 class="mb-0" id="kpiMediaEfetivoTMC">-</h3>
-                                        <small class="text-muted">Total: <span id="kpiMediaEfetivoTotalTMC">-</span> pessoas</small>
-                                    </div>
-                                    <div class="kpi-icon bg-warning">
-                                        <i class="fas fa-users"></i>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Tabela de TMCs -->
-                    <div class="col-md-12 mb-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="fas fa-table me-2"></i>Detalhamento das TMCs</h5>
-                            </div>
-                            <div class="card-body">
-                                <div class="table-responsive">
-                                    <table class="table table-hover" id="tabelaTMCs">
-                                        <thead>
-                                            <tr>
-                                                <th>Turma</th>
-                                                <th>Local</th>
-                                                <th>Dias Úteis</th>
-                                                <th>Dias Trab.</th>
-                                                <th>Média Enc.</th>
-                                                <th>Média Oper.</th>
-                                                <th>Média Efetivo Total</th>
-                                                <th>Engecom</th>
-                                                <th>Encogel</th>
-                                                <th>Total</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            <!-- Preenchido via JavaScript -->
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Gráfico de Comparação TMCs -->
-                    <div class="col-md-12 mb-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Comparação de Faturamento TMCs</h5>
-                            </div>
-                            <div class="card-body">
-                                <canvas id="chartTMCsComparacao"></canvas>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
             <!-- TSs (Turmas de Solda) -->
             <div class="tab-pane fade" id="panel-tss">
                 <div class="row">
@@ -600,7 +536,7 @@
 
                     <!-- Gráfico de Comparação TSs -->
                     <div class="col-md-12 mb-4">
-                        <div class="card">
+                        <div class="card card-chart">
                             <div class="card-header">
                                 <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Comparação de Faturamento TSs</h5>
                             </div>
@@ -608,6 +544,7 @@
                                 <canvas id="chartTSsComparacao"></canvas>
                             </div>
                         </div>
+
                     </div>
 
                     <!-- Calendário de Acompanhamento TS -->
@@ -659,6 +596,15 @@
                 </div>
             </div>
 
+            <!-- Qualidade de Dados -->
+            <div class="tab-pane fade" id="panel-qualidade" role="tabpanel">
+                <div id="dq-container">
+                    <div class="text-center text-muted py-5">
+                        <i class="fas fa-spinner fa-spin me-2"></i>Carregando análise de qualidade...
+                    </div>
+                </div>
+            </div>
+
         </div>
 
         </div>
@@ -694,10 +640,11 @@
     <script src="js/editor-rdo.js?v=1.0.0"></script>
     <script src="js/calendario-tp.js?v=3.0.13"></script>
     <script src="js/calendario-ts.js?v=3.0.13"></script>
-    <script src="js/period-comparison.js?v=3.0.13"></script>
+    <script src="js/period-comparison.js?v=4.0.0"></script>
     <script src="js/gestao-os.js?v=3.0.20"></script>
     <script src="js/os-auditoria.js?v=3.0.20"></script>
     <script src="js/visao-geral.js?v=3.0.21"></script>
+    <script src="js/data-quality.js?v=1.0.0"></script>
     <script src="js/main.js?v=3.0.13"></script>
 
     <script>
