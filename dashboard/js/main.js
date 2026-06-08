@@ -466,7 +466,18 @@ class DashboardMain {
             }
         }
 
-        // 13. Comparação de Períodos (no final da aba Visão Geral)
+        // 13. Resumo Executivo Automático
+        if (typeof executiveSummary !== 'undefined') {
+            executiveSummary.renderizar(
+                'resumoExecutivoContainer',
+                this.estatisticas,
+                this.calculadora,
+                this.filtros,
+                dadosFiltrados
+            );
+        }
+
+        // 14. Comparação de Períodos (no final da aba Visão Geral)
         if (typeof periodComparison !== 'undefined') {
             periodComparison.analisar(this.estatisticas, this.calculadora, this.filtros.mes, this.filtros.ano);
             periodComparison.renderizar('comparacaoContainer');
