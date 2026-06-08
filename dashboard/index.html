@@ -293,6 +293,32 @@
                     </div>
                 </div>
 
+                <!-- Ranking de Performance (após análise TP/TS) -->
+                <div id="rankingContainer" class="mt-4" style="display:none">
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <h6 class="mb-0">
+                                <i class="fas fa-trophy me-2 text-warning"></i>
+                                Ranking de Performance — Turmas
+                            </h6>
+                            <div class="btn-group btn-group-sm" role="group" id="rankingTipoToggle">
+                                <input type="radio" class="btn-check" name="rankingTipo" id="rankTP" value="TP" checked>
+                                <label class="btn btn-outline-primary" for="rankTP">TPs</label>
+                                <input type="radio" class="btn-check" name="rankingTipo" id="rankTS" value="TS">
+                                <label class="btn btn-outline-primary" for="rankTS">TSs</label>
+                            </div>
+                        </div>
+                        <div class="card-body p-3">
+                            <div id="rankingTP">
+                                <div class="text-center text-muted py-3">
+                                    <i class="fas fa-spinner fa-spin me-2"></i>Calculando ranking…
+                                </div>
+                            </div>
+                            <div id="rankingTS" style="display:none"></div>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- Comparação de Períodos (no final da aba) -->
                 <div id="comparacaoContainer" class="mt-4"></div>
             </div>
@@ -669,6 +695,7 @@
     <script src="js/data-quality.js?v=1.0.0"></script>
     <script src="js/export-engine.js?v=1.0.0"></script>
     <script src="js/search-index.js?v=1.0.0"></script>
+    <script src="js/ranking-engine.js?v=1.0.0"></script>
     <script src="js/main.js?v=3.0.13"></script>
 
     <script>

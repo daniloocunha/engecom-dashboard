@@ -443,7 +443,30 @@ class DashboardMain {
             dataQuality.renderizar('dq-container');
         }
 
-        // 12. Comparação de Períodos (no final da aba Visão Geral)
+        // 12. Ranking de Performance
+        if (typeof rankingEngine !== 'undefined') {
+            const rankEl = document.getElementById('rankingContainer');
+            if (rankEl) {
+                const temTurmas = (this.estatisticas.tps || []).length > 0 ||
+                                  (this.estatisticas.tss || []).length > 0;
+                rankEl.style.display = temTurmas ? '' : 'none';
+
+                rankingEngine.renderizar('rankingTP', 'TP', this.estatisticas, this.calculadora,
+                    this.filtros.mes, this.filtros.ano);
+                rankingEngine.renderizar('rankingTS', 'TS', this.estatisticas, this.calculadora,
+                    this.filtros.mes, this.filtros.ano);
+
+                // Bind dos radio buttons (toggle TP/TS)
+                document.querySelectorAll('input[name="rankingTipo"]').forEach(rb => {
+                    rb.onchange = () => {
+                        document.getElementById('rankingTP').style.display = rb.value === 'TP' ? '' : 'none';
+                        document.getElementById('rankingTS').style.display = rb.value === 'TS' ? '' : 'none';
+                    };
+                });
+            }
+        }
+
+        // 13. Comparação de Períodos (no final da aba Visão Geral)
         if (typeof periodComparison !== 'undefined') {
             periodComparison.analisar(this.estatisticas, this.calculadora, this.filtros.mes, this.filtros.ano);
             periodComparison.renderizar('comparacaoContainer');
