@@ -39,6 +39,11 @@ class DashboardMain {
             document.getElementById('loadingOverlay').style.display = 'none';
             document.getElementById('mainContainer').style.display = 'block';
 
+            // 6. Inicializar UI da busca global
+            if (typeof searchIndex !== 'undefined') {
+                searchIndex.inicializarUI();
+            }
+
             debugLog('[Dashboard] Inicialização concluída com sucesso!');
 
         } catch (error) {
@@ -128,6 +133,11 @@ class DashboardMain {
         // Sinalizar para ExportEngine que os dados estão prontos
         if (typeof exportEngine !== 'undefined') {
             exportEngine.configurar();
+        }
+
+        // Construir índice de busca global
+        if (typeof searchIndex !== 'undefined') {
+            searchIndex.construir(this.dados);
         }
 
         const customizadosSemHH = sheetsAPI.getCustomizadosSemHH();

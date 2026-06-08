@@ -38,6 +38,21 @@
                 <small>Engecom / Encogel</small>
             </span>
 
+            <!-- Busca Global -->
+            <div id="buscaGlobalWrapper" class="busca-global-wrapper me-auto ms-3 position-relative" style="max-width:340px;flex:1;">
+                <div class="input-group input-group-sm">
+                    <span class="input-group-text bg-white bg-opacity-10 border-0 text-white">
+                        <i class="fas fa-search"></i>
+                    </span>
+                    <input type="text" id="buscaGlobalInput"
+                           class="form-control bg-white bg-opacity-10 border-0 text-white"
+                           placeholder="Buscar RDO, O.S, turma, serviço…"
+                           autocomplete="off"
+                           style="color:#fff !important;">
+                </div>
+                <div id="buscaGlobalDrop" class="busca-global-drop" style="display:none;"></div>
+            </div>
+
             <!-- Toggle de Visualização -->
 
             <button class="btn btn-outline-warning btn-sm position-relative me-2"
@@ -653,6 +668,7 @@
     <script src="js/visao-geral.js?v=3.0.21"></script>
     <script src="js/data-quality.js?v=1.0.0"></script>
     <script src="js/export-engine.js?v=1.0.0"></script>
+    <script src="js/search-index.js?v=1.0.0"></script>
     <script src="js/main.js?v=3.0.13"></script>
 
     <script>
