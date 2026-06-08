@@ -1537,3 +1537,188 @@ button:focus-visible,
     color: #9ca3af;
     font-size: .85rem;
 }
+
+/* ============================================
+   MOBILE FORTE — Responsivo ≤ 767px
+   ============================================ */
+
+@media (max-width: 767px) {
+
+    /* ── Navbar ── */
+    .navbar .navbar-brand {
+        font-size: .92rem;
+    }
+
+    /* Busca global: oculta em telas muito pequenas */
+    #buscaGlobalWrapper {
+        display: none !important;
+    }
+
+    /* Botões da navbar: compactar */
+    .navbar .btn {
+        font-size: .75rem;
+        padding: 4px 8px;
+    }
+
+    /* ── Container principal ── */
+    #mainContainer.container-fluid {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+
+    /* ── Card de filtros ── */
+    #filtrosBody {
+        padding: 12px 14px;
+    }
+
+    #filtrosBody .form-label {
+        font-size: .8rem;
+        margin-bottom: 2px;
+    }
+
+    #filtrosBody .form-select,
+    #filtrosBody .btn {
+        font-size: .82rem;
+        padding: 6px 10px;
+    }
+
+    /* Colapsa filtros por padrão em mobile */
+    #filtrosBody.collapse:not(.show) {
+        display: none;
+    }
+
+    /* ── KPI cards ── */
+    .kpi-card .card-body {
+        padding: 10px 12px;
+    }
+
+    .kpi-card h3 {
+        font-size: 1.3rem;
+    }
+
+    .kpi-card h6 {
+        font-size: .72rem;
+    }
+
+    .kpi-icon {
+        width: 36px !important;
+        height: 36px !important;
+        font-size: .85rem !important;
+    }
+
+    /* ── Abas principais ── */
+    .nav-tabs,
+    .nav-pills {
+        flex-wrap: nowrap;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+    }
+
+    .nav-tabs::-webkit-scrollbar,
+    .nav-pills::-webkit-scrollbar {
+        display: none;
+    }
+
+    .nav-tabs .nav-link,
+    .nav-pills .nav-link {
+        white-space: nowrap;
+        font-size: .78rem;
+        padding: 6px 12px;
+    }
+
+    /* ── Tabelas ── */
+    .table-responsive {
+        font-size: .78rem;
+    }
+
+    .table td,
+    .table th {
+        padding: 5px 7px !important;
+        font-size: .78rem !important;
+    }
+
+    /* ── Cards e seções gerais ── */
+    .card-header h6,
+    .card-header h5 {
+        font-size: .88rem;
+    }
+
+    .card-body {
+        padding: 12px 14px;
+    }
+
+    /* ── Calendários ── */
+    .calendario-dia {
+        min-height: 50px !important;
+        font-size: .7rem !important;
+        padding: 3px !important;
+    }
+
+    /* ── Gráficos: altura reduzida ── */
+    canvas {
+        max-height: 250px !important;
+    }
+
+    /* ── Ranking ── */
+    #rankingTP .table,
+    #rankingTS .table {
+        font-size: .76rem;
+    }
+
+    /* ── Resumo executivo ── */
+    #resumoExecutivoContainer .card-body {
+        padding: 14px;
+    }
+
+    #resumoExecutivoContainer h6 {
+        font-size: .85rem;
+    }
+
+    /* ── Offcanvas de turma ── */
+    .offcanvas {
+        width: 100% !important;
+    }
+
+    /* ── Modais ── */
+    .modal-dialog {
+        margin: 8px;
+    }
+
+    /* ── Botões de ação flutuantes ── */
+    #btnAuditoriaOS {
+        font-size: .7rem;
+        padding: 3px 7px;
+    }
+}
+
+/* ── Busca: reexibir em tablets (≥ 576px) ── */
+@media (min-width: 576px) {
+    #buscaGlobalWrapper {
+        display: flex !important;
+    }
+}
+
+/* ── Melhorias gerais de toque ── */
+@media (hover: none) and (pointer: coarse) {
+    /* Áreas de toque maiores para mobile */
+    .btn {
+        min-height: 38px;
+    }
+
+    .nav-link {
+        min-height: 38px;
+    }
+
+    .search-item {
+        padding: 12px 14px;
+    }
+
+    /* Sem hover nos itens de lista */
+    .search-item:hover {
+        background: transparent;
+    }
+    .search-item:active {
+        background: #f0f4ff;
+    }
+}

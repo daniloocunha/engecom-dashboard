@@ -111,8 +111,14 @@
         <div id="classicView" style="display: block;">
 
         <!-- Filtros -->
-        <div class="card mb-4">
-            <div class="card-body">
+        <div class="card mb-4" id="filtrosCard">
+            <!-- Cabeçalho mobile: toggle para colapsar os filtros -->
+            <div class="d-flex d-md-none align-items-center justify-content-between px-3 py-2 border-bottom"
+                 style="cursor:pointer" onclick="document.getElementById('filtrosBody').classList.toggle('show')">
+                <span class="fw-semibold"><i class="fas fa-filter me-2 text-primary"></i>Filtros do período</span>
+                <i class="fas fa-chevron-down text-muted"></i>
+            </div>
+            <div class="card-body collapse show" id="filtrosBody">
                 <div class="row align-items-end">
                     <div class="col-md-2">
                         <label class="form-label">Mês</label>
@@ -163,8 +169,8 @@
         </div>
 
         <!-- KPIs Cards -->
-        <div class="row mb-4" id="kpisContainer">
-            <div class="col-md-3">
+        <div class="row g-3 mb-4" id="kpisContainer">
+            <div class="col-6 col-md-3">
                 <div class="card kpi-card">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
@@ -179,7 +185,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card kpi-card">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
@@ -194,7 +200,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card kpi-card">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
@@ -209,7 +215,7 @@
                     </div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-6 col-md-3">
                 <div class="card kpi-card">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center">
