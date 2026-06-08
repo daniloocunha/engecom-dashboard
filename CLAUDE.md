@@ -651,7 +651,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 10
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.2.0
+- **Dashboard Version**: 2.3.0
 
 ## Release Information
 
@@ -685,6 +685,50 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 > **IMPORTANTE**: Após gerar o APK release, atualizar `hash_md5`, `tamanho_apk_mb`, `versao_recomendada` e `url_download` na aba Config. O `versao_minima` usa `versionCode` (número inteiro), não `versionName`.
 
 ## Version History
+
+### Dashboard 2.3.0 — 2026-06-08
+**Cinco novas funcionalidades completas**
+
+**Exportação Avançada (`export-engine.js`):**
+- CSV com BOM + separador `;` (Excel BR), XLSX multi-abas via SheetJS, JSON estruturado, PDF via impressão HTML
+- 3 perfis: Resumo Executivo, Operacional (RDOs+Serviços+HI+Turmas), Dados Brutos
+- Botão "Exportar" na navbar abre modal com seleção de formato e perfil
+- Exporta somente o período do filtro atual
+
+**Busca Global Inteligente (`search-index.js`):**
+- Índice invertido em memória: indexa RDOs, Serviços e HI
+- Normalização: sem acento, lowercase; sinônimos: os/o.s, rdo/registro, hh/hora-homem, hi/improdutiva
+- Ranking ponderado por campo (numeroRDO peso 10, numeroOS peso 8, descrição peso 6)
+- Debounce 200ms, autocomplete agrupado por categoria (📄 RDOs, 🔧 Serviços, ⏸ HI)
+- Clicar navega ao dia no calendário TP ou TS; navegação por teclado (↑↓ Enter Esc)
+- Barra de busca na navbar, oculta em xs (< 576px)
+
+**Ranking de Performance (`ranking-engine.js`):**
+- Score 0–100 ponderado: Produtividade (40%) + Assiduidade (30%) + Eficiência HI (20%) + Completude RDO (10%)
+- Medalhas 🥇🥈🥉; badge semáforo: Excelente / Bom / Regular / Crítico
+- Botão "Detalhe" expande decomposição por componente com progress bars
+- Toggle TP/TS; renderizado na Visão Geral após análise TP/TS
+
+**Resumo Executivo Automático (`executive-summary.js`):**
+- Motor determinístico via templates — sem IA, sem alucinação
+- 5 seções: Visão Geral, Destaques Positivos, Pontos de Atenção, Performance por Turma, Recomendações
+- Thresholds: assiduidade < 60%/70%, produtividade < 70%/80%, HI > 20%/25%
+- Botão "Copiar" (clipboard) e ".txt" com BOM para download
+- Suporte a mini-markdown **negrito** → <strong>
+
+**Mobile Forte (CSS responsivo):**
+- KPI cards: grade 2x2 no mobile (col-6 col-md-3)
+- Filtros: card colapsável com toggle em mobile (Bootstrap collapse)
+- Busca global oculta em xs, reexibe em tablets (≥ 576px)
+- Abas com scroll horizontal, sem quebra de linha
+- Tabelas, calendários e gráficos com tamanho adaptado
+- Áreas de toque mínimo 38px em dispositivos touch
+
+**Novos arquivos:**
+`dashboard/js/export-engine.js`, `dashboard/js/search-index.js`,
+`dashboard/js/ranking-engine.js`, `dashboard/js/executive-summary.js`
+
+---
 
 ### Dashboard 2.2.0 — 2026-05-31
 **Correções e melhorias de UX**
