@@ -17,6 +17,9 @@
     <!-- Chart.js Plugins -->
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
 
+    <!-- SheetJS — geração de XLSX multi-abas -->
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+
     <!-- Custom CSS -->
     <link rel="stylesheet" href="css/dashboard.css">
 
@@ -45,6 +48,10 @@
                 <i class="fas fa-exclamation-triangle me-1"></i>Auditoria OS
                 <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
                       id="badgeAuditoriaCount" style="font-size:0.65rem;">0</span>
+            </button>
+            <button class="btn btn-outline-light btn-sm me-2" onclick="exportEngine.abrirModal()" title="Exportar dados do período">
+                <i class="fas fa-download me-1"></i>
+                Exportar
             </button>
             <button class="btn btn-outline-light btn-sm" onclick="auth.logout()">
                 <i class="fas fa-sign-out-alt me-1"></i>
@@ -617,7 +624,7 @@
             <p class="text-muted mb-0">
                 <strong>Engecom Engenharia / Encogel</strong> - Consórcio RUMO Logística
                 <br>
-                <small>Dashboard v2.0.1 | <i class="fas fa-shield-alt"></i> Acesso Restrito</small>
+                <small>Dashboard v2.3.0 | <i class="fas fa-shield-alt"></i> Acesso Restrito</small>
             </p>
         </div>
     </footer>
@@ -645,6 +652,7 @@
     <script src="js/os-auditoria.js?v=3.0.20"></script>
     <script src="js/visao-geral.js?v=3.0.21"></script>
     <script src="js/data-quality.js?v=1.0.0"></script>
+    <script src="js/export-engine.js?v=1.0.0"></script>
     <script src="js/main.js?v=3.0.13"></script>
 
     <script>
@@ -707,6 +715,77 @@
             }
         }
     </script>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Modal Exportação                                          -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="modalExportar" tabindex="-1" aria-labelledby="modalExportarLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-primary bg-opacity-10">
+                    <h5 class="modal-title" id="modalExportarLabel">
+                        <i class="fas fa-download me-2 text-primary"></i>Exportar Dados
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Formato</label>
+                        <div class="d-grid gap-2" id="exportFormatoGroup">
+                            <div class="btn-group w-100" role="group">
+                                <input type="radio" class="btn-check" name="exportFmt" id="fmtXlsx" value="xlsx" checked>
+                                <label class="btn btn-outline-success" for="fmtXlsx">
+                                    <i class="fas fa-file-excel me-1"></i>XLSX
+                                    <small class="d-block text-muted" style="font-size:.7rem">Multi-abas</small>
+                                </label>
+
+                                <input type="radio" class="btn-check" name="exportFmt" id="fmtCsv" value="csv">
+                                <label class="btn btn-outline-primary" for="fmtCsv">
+                                    <i class="fas fa-file-csv me-1"></i>CSV
+                                    <small class="d-block text-muted" style="font-size:.7rem">Excel BR</small>
+                                </label>
+
+                                <input type="radio" class="btn-check" name="exportFmt" id="fmtPdf" value="pdf">
+                                <label class="btn btn-outline-danger" for="fmtPdf">
+                                    <i class="fas fa-file-pdf me-1"></i>PDF
+                                    <small class="d-block text-muted" style="font-size:.7rem">Impressão</small>
+                                </label>
+
+                                <input type="radio" class="btn-check" name="exportFmt" id="fmtJson" value="json">
+                                <label class="btn btn-outline-secondary" for="fmtJson">
+                                    <i class="fas fa-code me-1"></i>JSON
+                                    <small class="d-block text-muted" style="font-size:.7rem">Integração</small>
+                                </label>
+                            </div>
+                        </div>
+                        <!-- input hidden que o ExportEngine lê -->
+                        <input type="hidden" id="exportFormato" value="xlsx">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Conteúdo</label>
+                        <select class="form-select" id="exportPerfil">
+                            <option value="resumo">📊 Resumo Executivo — KPIs e turmas</option>
+                            <option value="operacional" selected>📋 Operacional — RDOs + Serviços + HI + Turmas</option>
+                            <option value="brutos">🗃️ Dados Brutos — dump completo do período</option>
+                        </select>
+                    </div>
+
+                    <div id="exportInfo" class="alert alert-info py-2 mb-0" style="font-size:.85rem">
+                        <i class="fas fa-info-circle me-1"></i>
+                        Serão exportados os dados do período selecionado nos filtros.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" id="btnConfirmarExportar"
+                            onclick="exportEngine.executar()">
+                        <i class="fas fa-download me-1"></i>Exportar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- ═══════════════════════════════════════════════════════════ -->
     <!-- Modal Auditoria OS — Lista de O.S suspeitas               -->
@@ -807,6 +886,15 @@
         function aplicarFiltros() {
             dashboardMain.aplicarFiltros();
         }
+
+        // Sincronizar radio buttons do modal de exportação com o input hidden
+        document.addEventListener('DOMContentLoaded', () => {
+            document.querySelectorAll('input[name="exportFmt"]').forEach(radio => {
+                radio.addEventListener('change', () => {
+                    document.getElementById('exportFormato').value = radio.value;
+                });
+            });
+        });
     </script>
 
 </body>

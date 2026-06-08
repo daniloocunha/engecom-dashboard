@@ -125,6 +125,11 @@ class DashboardMain {
             dataQuality._atualizarBadge();
         }
 
+        // Sinalizar para ExportEngine que os dados estão prontos
+        if (typeof exportEngine !== 'undefined') {
+            exportEngine.configurar();
+        }
+
         const customizadosSemHH = sheetsAPI.getCustomizadosSemHH();
 
         debugLog('[Dashboard] Dados carregados:', {
