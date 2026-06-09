@@ -162,6 +162,7 @@ class GestaoOS {
         this._debounceTimers     = {}; // { [numeroOS]: timeoutId } — evita burst de requests
         this._modalAberto        = null; // { id, numeroOS, modalOsId } — modal aberto no momento
         this._osMedidas          = new Set(); // OS que constam na aba O.S_Medidas
+        this._servidorRespondeu  = false; // true quando o servidor respondeu (sucesso OU falha) — controla spinner
     }
 
     // ── Dados ─────────────────────────────────────────────────────────────
@@ -984,6 +985,9 @@ class GestaoOS {
             console.warn('[GestaoOS] Falha ao carregar servidor (usando localStorage):', e.message);
         } finally {
             this._carregandoServidor = false;
+            // Sempre sinaliza que a tentativa terminou (libera spinner do modal)
+            this._servidorRespondeu = true;
+            if (this._modalAberto) this._atualizarModalAnexosNotas(this._modalAberto);
         }
     }
 
@@ -1578,10 +1582,10 @@ class GestaoOS {
                 <div class="mb-1 border rounded p-2 bg-light small"
                      id="notaDisplay_${modalOsId}"
                      style="min-height:40px;">
-                  ${!this._servidorCarregado
-                    ? '<div class="text-muted py-1"><i class="fas fa-spinner fa-spin me-1"></i>Carregando do servidor...</div>'
-                    : (notas.length
-                        ? notas.map(n => `<div class="border rounded p-1 mb-1 bg-white" style="white-space:pre-wrap;">${_esc(n)}</div>`).join('')
+                  ${notas.length
+                    ? notas.map(n => `<div class="border rounded p-1 mb-1 bg-white" style="white-space:pre-wrap;">${_esc(n)}</div>`).join('')
+                    : (!this._servidorRespondeu
+                        ? '<div class="text-muted py-1"><i class="fas fa-spinner fa-spin me-1"></i>Aguardando servidor...</div>'
                         : '<em class="text-muted">Nenhuma anotação</em>')}
                 </div>
 
@@ -1590,9 +1594,9 @@ class GestaoOS {
                   <i class="fas fa-paperclip me-1 text-secondary"></i>Anexos
                 </h6>
                 <div id="anexosCont_${modalOsId}">
-                  ${!this._servidorCarregado
-                    ? '<div class="text-muted small py-1"><i class="fas fa-spinner fa-spin me-1"></i>Carregando anexos...</div>'
-                    : this._anexosHTML(numeroOS, modalOsId)}
+                  ${this._servidorRespondeu || this.getAnexos(numeroOS).length > 0
+                    ? this._anexosHTML(numeroOS, modalOsId)
+                    : '<div class="text-muted small py-1"><i class="fas fa-spinner fa-spin me-1"></i>Aguardando servidor...</div>'}
                 </div>
 
                 <!-- Serviços -->
