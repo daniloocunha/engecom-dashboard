@@ -38,40 +38,42 @@
                 <small>Engecom / Encogel</small>
             </span>
 
-            <!-- Busca Global -->
-            <div id="buscaGlobalWrapper" class="busca-global-wrapper me-auto ms-3 position-relative" style="max-width:340px;flex:1;">
-                <div class="input-group input-group-sm">
-                    <span class="input-group-text bg-white bg-opacity-10 border-0 text-white">
-                        <i class="fas fa-search"></i>
-                    </span>
-                    <input type="text" id="buscaGlobalInput"
-                           class="form-control bg-white bg-opacity-10 border-0 text-white"
-                           placeholder="Buscar RDO, O.S, turma, serviço…"
-                           autocomplete="off"
-                           style="color:#fff !important;">
+            <!-- Busca Global + Botões de ação (agrupados, empurrados para a direita) -->
+            <div class="d-flex align-items-center ms-auto gap-2">
+
+                <!-- Busca Global -->
+                <div id="buscaGlobalWrapper" class="busca-global-wrapper position-relative" style="max-width:260px;flex:0 1 260px;">
+                    <div class="input-group input-group-sm">
+                        <span class="input-group-text bg-white border-0 text-secondary rounded-start-pill">
+                            <i class="fas fa-search"></i>
+                        </span>
+                        <input type="text" id="buscaGlobalInput"
+                               class="form-control bg-white text-dark border-0 rounded-end-pill"
+                               placeholder="Buscar RDO, O.S, serviço…"
+                               autocomplete="off">
+                    </div>
+                    <div id="buscaGlobalDrop" class="busca-global-drop" style="display:none;"></div>
                 </div>
-                <div id="buscaGlobalDrop" class="busca-global-drop" style="display:none;"></div>
+
+                <button class="btn btn-outline-warning btn-sm position-relative"
+                        id="btnAuditoriaOS"
+                        onclick="osAuditoria.abrirModalLista()"
+                        title="O.S com números suspeitos detectadas"
+                        style="display:none;">
+                    <i class="fas fa-exclamation-triangle me-1"></i>Auditoria OS
+                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
+                          id="badgeAuditoriaCount" style="font-size:0.65rem;">0</span>
+                </button>
+                <button class="btn btn-outline-light btn-sm" onclick="exportEngine.abrirModal()" title="Exportar dados do período">
+                    <i class="fas fa-download me-1"></i>
+                    Exportar
+                </button>
+                <button class="btn btn-outline-light btn-sm" onclick="auth.logout()">
+                    <i class="fas fa-sign-out-alt me-1"></i>
+                    Sair
+                </button>
+
             </div>
-
-            <!-- Toggle de Visualização -->
-
-            <button class="btn btn-outline-warning btn-sm position-relative me-2"
-                    id="btnAuditoriaOS"
-                    onclick="osAuditoria.abrirModalLista()"
-                    title="O.S com números suspeitos detectadas"
-                    style="display:none;">
-                <i class="fas fa-exclamation-triangle me-1"></i>Auditoria OS
-                <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                      id="badgeAuditoriaCount" style="font-size:0.65rem;">0</span>
-            </button>
-            <button class="btn btn-outline-light btn-sm me-2" onclick="exportEngine.abrirModal()" title="Exportar dados do período">
-                <i class="fas fa-download me-1"></i>
-                Exportar
-            </button>
-            <button class="btn btn-outline-light btn-sm" onclick="auth.logout()">
-                <i class="fas fa-sign-out-alt me-1"></i>
-                Sair
-            </button>
         </div>
     </nav>
 

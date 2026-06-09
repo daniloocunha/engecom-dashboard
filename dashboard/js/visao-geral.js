@@ -260,6 +260,37 @@ class VisaoGeral {
         this._renderizarSubAba('vg-tp', this._dadosTPS);
         this._renderizarSubAba('vg-ts', this._dadosTS);
         this._configurarEventosAbas();
+
+        // Registrar _vgNavDia SEMPRE (não só quando há problemas de qualidade)
+        // Navegar ao dia no calendário a partir do Número RDO
+        window._vgNavDia = (numRDO, dataStr, turma) => {
+            // Fechar offcanvas (painel lateral de serviços/turmas) se estiver aberto
+            const oc = document.getElementById('vg-offcanvas');
+            if (oc) bootstrap.Offcanvas.getInstance(oc)?.hide();
+            // Fechar modal de Apontamentos HI se estiver aberto
+            const hiModal = document.getElementById('vg-hi-detalhe-modal');
+            if (hiModal) bootstrap.Modal.getInstance(hiModal)?.hide();
+
+            const tipoTurma = (turma||'').toUpperCase().startsWith('TS') ? 'TS' : 'TP';
+            const partes = (dataStr || '').split('/');
+            if (partes.length < 3) return;
+            const dia = parseInt(partes[0]);
+            const mes = parseInt(partes[1]);
+            const ano = parseInt(partes[2]);
+            if (isNaN(dia) || isNaN(mes) || isNaN(ano)) return;
+
+            const abaId = tipoTurma === 'TS' ? 'nav-calendario-ts-tab' : 'nav-calendario-tp-tab';
+            const abaEl = document.getElementById(abaId);
+            if (abaEl) abaEl.click();
+
+            setTimeout(() => {
+                if (tipoTurma === 'TS' && typeof calendarioTS !== 'undefined') {
+                    calendarioTS.mostrarDetalhesDia(turma, dia, mes, ano);
+                } else if (typeof calendarioTP !== 'undefined') {
+                    calendarioTP.mostrarDetalhesDia(turma, dia, mes, ano);
+                }
+            }, 350);
+        };
     }
 
     _configurarEventosAbas() {

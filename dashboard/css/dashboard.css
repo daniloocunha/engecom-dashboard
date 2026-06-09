@@ -1447,13 +1447,13 @@ button:focus-visible,
 }
 
 #buscaGlobalInput::placeholder {
-    color: rgba(255,255,255,0.6) !important;
+    color: #adb5bd !important;
 }
 
 #buscaGlobalInput:focus {
     outline: none;
-    box-shadow: none;
-    background: rgba(255,255,255,0.2) !important;
+    box-shadow: 0 0 0 3px rgba(255,255,255,0.5) !important;
+    background: #fff !important;
 }
 
 .busca-global-drop {
