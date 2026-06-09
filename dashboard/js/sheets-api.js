@@ -611,6 +611,44 @@ class GoogleSheetsAPI {
     }
 
     /**
+     * Carrega a aba O.S_Medidas e retorna um Set com os números de O.S medidas.
+     * Procura coluna "Número OS" / "O.S" / "OS"; se não encontrar, usa a coluna A.
+     * Retorna Set vazio se a aba não existir ou estiver vazia.
+     */
+    async carregarOSMedidas() {
+        try {
+            const raw = await this.carregarAba('O.S_Medidas', 'A:Z');
+            if (!raw || raw.length < 2) return new Set();
+
+            const header = raw[0].map(h => String(h).trim().toLowerCase());
+            // Procura coluna com números de O.S
+            let colOS = header.findIndex(h =>
+                h.includes('número os') || h.includes('numero os') ||
+                h === 'o.s' || h === 'os' || h.includes('n.o.s') || h.includes('num os')
+            );
+            if (colOS < 0) colOS = 0; // fallback: coluna A
+
+            const osSet = new Set();
+            for (let i = 1; i < raw.length; i++) {
+                const val = String(raw[i][colOS] || '').trim();
+                if (validarNumeroOS(val)) osSet.add(val);
+                // Suporte a múltiplas OS no mesmo campo (ex: "1017755/1018836")
+                else if (val.includes('/')) {
+                    val.split('/').forEach(parte => {
+                        const p = parte.trim();
+                        if (validarNumeroOS(p)) osSet.add(p);
+                    });
+                }
+            }
+            debugLog('[API] O.S_Medidas carregadas:', osSet.size, 'registros');
+            return osSet;
+        } catch (e) {
+            console.warn('[API] Aba O.S_Medidas não encontrada ou erro ao carregar:', e.message);
+            return new Set();
+        }
+    }
+
+    /**
      * Fecha aviso de cache expirado
      */
     fecharAvisoCache() {

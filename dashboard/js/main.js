@@ -108,6 +108,14 @@ class DashboardMain {
             this.dados.efetivos
         );
 
+        // Carregar aba O.S_Medidas e marcar automaticamente "Já Medida"
+        try {
+            const osMedidas = await sheetsAPI.carregarOSMedidas();
+            gestaoOS.setOSMedidas(osMedidas);
+        } catch (_e) {
+            debugLog('[Dashboard] Aba O.S_Medidas não disponível (será ignorada)');
+        }
+
         // OS Audit: detectar números suspeitos e exibir badge
         if (typeof osAuditoria !== 'undefined') {
             osAuditoria.carregarDados(

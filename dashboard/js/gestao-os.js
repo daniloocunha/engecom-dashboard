@@ -160,6 +160,8 @@ class GestaoOS {
         this._servidorCarregado  = false;
         this._carregandoServidor = false;
         this._debounceTimers     = {}; // { [numeroOS]: timeoutId } — evita burst de requests
+        this._modalAberto        = null; // { id, numeroOS, modalOsId } — modal aberto no momento
+        this._osMedidas          = new Set(); // OS que constam na aba O.S_Medidas
     }
 
     // ── Dados ─────────────────────────────────────────────────────────────
@@ -407,11 +409,19 @@ class GestaoOS {
     // ── Já Mediu ───────────────────────────────────────────────────────────
 
     getMediu(numeroOS) {
+        // Aba O.S_Medidas tem prioridade máxima (fonte oficial de medição)
+        if (this._osMedidas.has(numeroOS)) return true;
         // Preferir valor local (mais recente); fallback para servidor
         const local = localStorage.getItem('gestaoOS_mediu_' + numeroOS);
         if (local !== null) return local === 'sim';
         const sv = this._dadosServidor?.[numeroOS];
         return sv?.mediu === 'sim';
+    }
+
+    /** Define o Set de O.S medidas lidas da aba O.S_Medidas */
+    setOSMedidas(set) {
+        this._osMedidas = set instanceof Set ? set : new Set(set || []);
+        debugLog('[GestaoOS] O.S_Medidas carregadas:', this._osMedidas.size);
     }
 
     setMediu(numeroOS, valor) {
@@ -739,12 +749,19 @@ class GestaoOS {
     getAnexos(numeroOS) {
         const json = localStorage.getItem('gestaoOS_anexos_' + numeroOS);
         if (json) {
-            try { return JSON.parse(json); } catch { /* fall through */ }
+            try {
+                const arr = JSON.parse(json);
+                // Só usa local se tiver conteúdo; array vazio cai no fallback do servidor
+                if (Array.isArray(arr) && arr.length > 0) return arr;
+            } catch { /* fall through */ }
         }
-        // Fallback: dados do servidor (outro computador pode ter feito o upload)
+        // Fallback: dados do servidor (outro dispositivo pode ter feito o upload)
         const sv = this._dadosServidor?.[numeroOS];
         if (sv?.anexos) {
-            try { return typeof sv.anexos === 'string' ? JSON.parse(sv.anexos) : sv.anexos; } catch { return []; }
+            try {
+                const arr = typeof sv.anexos === 'string' ? JSON.parse(sv.anexos) : sv.anexos;
+                return Array.isArray(arr) ? arr : [];
+            } catch { return []; }
         }
         return [];
     }
@@ -804,15 +821,25 @@ class GestaoOS {
 
             const nomeExibido = a.nome.length > 14 ? a.nome.slice(0, 12) + '…' : a.nome;
 
+            // Imagens abrem no lightbox inline; PDFs/outros abrem em nova aba
+            const wrapper = isImg
+                ? `<div onclick="event.stopPropagation();gestaoOS._abrirLightbox('${_esc(a.url)}','${_escAttr(a.nome)}')"
+                        style="border:1px solid #dee2e6;border-radius:6px;overflow:hidden;display:block;cursor:zoom-in;"
+                        title="Clique para ampliar">
+                     ${thumb}
+                   </div>`
+                : `<a href="${_esc(a.url)}" target="_blank" title="${_escAttr(a.nome)}"
+                      onclick="event.stopPropagation()"
+                      style="border:1px solid #dee2e6;border-radius:6px;overflow:hidden;display:block;">
+                     ${thumb}
+                   </a>`;
+
             return `<div class="d-inline-flex flex-column align-items-center me-2 mb-2" style="max-width:76px;">
-                      <a href="${_esc(a.url)}" target="_blank" title="${_escAttr(a.nome)}"
-                         style="border:1px solid #dee2e6;border-radius:6px;overflow:hidden;display:block;">
-                        ${thumb}
-                      </a>
+                      ${wrapper}
                       <span class="text-muted text-center" style="font-size:0.62rem;margin-top:3px;max-width:76px;
                                    word-break:break-all;line-height:1.2;" title="${_escAttr(a.nome)}">${_esc(nomeExibido)}</span>
                       <button class="btn btn-link text-danger p-0" style="font-size:0.7rem;line-height:1;"
-                              onclick="gestaoOS._deletarAnexo('${_escAttr(numeroOS)}','${modalOsId}',${i})"
+                              onclick="event.stopPropagation();gestaoOS._deletarAnexo('${_escAttr(numeroOS)}','${modalOsId}',${i})"
                               title="Remover anexo">✕</button>
                     </div>`;
         }).join('');
@@ -882,6 +909,44 @@ class GestaoOS {
         if (cont) cont.innerHTML = this._anexosHTML(numeroOS, modalOsId);
     }
 
+    /** Abre lightbox inline para visualizar imagem sem abrir nova aba */
+    _abrirLightbox(url, nome) {
+        let lb = document.getElementById('gestaoOsLightbox');
+        if (!lb) {
+            lb = document.createElement('div');
+            lb.id = 'gestaoOsLightbox';
+            lb.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;' +
+                'background:rgba(0,0,0,0.88);z-index:10000;display:flex;flex-direction:column;' +
+                'align-items:center;justify-content:center;cursor:zoom-out;';
+            lb.innerHTML = `
+              <div style="position:relative;max-width:92vw;max-height:92vh;text-align:center;"
+                   onclick="event.stopPropagation()">
+                <img id="gestaoOsLightboxImg"
+                     style="max-width:90vw;max-height:82vh;border-radius:8px;
+                            box-shadow:0 8px 40px rgba(0,0,0,0.7);cursor:default;display:block;">
+                <div id="gestaoOsLightboxNome"
+                     style="color:#fff;margin-top:10px;font-size:0.88rem;opacity:0.85;"></div>
+                <a id="gestaoOsLightboxLink" href="#" target="_blank"
+                   onclick="event.stopPropagation()"
+                   style="display:inline-block;margin-top:6px;color:#8ec5fc;font-size:0.8rem;">
+                  ↗ Abrir original em nova aba
+                </a>
+              </div>
+              <button onclick="document.getElementById('gestaoOsLightbox').style.display='none'"
+                      style="position:absolute;top:18px;right:22px;background:none;border:none;
+                             color:#fff;font-size:2rem;cursor:pointer;line-height:1;opacity:0.8;">✕</button>`;
+            lb.onclick = () => { lb.style.display = 'none'; };
+            document.body.appendChild(lb);
+            document.addEventListener('keydown', e => {
+                if (e.key === 'Escape' && lb.style.display !== 'none') lb.style.display = 'none';
+            });
+        }
+        document.getElementById('gestaoOsLightboxImg').src = url;
+        document.getElementById('gestaoOsLightboxNome').textContent = nome || '';
+        document.getElementById('gestaoOsLightboxLink').href = url;
+        lb.style.display = 'flex';
+    }
+
     // ── Persistência no servidor (Google Sheets via Apps Script) ───────────
 
     /**
@@ -903,6 +968,8 @@ class GestaoOS {
                 this._servidorCarregado  = true;
                 console.log('[GestaoOS] ✅ Servidor: carregados', Object.keys(json.dados).length, 'registros');
                 if (this.dados) this.renderizar();
+                // Atualizar notas/anexos de modal que possa ter sido aberto antes de carregar
+                if (this._modalAberto) this._atualizarModalAnexosNotas(this._modalAberto);
                 // Migrar dados do localStorage que ainda não estão no servidor
                 this._migrarLocalStorageParaServidor();
             } else {
@@ -1000,6 +1067,31 @@ class GestaoOS {
     }
 
     /**
+     * Atualiza seções de notas e anexos de um modal já aberto.
+     * Chamado após _carregarDoServidor() completar, para corrigir modais
+     * que foram abertos antes do carregamento terminar (race condition).
+     */
+    _atualizarModalAnexosNotas({ id, numeroOS, modalOsId }) {
+        const modalEl = document.getElementById(id);
+        if (!modalEl) return;
+
+        // Atualizar notas
+        const notas = this.getNotas(numeroOS);
+        const notaDisplay = document.getElementById(`notaDisplay_${modalOsId}`);
+        if (notaDisplay) {
+            notaDisplay.innerHTML = notas.length
+                ? notas.map(n => `<div class="border rounded p-1 mb-1 bg-white" style="white-space:pre-wrap;">${_esc(n)}</div>`).join('')
+                : '<em class="text-muted">Nenhuma anotação</em>';
+        }
+
+        // Atualizar anexos
+        const anexosCont = document.getElementById(`anexosCont_${modalOsId}`);
+        if (anexosCont) {
+            anexosCont.innerHTML = this._anexosHTML(numeroOS, modalOsId);
+        }
+    }
+
+    /**
      * Varre o localStorage e envia para o servidor qualquer O.S que ainda
      * não esteja lá. Executado uma vez após carregar dados do servidor.
      * Migração SEQUENCIAL: aguarda cada resposta antes de enviar o próximo,
@@ -1009,7 +1101,7 @@ class GestaoOS {
         const osNums = new Set();
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            const match = key && key.match(/^gestaoOS_(status|gevia|notas|nota)_(.+)$/);
+            const match = key && key.match(/^gestaoOS_(status|gevia|notas|nota|mediu|anexos|urgente)_(.+)$/);
             if (match) osNums.add(match[2]);
         }
 
@@ -1422,6 +1514,7 @@ class GestaoOS {
         const notas   = this.getNotas(numeroOS);
         const modalId = 'modalDetalheOS_' + modalOsId;
         document.getElementById(modalId)?.remove();
+        this._modalAberto = { id: modalId, numeroOS, modalOsId };
 
         const modalHTML = `
         <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
@@ -1485,9 +1578,11 @@ class GestaoOS {
                 <div class="mb-1 border rounded p-2 bg-light small"
                      id="notaDisplay_${modalOsId}"
                      style="min-height:40px;">
-                  ${notas.length
-                    ? notas.map(n => `<div class="border rounded p-1 mb-1 bg-white" style="white-space:pre-wrap;">${_esc(n)}</div>`).join('')
-                    : '<em class="text-muted">Nenhuma anotação</em>'}
+                  ${!this._servidorCarregado
+                    ? '<div class="text-muted py-1"><i class="fas fa-spinner fa-spin me-1"></i>Carregando do servidor...</div>'
+                    : (notas.length
+                        ? notas.map(n => `<div class="border rounded p-1 mb-1 bg-white" style="white-space:pre-wrap;">${_esc(n)}</div>`).join('')
+                        : '<em class="text-muted">Nenhuma anotação</em>')}
                 </div>
 
                 <!-- Anexos (Feature 3) -->
@@ -1495,7 +1590,9 @@ class GestaoOS {
                   <i class="fas fa-paperclip me-1 text-secondary"></i>Anexos
                 </h6>
                 <div id="anexosCont_${modalOsId}">
-                  ${this._anexosHTML(numeroOS, modalOsId)}
+                  ${!this._servidorCarregado
+                    ? '<div class="text-muted small py-1"><i class="fas fa-spinner fa-spin me-1"></i>Carregando anexos...</div>'
+                    : this._anexosHTML(numeroOS, modalOsId)}
                 </div>
 
                 <!-- Serviços -->
@@ -1561,6 +1658,7 @@ class GestaoOS {
         const modalEl = document.getElementById(modalId);
         const bsModal  = new bootstrap.Modal(modalEl);
         modalEl.addEventListener('hidden.bs.modal', () => {
+            if (this._modalAberto?.id === modalId) this._modalAberto = null;
             bsModal.dispose();
             modalEl.remove();
         }, { once: true });
