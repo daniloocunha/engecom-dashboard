@@ -55,15 +55,6 @@
                     <div id="buscaGlobalDrop" class="busca-global-drop" style="display:none;"></div>
                 </div>
 
-                <button class="btn btn-outline-warning btn-sm position-relative"
-                        id="btnAuditoriaOS"
-                        onclick="osAuditoria.abrirModalLista()"
-                        title="O.S com números suspeitos detectadas"
-                        style="display:none;">
-                    <i class="fas fa-exclamation-triangle me-1"></i>Auditoria OS
-                    <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger"
-                          id="badgeAuditoriaCount" style="font-size:0.65rem;">0</span>
-                </button>
                 <button class="btn btn-outline-light btn-sm" onclick="exportEngine.abrirModal()" title="Exportar dados do período">
                     <i class="fas fa-download me-1"></i>
                     Exportar
@@ -622,9 +613,9 @@
     <script src="js/calendario-ts.js?v=3.0.13"></script>
     <script src="js/period-comparison.js?v=4.0.0"></script>
     <script src="js/gestao-os.js?v=3.0.20"></script>
-    <script src="js/os-auditoria.js?v=3.0.20"></script>
+    <script src="js/os-auditoria.js?v=3.1.0"></script>
     <script src="js/visao-geral.js?v=3.0.21"></script>
-    <script src="js/data-quality.js?v=1.0.0"></script>
+    <script src="js/data-quality.js?v=1.1.0"></script>
     <script src="js/export-engine.js?v=1.0.0"></script>
     <script src="js/search-index.js?v=1.0.0"></script>
     <script src="js/ranking-engine.js?v=1.0.0"></script>
@@ -758,37 +749,6 @@
                             onclick="exportEngine.executar()">
                         <i class="fas fa-download me-1"></i>Exportar
                     </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <!-- Modal Auditoria OS — Lista de O.S suspeitas               -->
-    <!-- ═══════════════════════════════════════════════════════════ -->
-    <div class="modal fade" id="modalAuditoriaLista" tabindex="-1" aria-labelledby="modalAuditoriaListaLabel" aria-hidden="true">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content">
-                <div class="modal-header bg-warning bg-opacity-25">
-                    <h5 class="modal-title" id="modalAuditoriaListaLabel">
-                        <i class="fas fa-exclamation-triangle me-2 text-warning"></i>
-                        Auditoria de O.S
-                        <span class="badge bg-danger ms-2" id="auditoriaListaBadge">0</span>
-                    </h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
-                </div>
-                <div class="modal-body" id="auditoriaListaBody">
-                    <!-- Preenchido dinamicamente por osAuditoria.abrirModalLista() -->
-                </div>
-                <div class="modal-footer d-flex justify-content-between align-items-center">
-                    <span class="small text-muted" id="auditoriaIgnoradasInfo"></span>
-                    <div>
-                        <button type="button" class="btn btn-sm btn-outline-secondary me-2"
-                                onclick="osAuditoria.abrirRevisarIgnoradas()">
-                            <i class="fas fa-eye-slash me-1"></i>Ver Ignoradas
-                        </button>
-                        <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Fechar</button>
-                    </div>
                 </div>
             </div>
         </div>

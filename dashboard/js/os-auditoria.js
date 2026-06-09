@@ -106,157 +106,242 @@ class OSAuditoria {
     }
 
     // ═══════════════════════════════════════════════════════════
-    // Badge
+    // Badge (integrado à aba Qualidade)
     // ═══════════════════════════════════════════════════════════
 
     atualizarBadge() {
-        const btn   = document.getElementById('btnAuditoriaOS');
-        const badge = document.getElementById('badgeAuditoriaCount');
-        if (!btn || !badge) return;
-
-        const total = this._suspeitas.size;
-        badge.textContent = total;
-        btn.style.display = total > 0 ? '' : 'none';
+        // Atualiza o badge unificado da aba Qualidade (issues + OS suspeitas)
+        if (typeof dataQuality !== 'undefined' && dataQuality.analisado) {
+            dataQuality.atualizarBadgeUnificado();
+        }
+        // Atualiza a seção inline se já foi renderizada
+        this._refreshSecaoQualidade();
     }
 
     // ═══════════════════════════════════════════════════════════
-    // Modal 1 — Lista
+    // Renderização inline na aba Qualidade
     // ═══════════════════════════════════════════════════════════
 
-    abrirModalLista() {
-        const body = document.getElementById('auditoriaListaBody');
-        const badgeEl = document.getElementById('auditoriaListaBadge');
-        if (!body) return;
+    renderizarSecaoQualidade(containerEl) {
+        const existing = document.getElementById('dq-auditoria-os');
+        if (existing) existing.remove();
 
-        const total = this._suspeitas.size;
-        if (badgeEl) badgeEl.textContent = total;
+        const section = document.createElement('div');
+        section.id = 'dq-auditoria-os';
+        section.className = 'mt-4';
 
-        if (total === 0) {
-            body.innerHTML = `
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle me-2"></i>
-                    Nenhuma O.S suspeita encontrada.
-                </div>`;
+        const total     = this._suspeitas.size;
+        const dismissed = this._getDismissedCount();
+
+        if (total === 0 && dismissed === 0) {
+            section.innerHTML = `
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white d-flex align-items-center gap-2">
+                    <i class="fas fa-exclamation-triangle text-warning"></i>
+                    <h6 class="mb-0">Auditoria de Números de O.S</h6>
+                    <span class="badge bg-success ms-1">Tudo OK</span>
+                </div>
+                <div class="card-body py-3">
+                    <p class="text-muted small mb-0">
+                        <i class="fas fa-check-circle text-success me-1"></i>
+                        Nenhum número de O.S suspeito detectado.
+                    </p>
+                </div>
+            </div>`;
         } else {
-            // Separar críticas de leves
-            const criticas = [], leves = [];
-            this._suspeitas.forEach((info, os) => {
-                (info.nivel === 'critico' ? criticas : leves).push({ os, info });
+            section.innerHTML = this._htmlSecaoQualidade();
+            section.addEventListener('click', e => {
+                const btn = e.target.closest('[data-acao-aud]');
+                if (!btn) return;
+                const os   = btn.dataset.os;
+                const acao = btn.dataset.acaoAud;
+                if (acao === 'corrigir')       this.abrirModalCorrigir(os);
+                if (acao === 'dividir')        this.abrirModalDividir(os);
+                if (acao === 'ignorar')        this.ignorarOS(os);
+                if (acao === 'ver-ignoradas')  this._toggleIgnoradas(section);
+                if (acao === 'restaurar') {
+                    localStorage.removeItem('osAuditoria_ignorada_' + os);
+                    this._detectarSuspeitas();
+                    this._refreshSecaoQualidade();
+                    this.atualizarBadge();
+                }
             });
+        }
 
-            let html = `
-                <div class="alert alert-warning py-2 small mb-3">
+        containerEl.appendChild(section);
+    }
+
+    _htmlSecaoQualidade() {
+        const total     = this._suspeitas.size;
+        const dismissed = this._getDismissedCount();
+
+        const criticas = [], leves = [];
+        this._suspeitas.forEach((info, os) => {
+            (info.nivel === 'critico' ? criticas : leves).push({ os, info });
+        });
+
+        let linhas = '';
+        const renderLinha = ({ os, info }) => {
+            const osEsc    = escAttr(os);
+            const colId    = 'dq_rdoObs_' + os.replace(/[^a-zA-Z0-9]/g, '_');
+            const badgeCls = info.nivel === 'critico' ? 'bg-danger' : 'bg-warning text-dark';
+
+            const rdosHtml = info.rdos.map(r => {
+                const numRDO = escapeHtml(r['Número RDO'] || r.numeroRDO || '-');
+                const data   = escapeHtml(r['Data'] || r.data || '-');
+                const obs    = (r['Observações'] || r.observacoes || '').trim();
+                return `<tr>
+                    <td class="small text-muted ps-2">${numRDO}</td>
+                    <td class="small text-muted">${data}</td>
+                    <td class="small">${obs ? escapeHtml(obs) : '<span class="text-muted fst-italic">sem observação</span>'}</td>
+                </tr>`;
+            }).join('');
+
+            return `
+            <tr>
+                <td><span class="badge ${badgeCls}">${escapeHtml(os)}</span></td>
+                <td class="small text-muted">${escapeHtml(info.motivo)}</td>
+                <td class="text-center">
+                    <button class="btn btn-link btn-sm p-0 text-decoration-none"
+                            data-bs-toggle="collapse" data-bs-target="#${colId}">
+                        ${info.rdos.length} <i class="fas fa-chevron-down" style="font-size:.6rem"></i>
+                    </button>
+                </td>
+                <td class="text-center">${info.servicos.length}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary me-1 py-0" data-acao-aud="corrigir" data-os="${osEsc}">
+                        <i class="fas fa-edit me-1"></i>Corrigir
+                    </button>
+                    <button class="btn btn-sm btn-outline-success me-1 py-0" data-acao-aud="dividir" data-os="${osEsc}">
+                        <i class="fas fa-code-branch me-1"></i>Dividir
+                    </button>
+                    <button class="btn btn-sm btn-outline-secondary py-0" data-acao-aud="ignorar" data-os="${osEsc}">
+                        <i class="fas fa-eye-slash me-1"></i>Ignorar
+                    </button>
+                </td>
+            </tr>
+            <tr class="collapse" id="${colId}">
+                <td colspan="5" class="p-0">
+                    <table class="table table-sm table-bordered mb-0 bg-light">
+                        <thead class="table-secondary">
+                            <tr>
+                                <th class="ps-2 small">Número RDO</th>
+                                <th class="small">Data</th>
+                                <th class="small">Observações</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rdosHtml}</tbody>
+                    </table>
+                </td>
+            </tr>`;
+        };
+
+        criticas.forEach(item => linhas += renderLinha(item));
+        if (leves.length > 0) {
+            linhas += `<tr class="table-light"><td colspan="5" class="small text-muted py-1 ps-2">
+                <i class="fas fa-exclamation-circle me-1 text-warning"></i>Suspeitas leves (podem ser válidas)
+            </td></tr>`;
+            leves.forEach(item => linhas += renderLinha(item));
+        }
+
+        const dismissedBtn = dismissed > 0
+            ? `<button class="btn btn-sm btn-outline-secondary" data-acao-aud="ver-ignoradas">
+                   <i class="fas fa-eye-slash me-1"></i>Ver Ignoradas (${dismissed})
+               </button>`
+            : '';
+
+        return `
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-warning bg-opacity-10 d-flex align-items-center justify-content-between flex-wrap gap-2">
+                <div class="d-flex align-items-center gap-2">
+                    <i class="fas fa-exclamation-triangle text-warning"></i>
+                    <h6 class="mb-0">Auditoria de Números de O.S</h6>
+                    <span class="badge bg-danger">${total}</span>
+                </div>
+                ${dismissedBtn}
+            </div>
+            <div class="card-body p-0">
+                <div class="alert alert-warning py-2 small m-3 mb-0">
                     <i class="fas fa-info-circle me-1"></i>
                     Foram encontradas O.S com números fora do padrão. Revise cada uma e escolha uma ação.
                 </div>
-                <table class="table table-hover table-sm align-middle">
-                    <thead class="table-dark">
-                        <tr>
-                            <th>O.S</th>
-                            <th>Motivo</th>
-                            <th class="text-center"># RDOs</th>
-                            <th class="text-center"># Serviços</th>
-                            <th>Ações</th>
-                        </tr>
-                    </thead>
-                    <tbody>`;
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>O.S</th>
+                                <th>Motivo</th>
+                                <th class="text-center"># RDOs</th>
+                                <th class="text-center"># Serviços</th>
+                                <th>Ações</th>
+                            </tr>
+                        </thead>
+                        <tbody>${linhas}</tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <div id="dq-aud-ignoradas" class="mt-3" style="display:none;"></div>`;
+    }
 
-            const renderLinha = ({ os, info }) => {
-                const osEsc  = escAttr(os);
-                const colId  = 'rdoObs_' + os.replace(/[^a-zA-Z0-9]/g, '_');
-                const badgeCls = info.nivel === 'critico' ? 'bg-danger' : 'bg-warning text-dark';
+    _toggleIgnoradas(section) {
+        const el = section.querySelector('#dq-aud-ignoradas');
+        if (!el) return;
 
-                // Sub-painel: RDOs com data + observação
-                const rdosHtml = info.rdos.map(r => {
-                    const numRDO = escapeHtml(r['Número RDO'] || r.numeroRDO || '-');
-                    const data   = escapeHtml(r['Data'] || r.data || '-');
-                    const obs    = (r['Observações'] || r.observacoes || '').trim();
-                    return `<tr>
-                        <td class="small text-muted ps-2">${numRDO}</td>
-                        <td class="small text-muted">${data}</td>
-                        <td class="small">${obs ? escapeHtml(obs) : '<span class="text-muted fst-italic">sem observação</span>'}</td>
-                    </tr>`;
-                }).join('');
+        if (el.style.display !== 'none') {
+            el.style.display = 'none';
+            return;
+        }
 
-                return `
-                    <tr>
-                        <td>
-                            <span class="badge ${badgeCls}">${escapeHtml(os)}</span>
-                        </td>
-                        <td class="small text-muted">${escapeHtml(info.motivo)}</td>
-                        <td class="text-center">
-                            <button class="btn btn-link btn-sm p-0 text-decoration-none"
-                                    data-bs-toggle="collapse" data-bs-target="#${colId}">
-                                ${info.rdos.length} <i class="fas fa-chevron-down" style="font-size:0.6rem"></i>
-                            </button>
-                        </td>
-                        <td class="text-center">${info.servicos.length}</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-primary me-1 py-0"
-                                    data-acao="corrigir" data-os="${osEsc}">
-                                <i class="fas fa-edit me-1"></i>Corrigir
-                            </button>
-                            <button class="btn btn-sm btn-outline-success me-1 py-0"
-                                    data-acao="dividir" data-os="${osEsc}">
-                                <i class="fas fa-code-branch me-1"></i>Dividir
-                            </button>
-                            <button class="btn btn-sm btn-outline-secondary py-0"
-                                    data-acao="ignorar" data-os="${osEsc}">
-                                <i class="fas fa-eye-slash me-1"></i>Ignorar
-                            </button>
-                        </td>
-                    </tr>
-                    <tr class="collapse" id="${colId}">
-                        <td colspan="5" class="p-0">
-                            <table class="table table-sm table-bordered mb-0 bg-light">
-                                <thead class="table-secondary">
-                                    <tr>
-                                        <th class="ps-2 small">Número RDO</th>
-                                        <th class="small">Data</th>
-                                        <th class="small">Observações</th>
-                                    </tr>
-                                </thead>
-                                <tbody>${rdosHtml}</tbody>
-                            </table>
-                        </td>
-                    </tr>`;
-            };
-
-            criticas.forEach(item => html += renderLinha(item));
-            if (leves.length > 0) {
-                html += `<tr class="table-light"><td colspan="5" class="small text-muted py-1 ps-2">
-                    <i class="fas fa-exclamation-circle me-1 text-warning"></i>
-                    Suspeitas leves (podem ser válidas)
-                </td></tr>`;
-                leves.forEach(item => html += renderLinha(item));
+        const ignoradas = [];
+        for (let i = 0; i < localStorage.length; i++) {
+            const key = localStorage.key(i);
+            if (!key?.startsWith('osAuditoria_ignorada_')) continue;
+            try {
+                ignoradas.push(JSON.parse(localStorage.getItem(key)));
+            } catch (e) {
+                ignoradas.push({ numeroOS: key.replace('osAuditoria_ignorada_', '') });
             }
-
-            html += `</tbody></table>`;
-            body.innerHTML = html;
         }
 
-        // Info de ignoradas
-        const ignoradasInfo = document.getElementById('auditoriaIgnoradasInfo');
-        if (ignoradasInfo) {
-            const count = this._getDismissedCount();
-            ignoradasInfo.textContent = count > 0 ? `${count} O.S ignorada(s)` : '';
-        }
+        let rows = ignoradas.map(reg => {
+            const data = reg.ignoradoEm ? new Date(reg.ignoradoEm).toLocaleDateString('pt-BR') : '-';
+            return `<tr>
+                <td>${escapeHtml(reg.numeroOS || '')}</td>
+                <td class="small text-muted">${escapeHtml(reg.motivo || '-')}</td>
+                <td class="text-center">${(reg.rdoIds || []).length}</td>
+                <td class="small">${data}</td>
+                <td>
+                    <button class="btn btn-sm btn-outline-success py-0"
+                            data-acao-aud="restaurar" data-os="${escAttr(reg.numeroOS || '')}">
+                        <i class="fas fa-undo me-1"></i>Restaurar
+                    </button>
+                </td>
+            </tr>`;
+        }).join('');
 
-        // Event delegation (uma única vez)
-        if (!this._listaBound) {
-            body.addEventListener('click', e => {
-                const btn = e.target.closest('[data-acao]');
-                if (!btn) return;
-                const os = btn.dataset.os;
-                const acao = btn.dataset.acao;
-                if (acao === 'corrigir') { this._fecharModal('modalAuditoriaLista'); this.abrirModalCorrigir(os); }
-                if (acao === 'dividir')  { this._fecharModal('modalAuditoriaLista'); this.abrirModalDividir(os); }
-                if (acao === 'ignorar')  { this.ignorarOS(os); }
-            });
-            this._listaBound = true;
-        }
+        el.innerHTML = `
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-secondary bg-opacity-10">
+                <h6 class="mb-0"><i class="fas fa-eye-slash me-2 text-muted"></i>O.S Ignoradas (${ignoradas.length})</h6>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-sm mb-0">
+                    <thead class="table-secondary">
+                        <tr><th>O.S</th><th>Motivo</th><th class="text-center"># RDOs</th><th>Ignorada em</th><th></th></tr>
+                    </thead>
+                    <tbody>${rows}</tbody>
+                </table>
+            </div>
+        </div>`;
+        el.style.display = '';
+    }
 
-        this._abrirModal('modalAuditoriaLista');
+    _refreshSecaoQualidade() {
+        const section = document.getElementById('dq-auditoria-os');
+        if (!section) return;
+        const parent = section.parentElement;
+        if (parent) this.renderizarSecaoQualidade(parent);
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -675,14 +760,8 @@ class OSAuditoria {
         } catch (e) { /* localStorage cheio */ }
 
         this._suspeitas.delete(numeroOS);
+        this._refreshSecaoQualidade();
         this.atualizarBadge();
-
-        // Re-renderizar lista se modal estiver aberto
-        const modal = document.getElementById('modalAuditoriaLista');
-        if (modal && modal.classList.contains('show')) {
-            this._listaBound = false; // permite re-bind
-            this.abrirModalLista();
-        }
     }
 
     _getDismissedCount() {

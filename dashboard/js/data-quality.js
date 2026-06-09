@@ -292,15 +292,26 @@ class DataQualityEngine {
             (total > 0
                 ? this._htmlFiltros() + this._htmlTabela()
                 : this._htmlVazio());
+
+        // Seção de Auditoria de O.S integrada ao final da aba Qualidade
+        if (typeof osAuditoria !== 'undefined') {
+            osAuditoria.renderizarSecaoQualidade(el);
+        }
     }
 
-    /** Atualiza o badge numérico na aba "Qualidade" com critical + high. */
-    _atualizarBadge() {
+    /** Atualiza o badge da aba "Qualidade" combinando issues + O.S suspeitas. */
+    atualizarBadgeUnificado() {
         const badge = document.getElementById('dq-badge');
         if (!badge) return;
-        const n = this._issues.filter(i => i.severity === 'critical' || i.severity === 'high').length;
-        badge.textContent = n;
-        badge.classList.toggle('d-none', n === 0);
+        const nQuality = this._issues.filter(i => i.severity === 'critical' || i.severity === 'high').length;
+        const nOS      = (typeof osAuditoria !== 'undefined') ? osAuditoria._suspeitas.size : 0;
+        const total    = nQuality + nOS;
+        badge.textContent = total;
+        badge.classList.toggle('d-none', total === 0);
+    }
+
+    _atualizarBadge() {
+        this.atualizarBadgeUnificado();
     }
 
     // ── Helpers de contagem ──────────────────────────────────────────────────
