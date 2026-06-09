@@ -651,7 +651,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 10
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.3.0
+- **Dashboard Version**: 2.3.1
 
 ## Release Information
 
@@ -685,6 +685,32 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 > **IMPORTANTE**: Após gerar o APK release, atualizar `hash_md5`, `tamanho_apk_mb`, `versao_recomendada` e `url_download` na aba Config. O `versao_minima` usa `versionCode` (número inteiro), não `versionName`.
 
 ## Version History
+
+### Dashboard 2.3.1 — 2026-06-08
+**Bug fixes pós-deploy v2.3.0**
+
+**Bug #1 — Navbar: busca invisível e botões ocultos:**
+- Input de busca usava `bg-white bg-opacity-10` (fundo 10% branco = quase transparente sobre azul)
+- Corrigido para `bg-white text-dark` com estilo pill — totalmente visível
+- `flex:1` no wrapper empurrava botões para fora da tela → trocado por `flex:0 1 260px`
+- Busca + botões agrupados em `div.d-flex.ms-auto` para layout correto e sempre visível
+
+**Bug #2 — Busca global sem resposta:**
+- `searchIndex.inicializarUI()` era chamada APÓS `renderizarDashboard()` — se qualquer erro
+  ocorresse no rendering (Ranking ou Resumo Executivo), os event listeners nunca eram registrados
+- Corrigido: `inicializarUI()` movida para ANTES de `renderizarDashboard()`
+- Passos 12 (Ranking) e 13 (Resumo Executivo) envolvidos em `try-catch` individuais
+
+**Bug #3 — `TypeError: window._vgNavDia is not a function`:**
+- `window._vgNavDia` estava definida dentro de `_renderizarQualidadeDados()`, que tem
+  `if (!total) return` — quando não há problemas de qualidade, a função nunca era atribuída
+- Corrigida: movida para `renderizar()` — agora sempre definida a cada ciclo de render,
+  independente do estado de qualidade dos dados
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/css/dashboard.css`,
+`dashboard/js/main.js`, `dashboard/js/visao-geral.js`
+
+---
 
 ### Dashboard 2.3.0 — 2026-06-08
 **Cinco novas funcionalidades completas**

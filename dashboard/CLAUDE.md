@@ -837,7 +837,7 @@ Enquanto o Apps Script não for atualizado, o dashboard carrega sem notas (array
 
 ## Version Information
 
-- **Current Version**: 2.2.0
+- **Current Version**: 2.3.1
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)
