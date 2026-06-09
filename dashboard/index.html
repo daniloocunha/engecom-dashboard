@@ -122,7 +122,7 @@
             </div>
             <div class="card-body collapse show" id="filtrosBody">
                 <div class="row align-items-end">
-                    <div class="col-md-2">
+                    <div class="col-md-4">
                         <label class="form-label">Mês</label>
                         <select class="form-select" id="filtroMes">
                             <option value="1">Janeiro</option>
@@ -139,96 +139,17 @@
                             <option value="12">Dezembro</option>
                         </select>
                     </div>
-                    <div class="col-md-2">
+                    <div class="col-md-4">
                         <label class="form-label">Ano</label>
                         <select class="form-select" id="filtroAno">
                             <!-- Gerado dinamicamente via JS -->
                         </select>
                     </div>
-                    <div class="col-md-3">
-                        <label class="form-label">Turma</label>
-                        <select class="form-select" id="filtroTurma">
-                            <option value="todas">Todas as Turmas</option>
-                            <!-- Preenchido via JavaScript -->
-                        </select>
-                    </div>
-                    <div class="col-md-2">
-                        <label class="form-label">Tipo</label>
-                        <select class="form-select" id="filtroTipo">
-                            <option value="todos">Todos</option>
-                            <option value="TP">TPs</option>
-                            <option value="TS">TSs</option>
-                        </select>
-                    </div>
-                    <div class="col-md-3">
+                    <div class="col-md-4">
                         <button class="btn btn-primary w-100" onclick="aplicarFiltros()">
                             <i class="fas fa-filter me-2"></i>
                             Aplicar Filtros
                         </button>
-                    </div>
-                </div>
-            </div>
-        </div>
-
-        <!-- KPIs Cards -->
-        <div class="row g-3 mb-4" id="kpisContainer">
-            <div class="col-6 col-md-3">
-                <div class="card kpi-card">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-muted mb-1">Total RDOs</h6>
-                                <h3 class="mb-0" id="kpiTotalRdos">0</h3>
-                            </div>
-                            <div class="kpi-icon bg-primary">
-                                <i class="fas fa-file-alt"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card kpi-card">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-muted mb-1">Total HH (TPs)</h6>
-                                <h3 class="mb-0" id="kpiTotalHH">0</h3>
-                            </div>
-                            <div class="kpi-icon bg-success">
-                                <i class="fas fa-clock"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card kpi-card">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-muted mb-1">Faturamento Total</h6>
-                                <h3 class="mb-0" id="kpiFaturamento">R$ 0,00</h3>
-                            </div>
-                            <div class="kpi-icon bg-warning">
-                                <i class="fas fa-dollar-sign"></i>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            <div class="col-6 col-md-3">
-                <div class="card kpi-card">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <h6 class="text-muted mb-1">Média SLA (TPs)</h6>
-                                <h3 class="mb-0" id="kpiMediaSLA">0%</h3>
-                            </div>
-                            <div class="kpi-icon bg-info">
-                                <i class="fas fa-chart-pie"></i>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>

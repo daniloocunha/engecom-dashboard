@@ -13,18 +13,14 @@ class DashboardFilters {
      * 🔍 Salva filtros atuais como favorito (Sprint 3)
      */
     salvarFavorito(nome) {
-        const elMes   = document.getElementById('filtroMes');
-        const elAno   = document.getElementById('filtroAno');
-        const elTurma = document.getElementById('filtroTurma');
-        const elTipo  = document.getElementById('filtroTipo');
+        const elMes = document.getElementById('filtroMes');
+        const elAno = document.getElementById('filtroAno');
 
-        if (!elMes || !elAno || !elTurma || !elTipo) return false;
+        if (!elMes || !elAno) return false;
 
         const filtroAtual = {
             mes: parseInt(elMes.value),
-            ano: parseInt(elAno.value),
-            turma: elTurma.value,
-            tipo: elTipo.value
+            ano: parseInt(elAno.value)
         };
 
         this.filtrosFavoritos[nome] = filtroAtual;
@@ -53,15 +49,11 @@ class DashboardFilters {
         const favorito = this.filtrosFavoritos[nome];
         if (!favorito) return false;
 
-        const elMes   = document.getElementById('filtroMes');
-        const elAno   = document.getElementById('filtroAno');
-        const elTurma = document.getElementById('filtroTurma');
-        const elTipo  = document.getElementById('filtroTipo');
+        const elMes = document.getElementById('filtroMes');
+        const elAno = document.getElementById('filtroAno');
 
-        if (elMes)   elMes.value   = favorito.mes;
-        if (elAno)   elAno.value   = favorito.ano;
-        if (elTurma) elTurma.value = favorito.turma;
-        if (elTipo)  elTipo.value  = favorito.tipo;
+        if (elMes) elMes.value = favorito.mes;
+        if (elAno) elAno.value = favorito.ano;
 
         return true;
     }

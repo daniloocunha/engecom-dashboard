@@ -510,25 +510,16 @@ class DashboardMain {
             return true;
         }).length;
 
-        document.getElementById('kpiTotalRdos').textContent = totalRDOs;
-
         // Total HH (TPs)
         const totalHH = tps.reduce((sum, tp) => sum + tp.hh.total, 0);
-        document.getElementById('kpiTotalHH').textContent = totalHH.toFixed(0);
 
-        // Faturamento Total
-        document.getElementById('kpiFaturamento').textContent = formatarMoeda(totalGeral);
+        // Faturamento Total / Média SLA — elementos podem não existir (removidos do HTML)
+        // Mantidos apenas para cálculos internos usados em outros módulos
 
         // Média SLA (TPs)
         const mediaSLA = tps.length > 0
             ? tps.reduce((sum, tp) => sum + tp.percentualSLA, 0) / tps.length
             : 0;
-
-        const kpiSLA = document.getElementById('kpiMediaSLA');
-        kpiSLA.textContent = formatarPercentual(mediaSLA);
-
-        // Colorir baseado no threshold
-        kpiSLA.style.color = getCorPorSLA(mediaSLA);
 
         // Média de Efetivo (TPs)
         this.renderizarKPIMediaEfetivo('TP');
@@ -737,20 +728,18 @@ class DashboardMain {
      */
     async aplicarFiltros() {
         // Pegar valores dos filtros (com null guards)
-        const elMes   = document.getElementById('filtroMes');
-        const elAno   = document.getElementById('filtroAno');
-        const elTurma = document.getElementById('filtroTurma');
-        const elTipo  = document.getElementById('filtroTipo');
+        const elMes = document.getElementById('filtroMes');
+        const elAno = document.getElementById('filtroAno');
 
-        if (!elMes || !elAno || !elTurma || !elTipo) {
+        if (!elMes || !elAno) {
             console.error('[Dashboard] Elementos de filtro não encontrados');
             return;
         }
 
         const mes   = parseInt(elMes.value);
         const ano   = parseInt(elAno.value);
-        const turma = elTurma.value;
-        const tipo  = elTipo.value;
+        const turma = 'todas';
+        const tipo  = 'todos';
 
         // ✅ VALIDAÇÃO: Verificar se mês/ano são válidos
         if (!mes || mes < 1 || mes > 12) {
