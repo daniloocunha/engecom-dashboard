@@ -325,13 +325,24 @@ def parse_rdo_block(block: str) -> dict | None:
 # Geração de Número RDO
 # ─────────────────────────────────────────────────────────────────────────────
 
+def normalize_date(data: str) -> str:
+    """Normaliza data para DD/MM/YYYY, aceitando DD/MM/YY (ano 2 dígitos)."""
+    for fmt in ("%d/%m/%Y", "%d/%m/%y"):
+        try:
+            return datetime.strptime(data.strip(), fmt).strftime("%d/%m/%Y")
+        except ValueError:
+            continue
+    return data.strip()
+
+
 def date_part(data: str) -> str:
-    """Converte 'DD/MM/YYYY' → 'DD.MM.YY'."""
-    try:
-        dt = datetime.strptime(data.strip(), "%d/%m/%Y")
-        return dt.strftime("%d.%m.%y")
-    except ValueError:
-        return data.replace("/", ".")
+    """Converte 'DD/MM/YYYY' ou 'DD/MM/YY' → 'DD.MM.YY'."""
+    for fmt in ("%d/%m/%Y", "%d/%m/%y"):
+        try:
+            return datetime.strptime(data.strip(), fmt).strftime("%d.%m.%y")
+        except ValueError:
+            continue
+    return data.replace("/", ".")
 
 
 def make_rdo_key(numero_os: str, data: str) -> str:

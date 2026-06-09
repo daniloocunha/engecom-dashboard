@@ -1916,7 +1916,6 @@ class VisaoGeral {
     // ── VG-02: Drill-down de serviço → OSs ───────────────────────────────────
 
     _abrirDrilldownServico(suffix, descricao, turmaId = null) {
-        this._criarOffcanvas();
         const dados = suffix === 'tp' ? this._dadosTPS : this._dadosTS;
         if (!dados) return;
         const servico = dados.servicos.find(s => s.descricao === descricao);
@@ -1930,14 +1929,14 @@ class VisaoGeral {
         const totalQty = detalhes.reduce((a, d) => a + d.qty, 0);
         const isPDM = servico.classificacao?.includes('PDM');
 
-        document.getElementById('vg-oc-title').textContent = descricao;
-        document.getElementById('vg-oc-subtitle').textContent =
+        document.getElementById('vg-ms-title').textContent = descricao;
+        document.getElementById('vg-ms-subtitle').textContent =
             `${isPDM ? 'PDM' : 'Correlato'}${turmaId ? ` · ${turmaId}` : ''} · ${detalhes.length} ocorrências · ${totalHH.toFixed(1)} HH total`;
 
-        document.getElementById('vg-oc-body').innerHTML = `
+        document.getElementById('vg-ms-body').innerHTML = `
             ${turmaId ? `
             <div class="px-3 pt-2 pb-1 border-bottom">
-                <button class="btn btn-sm btn-outline-secondary" onclick="visaoGeral._abrirDetalhesTurma('${escAttr(turmaId)}', '${escAttr(suffix)}')">
+                <button class="btn btn-sm btn-outline-secondary" data-bs-dismiss="modal">
                     <i class="fas fa-arrow-left me-1"></i>Voltar para ${escapeHtml(turmaId)}
                 </button>
             </div>` : ''}
@@ -1970,7 +1969,7 @@ class VisaoGeral {
                         </thead>
                         <tbody>${detalhes.map(d => {
                             const kmLabel = (d.kmInicio && d.kmFim) ? `${escapeHtml(d.kmInicio)}–${escapeHtml(d.kmFim)}` : (d.kmInicio ? escapeHtml(d.kmInicio) : '—');
-                            return `<tr style="cursor:pointer;" title="Ver detalhe da O.S" onclick="visaoGeral._abrirDetalheOS('${escAttr(d.turma)}', '${escAttr(d.os)}', '${escAttr(suffix)}')">
+                            return `<tr style="cursor:pointer;" title="Ver detalhe da O.S" onclick="visaoGeral._navegarParaOS('${escAttr(d.turma)}', '${escAttr(d.os)}', '${escAttr(suffix)}')">
                                 <td class="small fw-bold text-primary">${escapeHtml(d.os || '-')} <i class="fas fa-external-link-alt ms-1" style="font-size:.5rem;opacity:.4;"></i></td>
                                 <td class="small text-muted">${kmLabel}</td>
                                 <td class="small">${escapeHtml(d.data || '-')}</td>
@@ -1991,8 +1990,18 @@ class VisaoGeral {
                 </div>
             </div>`;
 
-        const ocEl = document.getElementById('vg-offcanvas');
-        bootstrap.Offcanvas.getOrCreateInstance(ocEl).show();
+        bootstrap.Modal.getOrCreateInstance(document.getElementById('vg-modal-servico')).show();
+    }
+
+    _navegarParaOS(turmaId, osNumero, suffix) {
+        const msEl = document.getElementById('vg-modal-servico');
+        const modal = msEl ? bootstrap.Modal.getInstance(msEl) : null;
+        if (modal) {
+            msEl.addEventListener('hidden.bs.modal', () => this._abrirDetalheOS(turmaId, osNumero, suffix), {once: true});
+            modal.hide();
+        } else {
+            this._abrirDetalheOS(turmaId, osNumero, suffix);
+        }
     }
 
     // ── VG-01: Drill-down de OS ──────────────────────────────────────────────

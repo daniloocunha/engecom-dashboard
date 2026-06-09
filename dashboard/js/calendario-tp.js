@@ -567,7 +567,7 @@ class CalendarioTP {
                          style="cursor:pointer;" title="${_notaSemRDO ? escapeHtml(_notaSemRDO) : 'Adicionar nota (feriado, folga…)'}">
                         <div class="dia-numero">${dia}</div>
                         ${_notaSemRDO
-                            ? `<div class="dia-nota-sem-rdo">📝 ${escapeHtml(_notaSemRDO.substring(0, 22))}${_notaSemRDO.length > 22 ? '…' : ''}</div>`
+                            ? `<div class="dia-nota-sem-rdo">📝 ${escapeHtml(_notaSemRDO)}</div>`
                             : '<div class="dia-status" style="opacity:.25;font-size:.6rem;margin-top:4px;">+ nota</div>'}
                     </div>
                 `;

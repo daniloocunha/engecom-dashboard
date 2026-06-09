@@ -1109,9 +1109,8 @@ canvas {
     font-size: .68rem;
     color: #6a1b9a;
     margin-top: 4px;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+    white-space: normal;
+    word-wrap: break-word;
     line-height: 1.3;
 }
 

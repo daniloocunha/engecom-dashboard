@@ -609,12 +609,12 @@
     <script src="js/charts.js?v=3.0.13"></script>
     <script src="js/filters.js?v=3.0.13"></script>
     <script src="js/editor-rdo.js?v=1.0.0"></script>
-    <script src="js/calendario-tp.js?v=3.0.13"></script>
-    <script src="js/calendario-ts.js?v=3.0.13"></script>
+    <script src="js/calendario-tp.js?v=3.0.14"></script>
+    <script src="js/calendario-ts.js?v=3.0.14"></script>
     <script src="js/period-comparison.js?v=4.0.0"></script>
     <script src="js/gestao-os.js?v=3.0.20"></script>
     <script src="js/os-auditoria.js?v=3.1.0"></script>
-    <script src="js/visao-geral.js?v=3.0.21"></script>
+    <script src="js/visao-geral.js?v=3.1.0"></script>
     <script src="js/data-quality.js?v=1.1.0"></script>
     <script src="js/export-engine.js?v=1.0.0"></script>
     <script src="js/search-index.js?v=1.0.0"></script>
@@ -802,6 +802,24 @@
                         <i class="fas fa-code-branch me-1"></i>Confirmar Divisão
                     </button>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Modal Drill-down de Serviço (Visão Geral)                  -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="vg-modal-servico" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header" style="background:rgba(25,118,210,.08);">
+                    <div class="d-flex flex-column flex-grow-1 overflow-hidden me-2">
+                        <h5 class="modal-title mb-0" id="vg-ms-title"></h5>
+                        <small class="text-muted text-truncate" id="vg-ms-subtitle"></small>
+                    </div>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body p-0" id="vg-ms-body"></div>
             </div>
         </div>
     </div>

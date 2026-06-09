@@ -178,7 +178,7 @@ O deploy é **automático** para qualquer push em `master` que toque `dashboard/
 
 ### Configuração Inicial dos Secrets (única vez)
 
-Para o deploy automático funcionar, o GitHub precisa de 2 secrets do Cloudflare:
+Para o deploy automático funcionar, o GitHub precisa de 3 secrets:
 
 **Passo 1 — Obter o Cloudflare API Token:**
 1. Acesse: https://dash.cloudflare.com/profile/api-tokens
@@ -195,6 +195,9 @@ Para o deploy automático funcionar, o GitHub precisa de 2 secrets do Cloudflare
 1. Acesse: https://github.com/daniloocunha/engecom-dashboard/settings/secrets/actions
 2. **"New repository secret"** → Nome: `CLOUDFLARE_API_TOKEN` → Valor: (token do passo 1)
 3. **"New repository secret"** → Nome: `CLOUDFLARE_ACCOUNT_ID` → Valor: (ID do passo 2)
+4. **"New repository secret"** → Nome: `DASHBOARD_CONFIG_JS` → Valor: conteúdo completo do arquivo `dashboard/js/config.js` local
+
+> **Por quê o `DASHBOARD_CONFIG_JS`?** O `config.js` é gitignored (contém API Key, SECRET_KEY e preços). O workflow recria o arquivo no servidor de CI a partir deste secret antes de cada deploy. Se alterar o `config.js` local (preços, turmas, credenciais), lembre de atualizar o secret também.
 
 Após isso, qualquer `git push` com mudanças no dashboard dispara o deploy automaticamente.
 
@@ -302,10 +305,14 @@ dashboard/
     ├── safe-html.js            # Utilitários de sanitização HTML
     ├── auth.js                 # Autenticação (SECRET_KEY simples)
     ├── os-auditoria.js         # Auditoria de OS com divisão e correção de OS
+    ├── export-engine.js        # Exportação avançada: CSV/XLSX/JSON/PDF (v2.3.0)
+    ├── search-index.js         # Busca global com índice invertido e autocomplete (v2.3.0)
+    ├── ranking-engine.js       # Ranking de performance por turma, score 0–100 (v2.3.0)
+    ├── executive-summary.js    # Resumo executivo automático via templates (v2.3.0)
     └── servicos-data.js        # Constante JS com serviços (AUTO-GERADO, fallback CORS)
 ```
 
-> **Arquivos removidos (descontinuados):** `css/minimal-view.css`, `js/view-manager.js` (View Minimalista), `js/analise-tmc.js` (Análise TMC), `js/export.js`, `js/export-helper.js` (Exportação sem UI).
+> **Arquivos removidos (descontinuados):** `css/minimal-view.css`, `js/view-manager.js` (View Minimalista), `js/analise-tmc.js` (Análise TMC), `js/export.js`, `js/export-helper.js` (Exportação sem UI — substituída por `export-engine.js` na v2.3.0).
 
 ### Key Architectural Components
 

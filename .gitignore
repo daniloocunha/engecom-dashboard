@@ -38,6 +38,10 @@ nul*
 # Credenciais Google Service Account — NUNCA COMITAR!
 rdo-engecom-*.json
 
+# Códigos de recuperação GitHub — NUNCA COMITAR!
+github-recovery-codes.txt
+*-recovery-codes.txt
+
 # Logs e arquivos de diagnóstico temporários
 logcat.txt
 sheets_data.json
