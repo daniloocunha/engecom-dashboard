@@ -163,6 +163,7 @@ class GestaoOS {
         this._modalAberto        = null; // { id, numeroOS, modalOsId } — modal aberto no momento
         this._osMedidas          = new Set(); // OS que constam na aba O.S_Medidas
         this._servidorRespondeu  = false; // true quando o servidor respondeu (sucesso OU falha) — controla spinner
+        this._erroServidor       = null;  // string com a última mensagem de erro do servidor
     }
 
     // ── Dados ─────────────────────────────────────────────────────────────
@@ -956,7 +957,11 @@ class GestaoOS {
      */
     async _carregarDoServidor() {
         const url = _appsScriptUrl();
-        if (!url) { this._carregandoServidor = false; return; }
+        if (!url) {
+            this._carregandoServidor = false;
+            this._servidorRespondeu  = true; // libera spinner do modal
+            return;
+        }
 
         try {
             const resp = await fetch(url, {
@@ -974,19 +979,23 @@ class GestaoOS {
                 // Migrar dados do localStorage que ainda não estão no servidor
                 this._migrarLocalStorageParaServidor();
             } else {
-                const msg = json.erro || json.error || JSON.stringify(json);
+                const msg = json.erro || json.error || JSON.stringify(json).slice(0, 200);
+                this._erroServidor = msg;
                 console.warn('[GestaoOS] ⚠️ Apps Script com erro:', msg);
                 if (json._htmlTrecho) {
-                    console.warn('[GestaoOS] 📄 Trecho da resposta HTML do Apps Script:\n', json._htmlTrecho);
+                    console.warn('[GestaoOS] 📄 Trecho HTML:', json._htmlTrecho);
                 }
-                console.warn('[GestaoOS] → Verifique o Apps Script: execute uma função manualmente para autorizar escopos (Drive, Sheets), depois reimplante.');
+                this._mostrarErroServidor(msg);
             }
         } catch (e) {
-            console.warn('[GestaoOS] Falha ao carregar servidor (usando localStorage):', e.message);
+            this._erroServidor = e.message;
+            console.warn('[GestaoOS] Falha ao carregar servidor:', e.message);
+            this._mostrarErroServidor(e.message);
         } finally {
             this._carregandoServidor = false;
             // Sempre sinaliza que a tentativa terminou (libera spinner do modal)
             this._servidorRespondeu = true;
+            this._atualizarBadgeServidor();
             if (this._modalAberto) this._atualizarModalAnexosNotas(this._modalAberto);
         }
     }
@@ -1093,6 +1102,66 @@ class GestaoOS {
         if (anexosCont) {
             anexosCont.innerHTML = this._anexosHTML(numeroOS, modalOsId);
         }
+    }
+
+    /** Exibe toast persistente com erro do servidor (user-visible, não apenas console) */
+    _mostrarErroServidor(msg) {
+        const id = 'toast-gestao-servidor-erro';
+        document.getElementById(id)?.remove();
+        const html = `
+        <div id="${id}" class="toast align-items-center text-bg-warning border-0 position-fixed bottom-0 end-0 m-3"
+             role="alert" style="z-index:9999;max-width:420px;" data-bs-autohide="false">
+          <div class="d-flex">
+            <div class="toast-body">
+              <i class="fas fa-exclamation-triangle me-2"></i>
+              <strong>Erro ao carregar Gestão OS do servidor:</strong><br>
+              <span style="font-size:0.85rem;">${_esc(msg)}</span><br>
+              <button class="btn btn-sm btn-dark mt-2" onclick="gestaoOS.recarregarServidor()">
+                <i class="fas fa-redo me-1"></i>Tentar novamente
+              </button>
+            </div>
+            <button type="button" class="btn-close me-2 m-auto" data-bs-dismiss="toast"></button>
+          </div>
+        </div>`;
+        document.body.insertAdjacentHTML('beforeend', html);
+        const el = document.getElementById(id);
+        if (el && window.bootstrap) new bootstrap.Toast(el).show();
+        // Atualizar badge de status no cabeçalho da seção
+        this._atualizarBadgeServidor();
+    }
+
+    /** Atualiza o badge de status do servidor no cabeçalho da seção */
+    _atualizarBadgeServidor() {
+        const badge = document.getElementById('gestaoOS_serverBadge');
+        if (!badge) return;
+        if (this._servidorCarregado) {
+            const n = Object.keys(this._dadosServidor).length;
+            badge.className = 'badge bg-success ms-2';
+            badge.title = `${n} O.S carregadas do servidor`;
+            badge.textContent = `✓ Servidor (${n})`;
+        } else if (this._erroServidor) {
+            badge.className = 'badge bg-danger ms-2';
+            badge.title = this._erroServidor;
+            badge.textContent = '✗ Erro servidor';
+            badge.style.cursor = 'pointer';
+            badge.onclick = () => gestaoOS.recarregarServidor();
+        } else if (this._carregandoServidor) {
+            badge.className = 'badge bg-secondary ms-2';
+            badge.textContent = '⏳ Carregando...';
+        }
+    }
+
+    /** Força nova tentativa de carga do servidor (reseta guards) */
+    recarregarServidor() {
+        if (this._carregandoServidor) return;
+        this._servidorCarregado  = false;
+        this._servidorRespondeu  = false;
+        this._erroServidor       = null;
+        this._carregandoServidor = true;
+        const badge = document.getElementById('gestaoOS_serverBadge');
+        if (badge) { badge.className = 'badge bg-secondary ms-2'; badge.textContent = '⏳ Carregando...'; }
+        document.getElementById('toast-gestao-servidor-erro')?.remove();
+        this._carregarDoServidor();
     }
 
     /**
@@ -2044,7 +2113,22 @@ class GestaoOS {
           </div>
         </div>` : '';
 
-        container.innerHTML = resumo + blocos.join('') + grandTotalHTML + this._renderizarSemOS();
+        // Badge de status do servidor (atualizado por _atualizarBadgeServidor)
+        const serverBadgeHtml = this._servidorCarregado
+            ? `<span id="gestaoOS_serverBadge" class="badge bg-success ms-2" title="${Object.keys(this._dadosServidor).length} O.S carregadas">✓ Servidor (${Object.keys(this._dadosServidor).length})</span>`
+            : (this._erroServidor
+                ? `<span id="gestaoOS_serverBadge" class="badge bg-danger ms-2" style="cursor:pointer;" title="${_escAttr(this._erroServidor)}" onclick="gestaoOS.recarregarServidor()">✗ Erro servidor</span>`
+                : `<span id="gestaoOS_serverBadge" class="badge bg-secondary ms-2">⏳ Carregando...</span>`);
+        const serverBar = `<div class="mb-3 d-flex align-items-center gap-2" style="font-size:0.82rem;">
+          <span class="text-muted">Notas/Anexos/Status:</span>
+          ${serverBadgeHtml}
+          <button class="btn btn-sm btn-link py-0 text-muted" style="font-size:0.75rem;"
+                  onclick="gestaoOS.recarregarServidor()" title="Forçar recarga do servidor">
+            <i class="fas fa-sync-alt"></i> Recarregar
+          </button>
+        </div>`;
+
+        container.innerHTML = serverBar + resumo + blocos.join('') + grandTotalHTML + this._renderizarSemOS();
     }
 }
 
