@@ -1,23 +1,11 @@
 /**
  * Google Apps Script - Endpoint para o Dashboard Engecom/Encogel
  *
- * COMO USAR:
- * 1. Abra a planilha Google Sheets -> Extensoes -> Apps Script
- * 2. Cole este codigo no editor (substitua o codigo existente)
- * 3. Salve (Ctrl+S)
- * 4. Clique em "Implantar" -> "Gerenciar implantacoes"
- *    Edite a implantacao existente e selecione "Nova versao" -> "Implantar"
- *
  * ACOES SUPORTADAS:
- *   { "acao": "atualizarOS",     "numeroRDO": "...", "novaOS": "..." }
- *   { "acao": "listarGestaoOS" }
- *   { "acao": "salvarGestaoOS", "numeroOS": "...", "status": "...", "gevia": "...", "nota": "..." }
- *   { "acao": "uploadAnexo",    "numeroOS": "...", "nome": "...", "tipo": "...", "base64": "..." }
- *   { "acao": "deletarAnexo",   "fileId": "..." }
- *
- * CONFIGURACAO OPCIONAL:
- *   DRIVE_FOLDER_ID - ID da pasta do Google Drive onde os anexos serao salvos.
- *   Deixe vazio ('') para usar o Drive raiz da conta.
+ *   atualizarOS, listarGestaoOS, salvarGestaoOS, uploadAnexo, deletarAnexo,
+ *   atualizarOSCascata, atualizarCampoRDO, atualizarServico, adicionarServico,
+ *   excluirServico, atualizarHI, adicionarHI, excluirHI, deletarRDO,
+ *   renomearRDO, dividirOS, salvarNotaDia, obterNotasDia
  */
 
 // ID da pasta do Google Drive para os anexos (deixe '' para usar o Drive raiz)
@@ -26,44 +14,27 @@ var DRIVE_FOLDER_ID = '';
 // === Handler principal ===
 
 function doPost(e) {
-    var headers = {
-        'Access-Control-Allow-Origin': '*',
-        'Content-Type': 'application/json'
-    };
-
     try {
         var dados = JSON.parse(e.postData.contents);
 
-        if (dados.acao === 'atualizarOS') {
-            return _resposta(atualizarNumerOS(dados.numeroRDO, dados.novaOS));
-        }
-
-        if (dados.acao === 'listarGestaoOS') {
-            return _resposta(listarGestaoOS());
-        }
-
-        if (dados.acao === 'salvarGestaoOS') {
-            return _resposta(salvarGestaoOS(dados.numeroOS, dados.status, dados.gevia, dados.nota, dados.mediu, dados.anexos));
-        }
-
-        if (dados.acao === 'uploadAnexo') {
-            return _resposta(uploadAnexo(dados.numeroOS, dados.nome, dados.tipo, dados.base64));
-        }
-
-        if (dados.acao === 'deletarAnexo') {
-            return _resposta(deletarAnexo(dados.fileId));
-        }
-
-        if (dados.acao === 'atualizarOSCascata') {
-            return _resposta(atualizarOSCascata(dados.antigaOS, dados.novaOS));
-        }
-
-        if (dados.acao === 'dividirOS') {
-            return _resposta(dividirOS(
-                dados.numeroRDO, dados.os1, dados.os2,
-                dados.servicosOS2 || [], dados.hiOS2 || [], dados.movimentacao || []
-            ));
-        }
+        if (dados.acao === 'atualizarOS')        { return _resposta(atualizarNumerOS(dados.numeroRDO, dados.novaOS)); }
+        if (dados.acao === 'listarGestaoOS')      { return _resposta(listarGestaoOS()); }
+        if (dados.acao === 'salvarGestaoOS')      { return _resposta(salvarGestaoOS(dados.numeroOS, dados.status, dados.gevia, dados.nota, dados.mediu, dados.anexos)); }
+        if (dados.acao === 'uploadAnexo')         { return _resposta(uploadAnexo(dados.numeroOS, dados.nome, dados.tipo, dados.base64)); }
+        if (dados.acao === 'deletarAnexo')        { return _resposta(deletarAnexo(dados.fileId)); }
+        if (dados.acao === 'atualizarOSCascata')  { return _resposta(atualizarOSCascata(dados.antigaOS, dados.novaOS)); }
+        if (dados.acao === 'atualizarCampoRDO')   { return _resposta(atualizarCampoRDO(dados)); }
+        if (dados.acao === 'atualizarServico')    { return _resposta(atualizarServico(dados)); }
+        if (dados.acao === 'adicionarServico')    { return _resposta(adicionarServico(dados)); }
+        if (dados.acao === 'excluirServico')      { return _resposta(excluirServico(dados)); }
+        if (dados.acao === 'atualizarHI')         { return _resposta(atualizarHI(dados)); }
+        if (dados.acao === 'adicionarHI')         { return _resposta(adicionarHI(dados)); }
+        if (dados.acao === 'excluirHI')           { return _resposta(excluirHI(dados)); }
+        if (dados.acao === 'deletarRDO')          { return _resposta(deletarRDO(dados)); }
+        if (dados.acao === 'renomearRDO')         { return _resposta(renomearRDO(dados)); }
+        if (dados.acao === 'dividirOS')           { return _resposta(dividirOS(dados)); }
+        if (dados.acao === 'salvarNotaDia')       { return _resposta(salvarNotaDia(dados)); }
+        if (dados.acao === 'obterNotasDia')       { return _resposta(obterNotasDia()); }
 
         return _resposta({ sucesso: false, erro: 'Acao desconhecida: ' + dados.acao });
 
@@ -72,7 +43,6 @@ function doPost(e) {
     }
 }
 
-// Responde ao preflight CORS (OPTIONS)
 function doGet(e) {
     return ContentService
         .createTextOutput(JSON.stringify({ status: 'ok', descricao: 'Endpoint Engecom - use POST' }))
@@ -81,10 +51,6 @@ function doGet(e) {
 
 // === Acao: atualizarOS ===
 
-/**
- * Localiza a linha com o Numero RDO informado na aba RDO
- * e atualiza a coluna "Numero OS" com o novo valor.
- */
 function atualizarNumerOS(numeroRDO, novaOS) {
     if (!numeroRDO || !novaOS) {
         return { sucesso: false, erro: 'Parametros obrigatorios: numeroRDO e novaOS' };
@@ -92,51 +58,37 @@ function atualizarNumerOS(numeroRDO, novaOS) {
 
     var ss    = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = ss.getSheetByName('RDO');
-
-    if (!sheet) {
-        return { sucesso: false, erro: 'Aba "RDO" nao encontrada na planilha' };
-    }
+    if (!sheet) return { sucesso: false, erro: 'Aba "RDO" nao encontrada na planilha' };
 
     var dados  = sheet.getDataRange().getValues();
     var header = dados[0];
+    var colRDO = _findColSafe(header.map(function(h) { return h.toString().trim(); }), 'Número RDO');
+    var colOS  = _findColSafe(header.map(function(h) { return h.toString().trim(); }), 'Número OS');
 
-    var colRDO = header.findIndex(function(h) { return h.toString().trim() === 'N\u00famero RDO'; });
-    var colOS  = header.findIndex(function(h) { return h.toString().trim() === 'N\u00famero OS'; });
-
-    if (colRDO === -1) return { sucesso: false, erro: 'Coluna "Numero RDO" nao encontrada na aba RDO' };
-    if (colOS  === -1) return { sucesso: false, erro: 'Coluna "Numero OS" nao encontrada na aba RDO' };
+    if (colRDO < 0) return { sucesso: false, erro: 'Coluna "Número RDO" nao encontrada na aba RDO' };
+    if (colOS  < 0) return { sucesso: false, erro: 'Coluna "Número OS" nao encontrada na aba RDO' };
 
     for (var i = 1; i < dados.length; i++) {
-        var rdoNaLinha = (dados[i][colRDO] || '').toString().trim();
-        if (rdoNaLinha === numeroRDO.trim()) {
+        if ((dados[i][colRDO] || '').toString().trim() === numeroRDO.trim()) {
             sheet.getRange(i + 1, colOS + 1).setValue(novaOS);
             SpreadsheetApp.flush();
             Logger.log('Atualizado: RDO ' + numeroRDO + ' -> OS ' + novaOS + ' (linha ' + (i + 1) + ')');
             return { sucesso: true, linhaAtualizada: i + 1 };
         }
     }
-
     return { sucesso: false, erro: 'Numero RDO "' + numeroRDO + '" nao encontrado na aba RDO' };
 }
 
 // === Acao: listarGestaoOS ===
 
-/**
- * Le todos os registros da aba "GestaoOS" e retorna objeto indexado
- * por Numero OS: { "998070": { status, gevia, nota, atualizadoEm }, ... }
- * Cria a aba automaticamente se nao existir.
- */
 function listarGestaoOS() {
     var ss    = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = _obterOuCriarAbaGestaoOS(ss);
-
     var dados = sheet.getDataRange().getValues();
-    if (dados.length <= 1) {
-        return { sucesso: true, dados: {} };
-    }
+    if (dados.length <= 1) return { sucesso: true, dados: {} };
 
     var header = dados[0].map(function(h) { return h.toString().trim(); });
-    var colOS  = _findCol(header, 'N\u00famero OS');
+    var colOS  = _findCol(header, 'Número OS');
     var colSt  = _findCol(header, 'Status');
     var colGV  = _findCol(header, 'GE/Via');
     var colNt  = _findCol(header, 'Nota');
@@ -149,7 +101,6 @@ function listarGestaoOS() {
         var row = dados[i];
         var numeroOS = (row[colOS] || '').toString().trim();
         if (!numeroOS) continue;
-
         resultado[numeroOS] = {
             status:       (row[colSt] || '').toString().trim() || null,
             gevia:        (row[colGV] || '').toString().trim() || null,
@@ -159,30 +110,18 @@ function listarGestaoOS() {
             atualizadoEm: (row[colAt] || '').toString()
         };
     }
-
     Logger.log('[GestaoOS] Listagem: ' + Object.keys(resultado).length + ' registros');
     return { sucesso: true, dados: resultado };
 }
 
 // === Acao: salvarGestaoOS ===
 
-/**
- * Insere ou atualiza o registro de uma O.S na aba "GestaoOS".
- * Colunas: Numero OS | Status | GE/Via | Nota | Atualizado Em
- * Usa LockService para evitar linhas duplicadas quando dois PCs salvam simultaneamente.
- */
 function salvarGestaoOS(numeroOS, status, gevia, nota, mediu, anexos) {
-    if (!numeroOS) {
-        return { sucesso: false, erro: 'Parametro obrigatorio: numeroOS' };
-    }
+    if (!numeroOS) return { sucesso: false, erro: 'Parametro obrigatorio: numeroOS' };
 
-    // Lock global: garante que apenas 1 processo por vez escreve na aba
     var lock = LockService.getScriptLock();
-    try {
-        lock.waitLock(8000);
-    } catch (e) {
-        return { sucesso: false, erro: 'Servidor ocupado. Tente novamente em instantes.' };
-    }
+    try { lock.waitLock(8000); }
+    catch (e) { return { sucesso: false, erro: 'Servidor ocupado. Tente novamente em instantes.' }; }
 
     try {
         return _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos);
@@ -194,23 +133,20 @@ function salvarGestaoOS(numeroOS, status, gevia, nota, mediu, anexos) {
 function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos) {
     var ss    = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = _obterOuCriarAbaGestaoOS(ss);
-
     var dados  = sheet.getDataRange().getValues();
     var header = dados[0].map(function(h) { return h.toString().trim(); });
-    var colOS  = _findCol(header, 'N\u00famero OS');
+    var colOS  = _findCol(header, 'Número OS');
     var colSt  = _findCol(header, 'Status');
     var colGV  = _findCol(header, 'GE/Via');
     var colNt  = _findCol(header, 'Nota');
     var colAt  = _findCol(header, 'Atualizado Em');
     var colMediu = _findColSafe(header, 'Mediu');
     var colAnx   = _findColSafe(header, 'Anexos');
-    var agora  = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
+    var agora    = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
     var anexosStr = (typeof anexos === 'string') ? anexos : (anexos ? JSON.stringify(anexos) : '[]');
 
-    // Procurar linha existente com esse Numero OS
     for (var i = 1; i < dados.length; i++) {
-        var osNaLinha = (dados[i][colOS] || '').toString().trim();
-        if (osNaLinha === numeroOS.trim()) {
+        if ((dados[i][colOS] || '').toString().trim() === numeroOS.trim()) {
             var row = i + 1;
             sheet.getRange(row, colSt + 1).setValue(status || '');
             sheet.getRange(row, colGV + 1).setValue(gevia  || '');
@@ -224,16 +160,8 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos) {
         }
     }
 
-    // Nao encontrou -> inserir nova linha
-    sheet.appendRow([
-        numeroOS.trim(),
-        status || '',
-        gevia  || '',
-        nota !== undefined ? nota : '',
-        mediu !== undefined ? mediu : '',
-        anexosStr,
-        agora
-    ]);
+    sheet.appendRow([numeroOS.trim(), status || '', gevia || '', nota !== undefined ? nota : '',
+                     mediu !== undefined ? mediu : '', anexosStr, agora]);
     SpreadsheetApp.flush();
     Logger.log('[GestaoOS] Inserido: OS ' + numeroOS);
     return { sucesso: true, acao: 'inserido' };
@@ -241,10 +169,6 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos) {
 
 // === Acao: uploadAnexo ===
 
-/**
- * Recebe um arquivo em base64 e salva no Google Drive.
- * Registra os metadados na aba "AnexosOS".
- */
 function uploadAnexo(numeroOS, nome, tipo, base64) {
     if (!base64) return { sucesso: false, erro: 'Conteudo base64 vazio' };
     if (!nome)   return { sucesso: false, erro: 'Nome do arquivo obrigatorio' };
@@ -255,23 +179,18 @@ function uploadAnexo(numeroOS, nome, tipo, base64) {
 
         var folder;
         if (DRIVE_FOLDER_ID && DRIVE_FOLDER_ID.trim()) {
-            try {
-                folder = DriveApp.getFolderById(DRIVE_FOLDER_ID.trim());
-            } catch (e) {
-                return { sucesso: false, erro: 'Pasta Drive "' + DRIVE_FOLDER_ID + '" nao encontrada.' };
-            }
+            try { folder = DriveApp.getFolderById(DRIVE_FOLDER_ID.trim()); }
+            catch (e) { return { sucesso: false, erro: 'Pasta Drive "' + DRIVE_FOLDER_ID + '" nao encontrada.' }; }
         } else {
             folder = DriveApp.getRootFolder();
         }
 
         var file = folder.createFile(blob);
         file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-
         var fileId  = file.getId();
         var fileUrl = 'https://drive.google.com/uc?export=view&id=' + fileId;
 
         _registrarAnexoNaAba(numeroOS, nome, fileUrl, fileId, tipo || '');
-
         Logger.log('uploadAnexo: ' + nome + ' -> ' + fileUrl);
         return { sucesso: true, url: fileUrl, fileId: fileId, nome: nome };
 
@@ -285,17 +204,14 @@ function _registrarAnexoNaAba(numeroOS, nome, url, fileId, tipo) {
     try {
         var ss    = SpreadsheetApp.getActiveSpreadsheet();
         var sheet = ss.getSheetByName('AnexosOS');
-
         if (!sheet) {
             sheet = ss.insertSheet('AnexosOS');
-            sheet.appendRow(['N\u00famero OS', 'Nome', 'URL', 'FileId', 'Tipo', 'Data Upload']);
+            sheet.appendRow(['Número OS', 'Nome', 'URL', 'FileId', 'Tipo', 'Data Upload']);
             sheet.getRange(1, 1, 1, 6).setFontWeight('bold').setBackground('#e8f0fe');
             sheet.setFrozenRows(1);
         }
-
         var dataUpload = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm');
         sheet.appendRow([numeroOS, nome, url, fileId, tipo, dataUpload]);
-
     } catch (err) {
         Logger.log('_registrarAnexoNaAba erro: ' + err.message);
     }
@@ -303,22 +219,13 @@ function _registrarAnexoNaAba(numeroOS, nome, url, fileId, tipo) {
 
 // === Acao: deletarAnexo ===
 
-/**
- * Move um arquivo do Google Drive para a lixeira pelo fileId.
- * Remove tambem a linha correspondente da aba "AnexosOS".
- */
 function deletarAnexo(fileId) {
     if (!fileId) return { sucesso: false, erro: 'fileId obrigatorio' };
-
     try {
-        var file = DriveApp.getFileById(fileId);
-        file.setTrashed(true);
-
+        DriveApp.getFileById(fileId).setTrashed(true);
         _removerLinhaAnexo(fileId);
-
         Logger.log('deletarAnexo: ' + fileId + ' movido para lixeira');
         return { sucesso: true };
-
     } catch (err) {
         Logger.log('deletarAnexo erro: ' + err.message);
         return { sucesso: false, erro: err.message };
@@ -330,12 +237,9 @@ function _removerLinhaAnexo(fileId) {
         var ss    = SpreadsheetApp.getActiveSpreadsheet();
         var sheet = ss.getSheetByName('AnexosOS');
         if (!sheet) return;
-
         var dados  = sheet.getDataRange().getValues();
-        var header = dados[0];
-        var colFid = header.findIndex(function(h) { return h.toString().trim() === 'FileId'; });
+        var colFid = _findColSafe(dados[0].map(function(h) { return h.toString().trim(); }), 'FileId');
         if (colFid < 0) return;
-
         for (var i = dados.length - 1; i >= 1; i--) {
             if ((dados[i][colFid] || '').toString().trim() === fileId.trim()) {
                 sheet.deleteRow(i + 1);
@@ -349,145 +253,39 @@ function _removerLinhaAnexo(fileId) {
 
 // === Helpers ===
 
-/**
- * Escreve valores em um range via Sheets REST API (PUT values).
- * Este metodo NAO obedece regras de validacao de dados — util quando
- * os valores escritos nao estao na lista do dropdown da coluna.
- *
- * @param {string}   spreadsheetId  - ID da planilha
- * @param {string}   sheetName      - Nome da aba (ex: 'RDO')
- * @param {number}   startRow       - Linha inicial (1-indexed)
- * @param {number}   startCol       - Coluna inicial (1-indexed)
- * @param {Array[]}  valoresMatrix  - Matriz de valores [[linha1col1, ...], ...]
- */
-function _escreverIgnorandoValidacao(spreadsheetId, sheetName, startRow, startCol, valoresMatrix) {
-    // Converter coluna numerica para letra (ex: 1→A, 7→G, 27→AA)
-    function colToLetter(n) {
-        var s = '';
-        while (n > 0) {
-            var r = (n - 1) % 26;
-            s = String.fromCharCode(65 + r) + s;
-            n = Math.floor((n - 1) / 26);
-        }
-        return s;
-    }
-
-    var endRow = startRow + valoresMatrix.length - 1;
-    var endCol = startCol + (valoresMatrix[0] ? valoresMatrix[0].length - 1 : 0);
-    var rangeNotation = sheetName + '!' + colToLetter(startCol) + startRow
-                      + ':' + colToLetter(endCol) + endRow;
-
-    // Usar o Servico Avancado do Sheets (Google Sheets API v4 adicionada em Servicos).
-    // Este metodo escreve com valueInputOption=RAW e NAO obedece validacao de dados.
-    // Para habilitar: no editor do Apps Script, clique "+" em Servicos > Google Sheets API v4.
-    Sheets.Spreadsheets.Values.update(
-        {
-            range: rangeNotation,
-            majorDimension: 'ROWS',
-            values: valoresMatrix
-        },
-        spreadsheetId,
-        rangeNotation,
-        { valueInputOption: 'RAW' }
-    );
-    Logger.log('[_escreverIgnorandoValidacao] Escrito em ' + rangeNotation);
-}
-
-/**
- * Adiciona valores na lista de validacao (dropdown) de uma coluna.
- * Necessario quando os1/os2 sao numeros novos, fora da lista existente.
- * Se a coluna nao tiver validacao do tipo VALUE_IN_LIST, nao faz nada.
- */
-function _adicionarOSNaValidacao(sheet, colIdx, novosValores) {
-    try {
-        var lastRow = sheet.getLastRow();
-        if (lastRow < 2) return; // sem dados
-
-        // Ler regra de validacao da primeira celula de dados da coluna
-        var primeiraCell = sheet.getRange(2, colIdx + 1);
-        var rule = primeiraCell.getDataValidation();
-        if (!rule) return; // sem validacao, nao precisa fazer nada
-
-        var tipo = rule.getCriteriaType();
-        if (tipo !== SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST) return;
-
-        var criteriaValues = rule.getCriteriaValues();
-        var listaAtual = criteriaValues[0] || [];     // array de strings permitidas
-        var mostrarDropdown = criteriaValues[1] !== false;
-
-        // Adicionar apenas os valores que ainda nao estao na lista
-        var mudou = false;
-        novosValores.forEach(function(v) {
-            var val = (v || '').toString().trim();
-            if (val && listaAtual.indexOf(val) === -1) {
-                listaAtual.push(val);
-                mudou = true;
-            }
-        });
-
-        if (!mudou) return; // ja estavam na lista
-
-        // Reaplicar a validacao com a lista expandida em toda a coluna de dados
-        var novaRegra = SpreadsheetApp.newDataValidation()
-            .requireValueInList(listaAtual, mostrarDropdown)
-            .build();
-        sheet.getRange(2, colIdx + 1, lastRow - 1, 1).setDataValidation(novaRegra);
-        SpreadsheetApp.flush();
-
-        Logger.log('[_adicionarOSNaValidacao] Adicionados: ' + novosValores.join(', '));
-    } catch (e) {
-        // Nao-fatal: se falhar, a escrita vai gerar o erro original de validacao
-        Logger.log('[_adicionarOSNaValidacao] Erro (nao-fatal): ' + e.message);
-    }
-}
-
-/**
- * Retorna a aba "GestaoOS", criando-a com cabecalho se nao existir.
- */
 function _obterOuCriarAbaGestaoOS(ss) {
     var sheet = ss.getSheetByName('GestaoOS');
     if (!sheet) {
         sheet = ss.insertSheet('GestaoOS');
-        sheet.appendRow(['N\u00famero OS', 'Status', 'GE/Via', 'Nota', 'Mediu', 'Anexos', 'Atualizado Em']);
-
-        var headerRange = sheet.getRange(1, 1, 1, 7);
-        headerRange.setFontWeight('bold');
-        headerRange.setBackground('#f3f3f3');
-
-        sheet.setColumnWidth(1, 130);
-        sheet.setColumnWidth(2, 180);
-        sheet.setColumnWidth(3, 120);
-        sheet.setColumnWidth(4, 350);
-        sheet.setColumnWidth(5, 100);
-        sheet.setColumnWidth(6, 400);
-        sheet.setColumnWidth(7, 160);
-
-        Logger.log('[GestaoOS] Aba "GestaoOS" criada automaticamente');
+        sheet.appendRow(['Número OS', 'Status', 'GE/Via', 'Nota', 'Mediu', 'Anexos', 'Atualizado Em']);
+        var hr = sheet.getRange(1, 1, 1, 7);
+        hr.setFontWeight('bold').setBackground('#f3f3f3');
+        sheet.setColumnWidth(1, 130); sheet.setColumnWidth(2, 180); sheet.setColumnWidth(3, 120);
+        sheet.setColumnWidth(4, 350); sheet.setColumnWidth(5, 100); sheet.setColumnWidth(6, 400);
+        sheet.setColumnWidth(7, 160); sheet.setFrozenRows(1);
+        Logger.log('[GestaoOS] Aba criada automaticamente');
     }
     return sheet;
 }
 
-/**
- * Retorna o indice de uma coluna pelo nome (case-insensitive).
- * Lanca erro se nao encontrar.
- */
+/** Retorna índice de coluna (lança erro se não encontrar). */
 function _findCol(header, nome) {
-    var idx = header.findIndex(function(h) { return h.toLowerCase() === nome.toLowerCase(); });
-    if (idx < 0) throw new Error('Coluna "' + nome + '" nao encontrada. Cabecalho: ' + header.join(', '));
-    return idx;
+    var nomeLower = nome.toLowerCase();
+    for (var i = 0; i < header.length; i++) {
+        if (header[i].toLowerCase() === nomeLower) return i;
+    }
+    throw new Error('Coluna "' + nome + '" nao encontrada. Cabecalho: ' + header.join(', '));
 }
 
-/**
- * Retorna o indice de uma coluna pelo nome (case-insensitive).
- * Retorna -1 se nao encontrar (nao lanca erro).
- */
+/** Retorna índice de coluna ou -1 se não encontrar (não lança erro). */
 function _findColSafe(header, nome) {
-    return header.findIndex(function(h) { return h.toLowerCase() === nome.toLowerCase(); });
+    var nomeLower = nome.toLowerCase();
+    for (var i = 0; i < header.length; i++) {
+        if (header[i].toLowerCase() === nomeLower) return i;
+    }
+    return -1;
 }
 
-/**
- * Serializa a resposta como JSON para o ContentService.
- */
 function _resposta(obj) {
     return ContentService
         .createTextOutput(JSON.stringify(obj))
@@ -496,22 +294,13 @@ function _resposta(obj) {
 
 // === Acao: atualizarOSCascata ===
 
-/**
- * Atualiza o numero de O.S em cascata: percorre todas as abas e substitui
- * antigaOS por novaOS na coluna "Numero OS".
- * Usa batch write (setValues) para performance.
- */
 function atualizarOSCascata(antigaOS, novaOS) {
     if (!antigaOS || !novaOS) return { sucesso: false, erro: 'Parametros obrigatorios: antigaOS e novaOS' };
 
-    // Lock para evitar cascatas simultâneas
     var lock = LockService.getScriptLock();
-    if (!lock.tryLock(15000)) {
-        return { sucesso: false, erro: 'Servidor ocupado. Tente novamente em alguns segundos.' };
-    }
-
+    if (!lock.tryLock(15000)) return { sucesso: false, erro: 'Servidor ocupado. Tente novamente em alguns segundos.' };
     try {
-    return _atualizarOSCascataInterno(antigaOS, novaOS);
+        return _atualizarOSCascataInterno(antigaOS, novaOS);
     } finally {
         lock.releaseLock();
     }
@@ -523,15 +312,16 @@ function _atualizarOSCascataInterno(antigaOS, novaOS) {
                 'Equipamentos', 'Materiais', 'TransporteSucatas', 'Acompanhamento'];
     var resultado = { sucesso: true, abas: {} };
 
-    abas.forEach(function(nomeAba) {
+    for (var a = 0; a < abas.length; a++) {
+        var nomeAba = abas[a];
         var sheet = ss.getSheetByName(nomeAba);
-        if (!sheet) { resultado.abas[nomeAba] = 'aba nao existe'; return; }
+        if (!sheet) { resultado.abas[nomeAba] = 'aba nao existe'; continue; }
 
         var range = sheet.getDataRange();
         var dados = range.getValues();
-        var colOS = _findColSafe(dados[0], 'Numero OS');
-        if (colOS < 0) colOS = _findColSafe(dados[0].map(function(h) { return h.toString().trim(); }), 'N\u00famero OS');
-        if (colOS < 0) { resultado.abas[nomeAba] = 'sem coluna Numero OS'; return; }
+        var header = dados[0].map(function(h) { return h.toString().trim(); });
+        var colOS = _findColSafe(header, 'Número OS');
+        if (colOS < 0) { resultado.abas[nomeAba] = 'sem coluna Numero OS'; continue; }
 
         var count = 0;
         for (var i = 1; i < dados.length; i++) {
@@ -542,241 +332,478 @@ function _atualizarOSCascataInterno(antigaOS, novaOS) {
         }
         if (count > 0) { range.setValues(dados); SpreadsheetApp.flush(); }
         resultado.abas[nomeAba] = count;
-    });
+    }
 
     Logger.log('[atualizarOSCascata] ' + antigaOS + ' -> ' + novaOS + ' | ' + JSON.stringify(resultado.abas));
     return resultado;
 }
 
-// === Acao: dividirOS ===
+// === Acao: renomearRDO ===
 
-/**
- * Divide uma O.S em duas:
- *   - RDO original fica com OS1
- *   - Novo RDO clonado e criado para OS2 com os servicos/HI atribuidos
- *
- * @param {string}   numeroRDO   - Numero RDO a dividir
- * @param {string}   os1         - O.S que fica no RDO original
- * @param {string}   os2         - Nova O.S para o RDO clonado
- * @param {string[]} servicosOS2 - Chaves "desc|qty|coef" dos servicos que vao para OS2
- * @param {string[]} hiOS2       - Chaves "data|tipo|ini|fim|ops" dos HIs que vao para OS2
- * @param {Object[]} movimentacao - Log de itens movidos (para auditoria)
- */
-function dividirOS(numeroRDO, os1, os2, servicosOS2, hiOS2, movimentacao) {
-    if (!numeroRDO || !os1 || !os2) {
-        return { sucesso: false, erro: 'Parametros obrigatorios: numeroRDO, os1, os2' };
-    }
-    if (os1 === os2) {
-        return { sucesso: false, erro: 'OS1 e OS2 devem ser diferentes' };
+function renomearRDO(dados) {
+    var oldNumeroRDO = dados.oldNumeroRDO;
+    var newNumeroRDO = dados.newNumeroRDO;
+    var novaOS       = dados.novaOS;
+
+    if (!oldNumeroRDO || !newNumeroRDO || !novaOS) {
+        return { sucesso: false, erro: 'Parâmetros insuficientes para renomear RDO' };
     }
 
     var lock = LockService.getScriptLock();
-    try {
-        lock.waitLock(15000);
-    } catch (e) {
-        return { sucesso: false, erro: 'Servidor ocupado. Tente novamente.' };
-    }
+    if (!lock.tryLock(15000)) return { sucesso: false, erro: 'Servidor ocupado. Tente novamente.' };
 
     try {
-        return _dividirOSInterno(numeroRDO, os1, os2, servicosOS2, hiOS2, movimentacao);
+        var ss = SpreadsheetApp.getActiveSpreadsheet();
+        var abas = ['RDO', 'Servicos', 'Materiais', 'HorasImprodutivas', 'TransporteSucatas', 'Efetivo', 'Equipamentos'];
+        var totalAlteracoes = 0;
+
+        for (var a = 0; a < abas.length; a++) {
+            var sheet = ss.getSheetByName(abas[a]);
+            if (!sheet) continue;
+
+            var dataValues = sheet.getDataRange().getValues();
+            if (dataValues.length < 2) continue;
+
+            var header = dataValues[0].map(function(h) { return h.toString().trim(); });
+            var rdoCol = _findColSafe(header, 'Número RDO');
+            if (rdoCol < 0) continue;
+            var osCol = _findColSafe(header, 'Número OS');
+
+            for (var r = 1; r < dataValues.length; r++) {
+                if ((dataValues[r][rdoCol] || '').toString().trim() === oldNumeroRDO.trim()) {
+                    sheet.getRange(r + 1, rdoCol + 1).setValue(newNumeroRDO);
+                    if (osCol >= 0) sheet.getRange(r + 1, osCol + 1).setValue(novaOS);
+                    totalAlteracoes++;
+                }
+            }
+        }
+
+        SpreadsheetApp.flush();
+        Logger.log('[renomearRDO] ' + oldNumeroRDO + ' → ' + newNumeroRDO + ' | ' + totalAlteracoes + ' linha(s)');
+        return { sucesso: true, alteracoes: totalAlteracoes };
+
     } finally {
         lock.releaseLock();
     }
 }
 
-function _dividirOSInterno(numeroRDO, os1, os2, servicosOS2, hiOS2, movimentacao) {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
-    var abaRDO = ss.getSheetByName('RDO');
-    if (!abaRDO) return { sucesso: false, erro: 'Aba RDO nao encontrada' };
+// === Acao: dividirOS ===
 
-    // 1. Localizar e atualizar RDO original com OS1
-    var dadosRDO = abaRDO.getDataRange().getValues();
-    var hdrRDO   = dadosRDO[0].map(function(h) { return h.toString().trim(); });
-    var colRDONum = _findColSafe(hdrRDO, 'N\u00famero RDO');
-    var colOS     = _findColSafe(hdrRDO, 'N\u00famero OS');
-    if (colRDONum < 0) return { sucesso: false, erro: 'Coluna "Numero RDO" nao encontrada na aba RDO' };
-    if (colOS < 0)     return { sucesso: false, erro: 'Coluna "Numero OS" nao encontrada na aba RDO' };
+function dividirOS(dados) {
+    var numeroRDO   = dados.numeroRDO;
+    var os1         = dados.os1;
+    var os2         = dados.os2;
+    var servicosOS2 = dados.servicosOS2 || [];
+    var hiOS2       = dados.hiOS2       || [];
 
-    var linhaOriginal = -1;
-    var dadosRDOOriginal = null;
-    for (var i = 1; i < dadosRDO.length; i++) {
-        if ((dadosRDO[i][colRDONum] || '').toString().trim() === numeroRDO.trim()) {
-            linhaOriginal = i;
-            dadosRDOOriginal = dadosRDO[i].slice(); // copia
-            break;
+    if (!numeroRDO || !os1 || !os2) {
+        return { sucesso: false, erro: 'Parâmetros insuficientes para dividir O.S' };
+    }
+
+    var partes        = numeroRDO.split('-');
+    var sufixo        = partes.slice(1).join('-');
+    var novoNumeroRDO = os2 + '-' + sufixo;
+
+    var ss   = SpreadsheetApp.getActiveSpreadsheet();
+    var lock = LockService.getScriptLock();
+    lock.waitLock(20000);
+
+    try {
+        // ── 1. Aba RDO ────────────────────────────────────────────────────────
+        var rdoSheet  = ss.getSheetByName('RDO');
+        var rdoValues = rdoSheet.getDataRange().getValues();
+        var rdoHdr    = rdoValues[0].map(function(h) { return h.toString().trim(); });
+        var rdoNumCol = _findColSafe(rdoHdr, 'Número RDO');
+        var rdoOsCol  = _findColSafe(rdoHdr, 'Número OS');
+        if (rdoNumCol < 0) return { sucesso: false, erro: 'Coluna "Número RDO" não encontrada na aba RDO' };
+
+        var rdoOrigRow = -1, rdoOrigLinha = null;
+        for (var r = 1; r < rdoValues.length; r++) {
+            if ((rdoValues[r][rdoNumCol] || '').toString().trim() === numeroRDO.trim()) {
+                rdoOrigRow   = r + 1;
+                rdoOrigLinha = rdoValues[r].slice();
+                break;
+            }
         }
-    }
-    if (linhaOriginal < 0) {
-        return { sucesso: false, erro: 'Numero RDO "' + numeroRDO + '" nao encontrado' };
-    }
+        if (rdoOrigRow < 0) return { sucesso: false, erro: 'RDO não encontrado: ' + numeroRDO };
 
-    var ssId = ss.getId();
+        if (rdoOsCol >= 0) rdoSheet.getRange(rdoOrigRow, rdoOsCol + 1).setValue(os1);
 
-    // Atualizar OS do RDO original para OS1 (bypassa validacao de dados via REST API)
-    _escreverIgnorandoValidacao(ssId, 'RDO', linhaOriginal + 1, colOS + 1, [[os1]]);
+        var novaLinhaRDO = rdoOrigLinha.slice();
+        novaLinhaRDO[rdoNumCol] = novoNumeroRDO;
+        if (rdoOsCol >= 0) novaLinhaRDO[rdoOsCol] = os2;
+        rdoSheet.appendRow(novaLinhaRDO);
 
-    // 2. Gerar numero RDO para o novo RDO (OS2)
-    var novoNumeroRDO = _proximoSequencial(ss, os2, dadosRDOOriginal, hdrRDO);
+        // ── 2. Aba Servicos ───────────────────────────────────────────────────
+        var svcSheet  = ss.getSheetByName('Servicos');
+        var svcValues = svcSheet.getDataRange().getValues();
+        var svcHdr    = svcValues[0].map(function(h) { return h.toString().trim(); });
+        var svcRdoCol = _findColSafe(svcHdr, 'Número RDO');
+        var svcOsCol  = _findColSafe(svcHdr, 'Número OS');
+        var svcDescCol = _findColSafe(svcHdr, 'Descrição');
+        var svcQtyCol  = _findColSafe(svcHdr, 'Quantidade');
 
-    // 3. Clonar linha do RDO original com OS2 e novo numeroRDO
-    var novaLinhaRDO = dadosRDOOriginal.slice();
-    novaLinhaRDO[colOS] = os2;
-    if (colRDONum >= 0) novaLinhaRDO[colRDONum] = novoNumeroRDO;
-    // Atualizar coluna Data Criacao se existir
-    var colDataCriacao = _findColSafe(hdrRDO, 'Data Cria\u00e7\u00e3o');
-    if (colDataCriacao >= 0) {
-        novaLinhaRDO[colDataCriacao] = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
-    }
-    // Inserir nova linha (appendRow nao aciona validacao; usamos appendRow + escrita via REST)
-    abaRDO.appendRow(new Array(novaLinhaRDO.length).fill(''));
-    SpreadsheetApp.flush();
-    var novaPosicao = abaRDO.getLastRow();
-    // Sobrescreve a linha vazia com os dados reais, ignorando validacao
-    _escreverIgnorandoValidacao(ssId, 'RDO', novaPosicao, 1, [novaLinhaRDO]);
-
-    // 4. Mover servicos e HI para o novo RDO
-    _moverLinhasParaNovoRDO(ss, 'Servicos', numeroRDO, novoNumeroRDO, os2, servicosOS2, 'servico');
-    _moverLinhasParaNovoRDO(ss, 'HorasImprodutivas', numeroRDO, novoNumeroRDO, os2, hiOS2, 'hi');
-
-    Logger.log('[dividirOS] RDO ' + numeroRDO + ' dividido: OS1=' + os1 + ' OS2=' + os2 +
-               ' novoRDO=' + novoNumeroRDO +
-               ' servicosMovidos=' + servicosOS2.length + ' hiMovidos=' + hiOS2.length);
-
-    return {
-        sucesso: true,
-        novoNumeroRDO: novoNumeroRDO,
-        os1: os1,
-        os2: os2,
-        servicosMovidos: servicosOS2.length,
-        hiMovidos: hiOS2.length,
-        movimentacao: movimentacao || []
-    };
-}
-
-/**
- * Gera o proximo numero RDO sequencial para a OS2.
- * Formato: OS2-DD.MM.YY-XXX (mesma data do RDO original).
- */
-function _proximoSequencial(ss, os2, dadosRDOOriginal, hdrRDO) {
-    var colData = _findColSafe(hdrRDO, 'Data');
-    var dataStr = colData >= 0 ? (dadosRDOOriginal[colData] || '').toString().trim() : '';
-
-    // Formatar data como DD.MM.YY
-    var dataPart = '';
-    if (dataStr) {
-        var partes = dataStr.split('/');
-        if (partes.length === 3) {
-            dataPart = partes[0] + '.' + partes[1] + '.' + partes[2].slice(-2);
+        var svcOS2Set = {};
+        for (var i = 0; i < servicosOS2.length; i++) {
+            var pts = servicosOS2[i].split('|');
+            svcOS2Set[pts[0] + '|' + pts[1]] = true;
         }
-    }
-    if (!dataPart) {
-        var hoje = new Date();
-        dataPart = Utilities.formatDate(hoje, 'America/Sao_Paulo', 'dd.MM.yy');
-    }
+        for (var r = 1; r < svcValues.length; r++) {
+            if ((svcValues[r][svcRdoCol] || '').toString().trim() !== numeroRDO.trim()) continue;
+            var desc = svcDescCol >= 0 ? String(svcValues[r][svcDescCol] || '').trim() : '';
+            var qty  = svcQtyCol  >= 0 ? String(svcValues[r][svcQtyCol]  || '').trim() : '';
+            if (svcOS2Set[desc + '|' + qty]) {
+                svcSheet.getRange(r + 1, svcRdoCol + 1).setValue(novoNumeroRDO);
+                if (svcOsCol >= 0) svcSheet.getRange(r + 1, svcOsCol + 1).setValue(os2);
+            }
+        }
 
-    var prefixo = os2.trim() + '-' + dataPart + '-';
+        // ── 3. Aba HorasImprodutivas ──────────────────────────────────────────
+        var hiSheet  = ss.getSheetByName('HorasImprodutivas');
+        var hiValues = hiSheet.getDataRange().getValues();
+        var hiHdr    = hiValues[0].map(function(h) { return h.toString().trim(); });
+        var hiRdoCol  = _findColSafe(hiHdr, 'Número RDO');
+        var hiOsCol   = _findColSafe(hiHdr, 'Número OS');
+        var hiTipoCol = _findColSafe(hiHdr, 'Tipo');
+        var hiIniCol  = _findColSafe(hiHdr, 'Hora Início');
+        var hiFimCol  = _findColSafe(hiHdr, 'Hora Fim');
 
-    // Encontrar maior sequencial existente
-    var abaRDO = ss.getSheetByName('RDO');
-    var maior = 0;
-    if (abaRDO) {
-        var dados = abaRDO.getDataRange().getValues();
-        var colRDONum = _findColSafe(dados[0].map(function(h) { return h.toString().trim(); }), 'N\u00famero RDO');
-        if (colRDONum >= 0) {
-            for (var i = 1; i < dados.length; i++) {
-                var num = (dados[i][colRDONum] || '').toString().trim();
-                if (num.indexOf(prefixo) === 0) {
-                    var seq = parseInt(num.replace(prefixo, ''), 10);
-                    if (!isNaN(seq) && seq > maior) maior = seq;
+        var hiOS2Set = {};
+        for (var i = 0; i < hiOS2.length; i++) {
+            var pts = hiOS2[i].split('|');
+            hiOS2Set[pts[1] + '|' + pts[2] + '|' + pts[3]] = true;
+        }
+        for (var r = 1; r < hiValues.length; r++) {
+            if ((hiValues[r][hiRdoCol] || '').toString().trim() !== numeroRDO.trim()) continue;
+            var tipo = hiTipoCol >= 0 ? String(hiValues[r][hiTipoCol] || '').trim() : '';
+            var ini  = hiIniCol  >= 0 ? String(hiValues[r][hiIniCol]  || '').trim() : '';
+            var fim  = hiFimCol  >= 0 ? String(hiValues[r][hiFimCol]  || '').trim() : '';
+            if (hiOS2Set[tipo + '|' + ini + '|' + fim]) {
+                hiSheet.getRange(r + 1, hiRdoCol + 1).setValue(novoNumeroRDO);
+                if (hiOsCol >= 0) hiSheet.getRange(r + 1, hiOsCol + 1).setValue(os2);
+            }
+        }
+
+        // ── 4. Aba Efetivo — duplicar para o novo RDO ─────────────────────────
+        var efSheet = ss.getSheetByName('Efetivo');
+        if (efSheet) {
+            var efValues = efSheet.getDataRange().getValues();
+            var efHdr    = efValues[0].map(function(h) { return h.toString().trim(); });
+            var efRdoCol = _findColSafe(efHdr, 'Número RDO');
+            var efOsCol  = _findColSafe(efHdr, 'Número OS');
+            for (var r = 1; r < efValues.length; r++) {
+                if ((efValues[r][efRdoCol] || '').toString().trim() === numeroRDO.trim()) {
+                    var novaEf = efValues[r].slice();
+                    novaEf[efRdoCol] = novoNumeroRDO;
+                    if (efOsCol >= 0) novaEf[efOsCol] = os2;
+                    efSheet.appendRow(novaEf);
+                    break;
                 }
             }
         }
-    }
 
-    var proximo = maior + 1;
-    return prefixo + (proximo < 10 ? '00' + proximo : proximo < 100 ? '0' + proximo : '' + proximo);
+        SpreadsheetApp.flush();
+        Logger.log('[dividirOS] ' + numeroRDO + ' → OS1=' + os1 + ' OS2=' + os2 + ' novoRDO=' + novoNumeroRDO);
+        return { sucesso: true, novoNumeroRDO: novoNumeroRDO };
+
+    } catch (err) {
+        return { sucesso: false, erro: err.message };
+    } finally {
+        lock.releaseLock();
+    }
 }
 
-/**
- * Move linhas de uma aba relacionada (Servicos ou HorasImprodutivas) para o novo RDO.
- * As linhas originais SAO removidas do RDO original (iteracao de tras pra frente).
- *
- * Para Servicos: chave = "desc|qty|coef"
- * Para HorasImprodutivas: chave = "data|tipo|ini|fim|ops"
- */
-function _moverLinhasParaNovoRDO(ss, nomeAba, rdoOriginal, novoRDO, novaOS, chaves, tipo) {
-    if (!chaves || chaves.length === 0) return;
+// ════════════════════════════════════════════════════════════════════
+// EDIÇÃO VIA DASHBOARD
+// ════════════════════════════════════════════════════════════════════
 
-    var sheet = ss.getSheetByName(nomeAba);
-    if (!sheet) {
-        Logger.log('[_moverLinhasParaNovoRDO] Aba "' + nomeAba + '" nao encontrada');
-        return;
-    }
-
+function _linhasDaAba(sheet, numeroRDO) {
     var dados = sheet.getDataRange().getValues();
-    var hdr   = dados[0].map(function(h) { return h.toString().trim(); });
-    var colRDONum = _findColSafe(hdr, 'N\u00famero RDO');
-    var colOS     = _findColSafe(hdr, 'N\u00famero OS');
-    if (colRDONum < 0) { Logger.log('[_moverLinhasParaNovoRDO] Sem coluna Numero RDO em ' + nomeAba); return; }
-
-    // Pre-calcular indices de coluna fora do loop
-    var colDesc = -1, colQty = -1, colCoef = -1, colDataRDO = -1, colTipo = -1, colIni = -1, colFim = -1, colOps = -1;
-    if (tipo === 'servico') {
-        colDesc = _findColSafe(hdr, 'Descri\u00e7\u00e3o');
-        colQty  = _findColSafe(hdr, 'Quantidade');
-        colCoef = _findColSafe(hdr, 'Coeficiente');
-    } else if (tipo === 'hi') {
-        colDataRDO = _findColSafe(hdr, 'Data RDO');
-        colTipo    = _findColSafe(hdr, 'Tipo');
-        colIni     = _findColSafe(hdr, 'Hora In\u00edcio');
-        colFim     = _findColSafe(hdr, 'Hora Fim');
-        colOps     = _findColSafe(hdr, 'Operadores');
-    }
-
-    // Construir set de chaves para lookup rapido
-    var chavesSet = {};
-    chaves.forEach(function(c) { chavesSet[c] = true; });
-
-    // Identificar linhas a mover (indices das linhas de dados, 1-based)
-    var linhasParaMover = []; // { idx: indice_em_dados, clone: linha_copiada }
+    var linhas = [];
     for (var i = 1; i < dados.length; i++) {
-        var rdoNaLinha = (dados[i][colRDONum] || '').toString().trim();
-        if (rdoNaLinha !== rdoOriginal.trim()) continue;
-
-        var chave = '';
-        if (tipo === 'servico') {
-            var desc = colDesc >= 0 ? (dados[i][colDesc] || '').toString().trim() : '';
-            var qty  = colQty  >= 0 ? (dados[i][colQty]  || '').toString().trim() : '';
-            var coef = colCoef >= 0 ? (dados[i][colCoef] || '').toString().trim() : '';
-            chave = desc + '|' + qty + '|' + coef;
-        } else if (tipo === 'hi') {
-            var dataRDO = colDataRDO >= 0 ? (dados[i][colDataRDO] || '').toString().trim() : '';
-            var tipoHI  = colTipo    >= 0 ? (dados[i][colTipo]    || '').toString().trim() : '';
-            var ini     = colIni     >= 0 ? (dados[i][colIni]     || '').toString().trim() : '';
-            var fim     = colFim     >= 0 ? (dados[i][colFim]     || '').toString().trim() : '';
-            var ops     = colOps     >= 0 ? (dados[i][colOps]     || '').toString().trim() : '';
-            chave = dataRDO + '|' + tipoHI + '|' + ini + '|' + fim + '|' + ops;
-        }
-
-        if (chavesSet[chave]) {
-            linhasParaMover.push({ idx: i, clone: dados[i].slice() });
+        if ((dados[i][0] || '').toString().trim() === (numeroRDO || '').toString().trim()) {
+            linhas.push(i + 1);
         }
     }
+    return linhas;
+}
 
-    if (linhasParaMover.length === 0) return;
-
-    // Inserir clones com novo RDO/OS
-    linhasParaMover.forEach(function(item) {
-        item.clone[colRDONum] = novoRDO;
-        if (colOS >= 0) item.clone[colOS] = novaOS;
-        sheet.appendRow(item.clone);
-    });
-
-    // Remover linhas originais de tras pra frente (para nao deslocar indices)
-    for (var j = linhasParaMover.length - 1; j >= 0; j--) {
-        sheet.deleteRow(linhasParaMover[j].idx + 1); // +1: planilha e 1-based
+function atualizarCampoRDO(body) {
+    var numeroRDO = (body.numeroRDO || '').toString().trim();
+    var campos    = body.campos;
+    if (!numeroRDO || !campos || typeof campos !== 'object') {
+        return { sucesso: false, erro: 'numeroRDO e campos são obrigatórios' };
     }
 
-    SpreadsheetApp.flush();
-    Logger.log('[_moverLinhasParaNovoRDO] ' + nomeAba + ': ' + linhasParaMover.length + ' linha(s) movidas para ' + novoRDO);
+    var MAPA_CAMPOS = {
+        local: 'Local', numeroOS: 'Número OS', statusOS: 'Status OS',
+        kmInicio: 'KM Início', kmFim: 'KM Fim',
+        horarioInicio: 'Horário Início', horarioFim: 'Horário Fim',
+        temaDDS: 'Tema DDS', observacoes: 'Observações'
+    };
+
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+    try {
+        var ss    = SpreadsheetApp.getActiveSpreadsheet();
+        var sheet = ss.getSheetByName('RDO');
+        if (!sheet) return { sucesso: false, erro: 'Aba "RDO" não encontrada' };
+
+        var dados  = sheet.getDataRange().getValues();
+        var header = dados[0].map(function(h) { return h.toString().trim(); });
+        var colRDO = _findColSafe(header, 'Número RDO');
+        if (colRDO < 0) return { sucesso: false, erro: 'Coluna "Número RDO" não encontrada' };
+
+        var linhaAtualizar = -1;
+        for (var i = 1; i < dados.length; i++) {
+            if ((dados[i][colRDO] || '').toString().trim() === numeroRDO) {
+                linhaAtualizar = i + 1;
+                break;
+            }
+        }
+        if (linhaAtualizar === -1) return { sucesso: false, erro: 'Número RDO "' + numeroRDO + '" não encontrado' };
+
+        var atualizados = [];
+        for (var chave in campos) {
+            if (!campos.hasOwnProperty(chave)) continue;
+            var nomeColuna = MAPA_CAMPOS[chave];
+            if (!nomeColuna) continue;
+            var colIdx = _findColSafe(header, nomeColuna);
+            if (colIdx < 0) { Logger.log('[atualizarCampoRDO] Coluna não encontrada: ' + nomeColuna); continue; }
+            sheet.getRange(linhaAtualizar, colIdx + 1).setValue(campos[chave]);
+            atualizados.push(nomeColuna);
+        }
+
+        if (atualizados.length === 0) return { sucesso: false, erro: 'Nenhum campo válido informado' };
+        SpreadsheetApp.flush();
+        Logger.log('[atualizarCampoRDO] RDO ' + numeroRDO + ' | ' + atualizados.join(', '));
+        return { sucesso: true, linha: linhaAtualizar, camposAtualizados: atualizados };
+
+    } finally { lock.releaseLock(); }
+}
+
+function atualizarServico(body) {
+    if (!body.numeroRDO || body.indice === undefined || body.indice === null) {
+        return { sucesso: false, erro: 'numeroRDO e indice são obrigatórios' };
+    }
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+    try {
+        var ss    = SpreadsheetApp.getActiveSpreadsheet();
+        var sheet = ss.getSheetByName('Servicos');
+        if (!sheet) return { sucesso: false, erro: 'Aba "Servicos" não encontrada' };
+
+        var linhas = _linhasDaAba(sheet, body.numeroRDO);
+        if (body.indice < 0 || body.indice >= linhas.length) {
+            return { sucesso: false, erro: 'indice ' + body.indice + ' inválido. RDO tem ' + linhas.length + ' serviço(s)' };
+        }
+
+        var linha  = linhas[body.indice];
+        var header = sheet.getDataRange().getValues()[0].map(function(h) { return h.toString().trim(); });
+
+        var colDesc = _findColSafe(header, 'Descrição');
+        var colQty  = _findColSafe(header, 'Quantidade');
+        var colUn   = _findColSafe(header, 'Unidade');
+        var colObs  = _findColSafe(header, 'Observações');
+
+        if (body.descricao   !== undefined && colDesc >= 0) sheet.getRange(linha, colDesc + 1).setValue(body.descricao);
+        if (body.quantidade  !== undefined && colQty  >= 0) sheet.getRange(linha, colQty  + 1).setValue(body.quantidade);
+        if (body.unidade     !== undefined && colUn   >= 0) sheet.getRange(linha, colUn   + 1).setValue(body.unidade);
+        if (body.observacoes !== undefined && colObs  >= 0) sheet.getRange(linha, colObs  + 1).setValue(body.observacoes);
+
+        SpreadsheetApp.flush();
+        Logger.log('[atualizarServico] RDO ' + body.numeroRDO + ' indice ' + body.indice + ' (linha ' + linha + ')');
+        return { sucesso: true, linha: linha };
+    } finally { lock.releaseLock(); }
+}
+
+function adicionarServico(body) {
+    if (!body.numeroRDO || !body.descricao || body.quantidade === undefined) {
+        return { sucesso: false, erro: 'numeroRDO, descricao e quantidade são obrigatórios' };
+    }
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+    try {
+        var ss    = SpreadsheetApp.getActiveSpreadsheet();
+        var sheet = ss.getSheetByName('Servicos');
+        if (!sheet) return { sucesso: false, erro: 'Aba "Servicos" não encontrada' };
+
+        sheet.appendRow([
+            body.numeroRDO, body.numeroOS || '', body.data || '',
+            body.codigoTurma || '', body.encarregado || '',
+            body.descricao, body.quantidade, body.unidade || 'UN',
+            body.observacoes || '', 'NÃO', ''
+        ]);
+        SpreadsheetApp.flush();
+        Logger.log('[adicionarServico] RDO ' + body.numeroRDO + ' | ' + body.descricao);
+        return { sucesso: true, ultimaLinha: sheet.getLastRow() };
+    } finally { lock.releaseLock(); }
+}
+
+function excluirServico(body) {
+    if (!body.numeroRDO || body.indice === undefined) {
+        return { sucesso: false, erro: 'numeroRDO e indice são obrigatórios' };
+    }
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+    try {
+        var ss    = SpreadsheetApp.getActiveSpreadsheet();
+        var sheet = ss.getSheetByName('Servicos');
+        if (!sheet) return { sucesso: false, erro: 'Aba "Servicos" não encontrada' };
+
+        var linhas = _linhasDaAba(sheet, body.numeroRDO);
+        if (body.indice < 0 || body.indice >= linhas.length) {
+            return { sucesso: false, erro: 'indice ' + body.indice + ' inválido. RDO tem ' + linhas.length + ' serviço(s)' };
+        }
+        sheet.deleteRow(linhas[body.indice]);
+        SpreadsheetApp.flush();
+        Logger.log('[excluirServico] RDO ' + body.numeroRDO + ' indice ' + body.indice + ' excluído');
+        return { sucesso: true };
+    } finally { lock.releaseLock(); }
+}
+
+function atualizarHI(body) {
+    if (!body.numeroRDO || body.indice === undefined || body.indice === null) {
+        return { sucesso: false, erro: 'numeroRDO e indice são obrigatórios' };
+    }
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+    try {
+        var ss    = SpreadsheetApp.getActiveSpreadsheet();
+        var sheet = ss.getSheetByName('HorasImprodutivas');
+        if (!sheet) return { sucesso: false, erro: 'Aba "HorasImprodutivas" não encontrada' };
+
+        var linhas = _linhasDaAba(sheet, body.numeroRDO);
+        if (body.indice < 0 || body.indice >= linhas.length) {
+            return { sucesso: false, erro: 'indice ' + body.indice + ' inválido. RDO tem ' + linhas.length + ' HI(s)' };
+        }
+
+        var linha  = linhas[body.indice];
+        var header = sheet.getDataRange().getValues()[0].map(function(h) { return h.toString().trim(); });
+
+        var colTipo = _findColSafe(header, 'Tipo');
+        var colDesc = _findColSafe(header, 'Descrição');
+        var colIni  = _findColSafe(header, 'Hora Início');
+        var colFim  = _findColSafe(header, 'Hora Fim');
+        var colOps  = _findColSafe(header, 'Operadores');
+
+        if (body.tipo       !== undefined && colTipo >= 0) sheet.getRange(linha, colTipo + 1).setValue(body.tipo);
+        if (body.descricao  !== undefined && colDesc >= 0) sheet.getRange(linha, colDesc + 1).setValue(body.descricao);
+        if (body.horaInicio !== undefined && colIni  >= 0) sheet.getRange(linha, colIni  + 1).setValue(body.horaInicio);
+        if (body.horaFim    !== undefined && colFim  >= 0) sheet.getRange(linha, colFim  + 1).setValue(body.horaFim);
+        if (body.operadores !== undefined && colOps  >= 0) sheet.getRange(linha, colOps  + 1).setValue(body.operadores);
+
+        SpreadsheetApp.flush();
+        Logger.log('[atualizarHI] RDO ' + body.numeroRDO + ' indice ' + body.indice + ' (linha ' + linha + ')');
+        return { sucesso: true, linha: linha };
+    } finally { lock.releaseLock(); }
+}
+
+function adicionarHI(body) {
+    if (!body.numeroRDO || !body.tipo || !body.horaInicio || !body.horaFim) {
+        return { sucesso: false, erro: 'numeroRDO, tipo, horaInicio e horaFim são obrigatórios' };
+    }
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+    try {
+        var ss    = SpreadsheetApp.getActiveSpreadsheet();
+        var sheet = ss.getSheetByName('HorasImprodutivas');
+        if (!sheet) return { sucesso: false, erro: 'Aba "HorasImprodutivas" não encontrada' };
+
+        sheet.appendRow([
+            body.numeroRDO, body.numeroOS || '', body.data || '',
+            body.codigoTurma || '', body.encarregado || '',
+            body.tipo, body.descricao || '', body.horaInicio, body.horaFim,
+            body.operadores !== undefined ? body.operadores : 12
+        ]);
+        SpreadsheetApp.flush();
+        Logger.log('[adicionarHI] RDO ' + body.numeroRDO + ' | ' + body.tipo + ' ' + body.horaInicio + '-' + body.horaFim);
+        return { sucesso: true, ultimaLinha: sheet.getLastRow() };
+    } finally { lock.releaseLock(); }
+}
+
+function excluirHI(body) {
+    if (!body.numeroRDO || body.indice === undefined) {
+        return { sucesso: false, erro: 'numeroRDO e indice são obrigatórios' };
+    }
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+    try {
+        var ss    = SpreadsheetApp.getActiveSpreadsheet();
+        var sheet = ss.getSheetByName('HorasImprodutivas');
+        if (!sheet) return { sucesso: false, erro: 'Aba "HorasImprodutivas" não encontrada' };
+
+        var linhas = _linhasDaAba(sheet, body.numeroRDO);
+        if (body.indice < 0 || body.indice >= linhas.length) {
+            return { sucesso: false, erro: 'indice ' + body.indice + ' inválido. RDO tem ' + linhas.length + ' HI(s)' };
+        }
+        sheet.deleteRow(linhas[body.indice]);
+        SpreadsheetApp.flush();
+        Logger.log('[excluirHI] RDO ' + body.numeroRDO + ' indice ' + body.indice + ' excluído');
+        return { sucesso: true };
+    } finally { lock.releaseLock(); }
+}
+
+function deletarRDO(dados) {
+    var lock = LockService.getScriptLock();
+    lock.waitLock(15000);
+    try {
+        var ss    = SpreadsheetApp.getActiveSpreadsheet();
+        var sheet = ss.getSheetByName('RDO');
+        var ultimaCol = sheet.getLastColumn();
+        var headerRow = sheet.getRange(1, 1, 1, ultimaCol).getValues()[0];
+
+        var colNumeroRDO = -1, colDeletado = -1;
+        for (var c = 0; c < headerRow.length; c++) {
+            if (headerRow[c] === 'Número RDO') colNumeroRDO = c + 1;
+            if (headerRow[c] === 'Deletado')   colDeletado  = c + 1;
+        }
+        if (colNumeroRDO < 0 || colDeletado < 0) {
+            return { sucesso: false, erro: 'Colunas "Número RDO" ou "Deletado" não encontradas' };
+        }
+
+        var ultimaLinha = sheet.getLastRow();
+        var rdoVals = sheet.getRange(2, colNumeroRDO, ultimaLinha - 1, 1).getValues();
+        for (var i = 0; i < rdoVals.length; i++) {
+            if (String(rdoVals[i][0]).trim() === String(dados.numeroRDO).trim()) {
+                sheet.getRange(i + 2, colDeletado).setValue('Sim');
+                SpreadsheetApp.flush();
+                return { sucesso: true };
+            }
+        }
+        return { sucesso: false, erro: 'RDO não encontrado: ' + dados.numeroRDO };
+    } finally { lock.releaseLock(); }
+}
+
+function salvarNotaDia(dados) {
+    const { turma, data, nota } = dados;
+    const ss    = SpreadsheetApp.getActiveSpreadsheet();
+    let notas   = ss.getSheetByName('Notas');
+    if (!notas) {
+        notas = ss.insertSheet('Notas');
+        notas.appendRow(['Turma', 'Data', 'Nota', 'Atualizado Em']);
+    }
+    const rows = notas.getDataRange().getValues();
+    for (let i = 1; i < rows.length; i++) {
+        if (rows[i][0] === turma && rows[i][1] === data) {
+            if (nota) notas.getRange(i+1, 3, 1, 2).setValues([[nota, new Date().toISOString()]]);
+            else notas.deleteRow(i+1);
+            return ContentService.createTextOutput(JSON.stringify({ sucesso: true }))
+                .setMimeType(ContentService.MimeType.JSON);
+        }
+    }
+    if (nota) notas.appendRow([turma, data, nota, new Date().toISOString()]);
+    return ContentService.createTextOutput(JSON.stringify({ sucesso: true }))
+        .setMimeType(ContentService.MimeType.JSON);
+}
+
+function obterNotasDia() {
+    const ss    = SpreadsheetApp.getActiveSpreadsheet();
+    const notas = ss.getSheetByName('Notas');
+    const arr   = notas ? notas.getDataRange().getValues().slice(1)
+        .filter(r => r[0] && r[1])
+        .map(r => ({ turma: String(r[0]), data: String(r[1]), nota: String(r[2] || '') }))
+        : [];
+    return ContentService.createTextOutput(JSON.stringify({ sucesso: true, notas: arr }))
+        .setMimeType(ContentService.MimeType.JSON);
 }

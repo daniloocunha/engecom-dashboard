@@ -538,9 +538,6 @@ class DashboardMain {
 
         // Média de Efetivo (TSs)
         this.renderizarKPIMediaEfetivo('TS');
-
-        // Média de Efetivo Geral (Acompanhamento)
-        this.renderizarKPIMediaEfetivoGeral();
     }
 
     /**
@@ -556,26 +553,6 @@ class DashboardMain {
         if (kpiOperadores && kpiTotal) {
             kpiOperadores.textContent = mediaEfetivo.operadores.toFixed(1);
             kpiTotal.textContent = mediaEfetivo.total.toFixed(1);
-        }
-    }
-
-    /**
-     * Renderiza KPI de média de efetivo geral (todas as turmas)
-     */
-    renderizarKPIMediaEfetivoGeral() {
-        const mediaTP = this.calculadora.calcularMediaEfetivoGeral('TP', this.filtros.mes, this.filtros.ano);
-        const mediaTMC = this.calculadora.calcularMediaEfetivoGeral('TMC', this.filtros.mes, this.filtros.ano);
-        const mediaTS = this.calculadora.calcularMediaEfetivoGeral('TS', this.filtros.mes, this.filtros.ano);
-
-        const totalOperadores = mediaTP.operadores + mediaTMC.operadores + mediaTS.operadores;
-        const totalGeral = mediaTP.total + mediaTMC.total + mediaTS.total;
-
-        const kpiOperadores = document.getElementById('kpiMediaEfetivoAcomp');
-        const kpiTotal = document.getElementById('kpiMediaEfetivoTotalAcomp');
-
-        if (kpiOperadores && kpiTotal) {
-            kpiOperadores.textContent = totalOperadores.toFixed(1);
-            kpiTotal.textContent = totalGeral.toFixed(1);
         }
     }
 

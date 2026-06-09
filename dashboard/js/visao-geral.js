@@ -70,7 +70,7 @@ class VisaoGeral {
 
             let hhServ = 0, hhPDM = 0, hhCorr = 0;
             const servicosTurma = {}, perdasTurma = {}, osPorTurma = {};
-            let diasBateuMeta = 0;
+            const hhServPorData = new Map();
 
             const encarregadosSet = new Set();
             let totalOps = 0, countOps = 0;
@@ -122,8 +122,8 @@ class VisaoGeral {
                     });
                 });
 
-                // Dia bateu a meta?
-                if (hhServDia >= metaDia) diasBateuMeta++;
+                // Acumular HH por data (dias únicos que bateram a meta)
+                hhServPorData.set(dataNorm, (hhServPorData.get(dataNorm) || 0) + hhServDia);
 
                 // ── HI ──
                 const efetivo   = calc.indices.efetivosPorRDO.get(numRDO);
@@ -169,6 +169,7 @@ class VisaoGeral {
                 }
             });
 
+            const diasBateuMeta = [...hhServPorData.values()].filter(hh => hh >= metaDia).length;
             const hhImprodOficial = calc.calcularHHImprodutivas(rdosTurma);
             const toArr  = m => Object.entries(m).map(([d, v]) => ({ descricao: d, ...v })).sort((a, b) => b.hh - a.hh);
             const pArr   = m => Object.entries(m).map(([c, v]) => ({ chave: c,   ...v })).sort((a, b) => b.hh - a.hh);
