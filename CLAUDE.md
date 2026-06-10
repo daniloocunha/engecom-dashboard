@@ -77,6 +77,8 @@ npm run gen-config-example
 ```
 
 ### Utility Scripts (scripts/)
+- `scripts/update_config_release.py` — Atualiza a aba Config no Sheets após um release do app
+  (`python scripts/update_config_release.py` mostra os valores; `--apply --versao N --hash H --tamanho M --url U [--mensagem T]` atualiza)
 - `scripts/importar_rdos.py` — Importa RDOs de mensagens WhatsApp/TXT para Sheets
 - `scripts/cleanup_sheets.py` — Limpeza e normalização de RDOs no Sheets (headers, deletados, HI)
 - `scripts/cleanup_op6.py` — Limpa coluna Operadores na aba HorasImprodutivas
@@ -695,7 +697,9 @@ mensagem_aviso         | <mensagem mostrada se versão desatualizada>
 mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 ```
 
-> **IMPORTANTE**: Após gerar o APK release, atualizar `hash_md5`, `tamanho_apk_mb`, `versao_recomendada` e `url_download` na aba Config. O `versao_minima` usa `versionCode` (número inteiro), não `versionName`.
+> **IMPORTANTE**: Após gerar o APK release, atualizar `hash_md5`, `tamanho_apk_mb`, `versao_recomendada` e `url_download` na aba Config — use `python scripts/update_config_release.py --apply ...`. O `versao_minima` usa `versionCode` (número inteiro), não `versionName`.
+>
+> **Hash do APK**: enquanto houver aparelhos com versionCode ≤ 23 em campo, a chave `hash_md5` DEVE conter MD5 (32 caracteres) — versões antigas só calculam MD5 e rejeitariam um SHA-256. A partir do momento em que todos estiverem no versionCode 24+, pode-se usar SHA-256 (64 caracteres) na mesma chave.
 
 ## Version History
 
