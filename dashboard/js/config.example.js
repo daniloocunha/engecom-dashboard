@@ -4,8 +4,11 @@
  *
  * INSTRUÇÕES:
  * 1. Copie este arquivo para config.js
- * 2. Substitua os valores de exemplo pelas suas credenciais reais
+ * 2. Substitua os placeholders pelas suas credenciais reais
  * 3. NUNCA commite o arquivo config.js no Git!
+ *
+ * ⚠️ ARQUIVO AUTO-GERADO por scripts/gen-config-example.js — não edite à mão.
+ *    Edite o config.js local e rode: npm run gen-config-example
  */
 
 // ============================================
@@ -21,7 +24,7 @@ const CONFIG = {
     // ID da planilha do Google Sheets
     SPREADSHEET_ID: 'SEU_SPREADSHEET_ID_AQUI',
 
-    // API Key do Google (obtenha em: https://console.cloud.google.com/)
+    // API Key do Google (com restrição HTTP Referrer no Google Cloud Console)
     API_KEY: 'SUA_API_KEY_AQUI',
 
     // Nomes das abas
@@ -37,8 +40,10 @@ const CONFIG = {
     },
 
     // Chave secreta para acesso (via URL ?key=...)
-    // IMPORTANTE: Use uma chave forte e complexa!
-    SECRET_KEY: 'SUA_CHAVE_SECRETA_COMPLEXA_AQUI'
+    SECRET_KEY: 'SUA_CHAVE_SECRETA_COMPLEXA_AQUI',
+
+    // URL do Google Apps Script para escrita (edição de operadores HI no dashboard)
+    APPS_SCRIPT_URL: 'https://script.google.com/macros/s/SEU_DEPLOYMENT_ID/exec'
 };
 
 // ============================================
@@ -87,57 +92,6 @@ const PRECOS_ENCOGEL = {
 };
 
 // ============================================
-// TURMAS - Configuração
-// ============================================
-const TURMAS = {
-    // TPs - Turmas de Produção
-    TPS: [
-        { codigo: 'TP-273', tipo: 'TP' },
-        { codigo: 'TP-274', tipo: 'TP' },
-        { codigo: 'TP-761', tipo: 'TP' },
-        { codigo: 'TP-773', tipo: 'TP' },
-        { codigo: 'TP-764', tipo: 'TP' },
-        { codigo: 'TP-768', tipo: 'TP' },
-        { codigo: 'TP-776', tipo: 'TP' },
-        { codigo: 'TP-763', tipo: 'TP' },
-        { codigo: 'TP-891', tipo: 'TP' },
-        { codigo: 'TP-876', tipo: 'TP' },
-        { codigo: 'TP-900', tipo: 'TP' },
-        { codigo: 'TP-910', tipo: 'TP' },
-        { codigo: 'TP-911', tipo: 'TP' },
-        { codigo: 'TP-912', tipo: 'TP' },
-        { codigo: 'TP-920', tipo: 'TP' },
-        { codigo: 'TP-922', tipo: 'TP' }
-    ],
-
-    // TMCs - Turmas de Manutenção Corretiva
-    TMCS: [
-        { codigo: 'TMC 806', tipo: 'TMC' },
-        { codigo: 'TMC 807', tipo: 'TMC' },
-        { codigo: 'TMC 810', tipo: 'TMC' },
-        { codigo: 'TMC 808', tipo: 'TMC' },
-        { codigo: 'TMC 809', tipo: 'TMC' }
-    ]
-};
-
-// ============================================
-// ENCARREGADOS (para tracking de TPs)
-// ============================================
-const ENCARREGADOS = [
-    'Adalton Trindade da Paixão',
-    'Ilson Soares de Oliveira',
-    'Leandro Morais da Silva',
-    'Tharlleson M. Sobrinho',
-    'Werbet Santos dos Santos',
-    'Wilson Puff',
-    'Sergio de Almeida Oliveira Bispo',
-    'Marcos Jorge Marinho',
-    'Weividy Fernandes',
-    'Carlos Alexandre Heupa',
-    'Odair José Miranda da Silva'
-];
-
-// ============================================
 // COMPOSIÇÃO PADRÃO DAS TURMAS
 // ============================================
 const COMPOSICAO_PADRAO = {
@@ -156,6 +110,15 @@ const COMPOSICAO_PADRAO = {
             micro_onibus: 1,
             mini_escavadeira: 1
         }
+    },
+    TS: {
+        encarregados: 1,
+        soldadores: 1,
+        operadores: 4,
+        motorista: 1,
+        equipamentos: {
+            caminhao_cabinado: 1
+        }
     }
 };
 
@@ -169,12 +132,20 @@ const METAS = {
     META_DIARIA_TP: 72,              // 12 × 6 = 72 HH/dia
     LIMITE_FATURAMENTO_TP: 1.10,     // 110% do valor fixo
 
-    // TSs
-    META_DIARIA_TS: 6,               // 1 soldador × 6h = 6 HH/dia
+    // TSs (Turmas de Solda)
+    HH_POR_SOLDADOR_DIA: 6,         // Horas por soldador por dia
+    SOLDADORES_TS: 1,                // Número padrão de soldadores TS
+    META_DIARIA_TS: 6,               // 1 × 6 = 6 HH/dia (apenas soldador)
+    LIMITE_FATURAMENTO_TS: 1.10,     // 110% do valor fixo
 
     // Improdutivas
     DIVISOR_CHUVA: 2,                // Horas de chuva contam como metade
-    MINUTOS_MINIMOS_TREM: 20         // Trens só contam se >= 20 min
+    MINUTOS_MINIMOS_TREM: 20,        // Trens só contam se >= 20 min
+
+    // Fallbacks e valores padrão
+    OPERADORES_TMC_PADRAO: 6,        // Valor padrão quando composição não está definida
+    MINUTOS_POR_DIA: 1440,           // 24 * 60 minutos
+    HORAS_POR_DIA: 24                // Horas em um dia
 };
 
 // ============================================
@@ -206,7 +177,7 @@ const THRESHOLDS = {
     // TP - Performance
     SLA_CRITICO: 0.80,      // < 80% = vermelho
     SLA_ALERTA: 0.95,       // 80-95% = amarelo
-    SLA_OK: 0.96,           // >= 96% da meta = verde
+    SLA_OK: 0.96,           // >= 96% = verde
 
     // TP - Faturamento
     FATURAMENTO_PROXIMO_TETO: 1.05,  // >= 105% = alerta amarelo
@@ -225,11 +196,14 @@ const THRESHOLDS = {
 // ============================================
 
 /**
- * Retorna o tipo de turma (TMC ou TP) a partir do código
+ * Retorna o tipo de turma (TMC, TP ou TS) a partir do código
  */
 function getTipoTurma(codigoTurma) {
-    if (codigoTurma.startsWith('TP-')) return 'TP';
-    if (codigoTurma.startsWith('TMC ')) return 'TMC';
+    if (!codigoTurma) return 'DESCONHECIDO';
+    const codigo = codigoTurma.toUpperCase().trim();
+    if (codigo.startsWith('TP-') || codigo.startsWith('TP ')) return 'TP';
+    if (codigo.startsWith('TMC-') || codigo.startsWith('TMC ')) return 'TMC';
+    if (codigo.startsWith('TS-') || codigo.startsWith('TS ')) return 'TS';
     return 'DESCONHECIDO';
 }
 
@@ -249,22 +223,6 @@ function calcularMetaMensalTP(diasUteis) {
 }
 
 /**
- * Calcula o valor fixo mensal de uma TMC
- */
-function calcularValorFixoTMC() {
-    const engecom = PRECOS_ENGECOM.ENCARREGADO_MES +
-                    (COMPOSICAO_PADRAO.TMC.operadores * PRECOS_ENGECOM.OPERADOR_MES);
-
-    const encogel = PRECOS_ENCOGEL.CAMINHAO_CABINADO_MES;
-
-    return {
-        engecom,
-        encogel,
-        total: engecom + encogel
-    };
-}
-
-/**
  * Calcula o valor fixo mensal de uma TP
  */
 function calcularValorFixoTP() {
@@ -274,6 +232,30 @@ function calcularValorFixoTP() {
     const encogel = PRECOS_ENCOGEL.CAMINHAO_MUNCK_MES +
                     PRECOS_ENCOGEL.MICRO_ONIBUS_MES +
                     PRECOS_ENCOGEL.MINI_ESCAVADEIRA_MES;
+
+    return {
+        engecom,
+        encogel,
+        total: engecom + encogel
+    };
+}
+
+/**
+ * Calcula a meta mensal de HH para uma TS
+ */
+function calcularMetaMensalTS(diasUteis) {
+    return METAS.META_DIARIA_TS * diasUteis;
+}
+
+/**
+ * Calcula o valor fixo mensal de uma TS
+ */
+function calcularValorFixoTS() {
+    const engecom = PRECOS_ENGECOM.ENCARREGADO_MES +
+                    (COMPOSICAO_PADRAO.TS.soldadores * PRECOS_ENGECOM.SOLDADOR_MES) +
+                    (COMPOSICAO_PADRAO.TS.operadores * PRECOS_ENGECOM.OPERADOR_MES);
+
+    const encogel = PRECOS_ENCOGEL.CAMINHAO_CABINADO_MES;
 
     return {
         engecom,
@@ -312,14 +294,58 @@ function getCorPorSLA(percentualSLA) {
     return CORES.VERMELHO;
 }
 
+/**
+ * Obtém campo de objeto com normalização consistente.
+ * Tenta múltiplas variações de nome de campo (acentuado, normalizado, camelCase).
+ *
+ * @deprecated Prefira usar FieldHelper.getCampo() diretamente — mais completo e extensível.
+ * @param {Object} obj - Objeto fonte
+ * @param {string} fieldName - Nome do campo em português com acentos (ex: "Número OS")
+ * @param {*} defaultValue - Valor padrão se não encontrado
+ * @returns {*} Valor do campo ou defaultValue
+ */
+function getCampoNormalizado(obj, fieldName, defaultValue = '') {
+    if (!obj) return defaultValue;
+
+    // Mapeamento de campos conhecidos para suas variações
+    const variacoes = {
+        'Número OS': ['Número OS', 'Numero OS', 'numeroOS', 'numeroOs', 'numero_os'],
+        'Número RDO': ['Número RDO', 'Numero RDO', 'numeroRDO', 'numeroRdo', 'numero_rdo'],
+        'Data RDO': ['Data RDO', 'dataRDO', 'dataRdo', 'data_rdo', 'Data', 'data'],
+        'Código Turma': ['Código Turma', 'Codigo Turma', 'codigoTurma', 'codigo_turma'],
+        'Encarregado': ['Encarregado', 'encarregado'],
+        'Quantidade': ['Quantidade', 'quantidade'],
+        'Coeficiente': ['Coeficiente', 'coeficiente'],
+        'Descrição': ['Descrição', 'Descricao', 'descricao', 'Descricao'],
+        'Hora Início': ['Hora Início', 'Hora Inicio', 'horaInicio', 'hora_inicio'],
+        'Hora Fim': ['Hora Fim', 'horaFim', 'hora_fim'],
+        'Tipo': ['Tipo', 'tipo'],
+        'Operadores': ['Operadores', 'operadores'],
+        'HH Improdutivas': ['HH Improdutivas', 'hhImprodutivas', 'hh_improdutivas']
+    };
+
+    const variants = variacoes[fieldName] || [fieldName];
+
+    // Delegar para FieldHelper quando disponível (carregado após config.js)
+    if (typeof FieldHelper !== 'undefined') {
+        return FieldHelper.getCampo(obj, fieldName, variants, defaultValue);
+    }
+
+    // Fallback: lógica própria (ex: testes unitários sem FieldHelper)
+    for (const variacao of variants) {
+        if (obj.hasOwnProperty(variacao) && obj[variacao] !== null && obj[variacao] !== undefined) {
+            return obj[variacao];
+        }
+    }
+    return defaultValue;
+}
+
 // Exportar para uso global
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         CONFIG,
         PRECOS_ENGECOM,
         PRECOS_ENCOGEL,
-        TURMAS,
-        ENCARREGADOS,
         COMPOSICAO_PADRAO,
         METAS,
         CORES,
@@ -327,10 +353,12 @@ if (typeof module !== 'undefined' && module.exports) {
         getTipoTurma,
         getComposicaoPadrao,
         calcularMetaMensalTP,
-        calcularValorFixoTMC,
+        calcularMetaMensalTS,
         calcularValorFixoTP,
+        calcularValorFixoTS,
         formatarMoeda,
         formatarPercentual,
-        getCorPorSLA
+        getCorPorSLA,
+        getCampoNormalizado
     };
 }

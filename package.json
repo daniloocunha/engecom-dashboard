@@ -6,7 +6,9 @@
   "scripts": {
     "build": "node scripts/build-config.js",
     "sync-servicos": "node scripts/sync-servicos.js",
-    "help": "echo \"Comandos disponíveis:\\n  npm run sync-servicos - Sincroniza servicos.json entre app e dashboard\""
+    "gen-config-example": "node scripts/gen-config-example.js",
+    "test": "node --test \"tests/**/*.test.js\"",
+    "help": "echo \"Comandos disponíveis:\\n  npm run sync-servicos - Sincroniza servicos.json entre app e dashboard\\n  npm run gen-config-example - Regenera config.example.js a partir do config.js\\n  npm test - Roda os testes do dashboard (calculations.js)\""
   },
   "repository": {
     "type": "git",
