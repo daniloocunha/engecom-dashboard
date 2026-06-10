@@ -7,11 +7,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 **Dashboard de Medição** is a client-side web application for analyzing RDO (Relatório Diário de Obras / Daily Work Reports) data and calculating billing for railway maintenance operations at Engecom Engenharia / Encogel. The dashboard loads data from Google Sheets via the Sheets API and performs real-time calculations for two active types of work teams: TPs (Production Teams) and TSs (Welding Teams). TMC (Maintenance) was removed from the UI in v2.2.0 but calculation code is preserved in `calculations.js`.
 
 ### Key Features
-- **Real-time Data Loading**: Fetches data from 7 Google Sheets tabs via API
+- **Real-time Data Loading**: Fetches 4 Google Sheets tabs via API (RDO, Servicos, HorasImprodutivas, Efetivo) + O.S_Medidas e Config (feriados extras)
 - **Multi-Team Support**: Handles TP (Production) and TS (Welding) teams (TMC removed from UI)
 - **Financial Calculations**: Automated billing calculations based on HH (Homem-Hora / Man-Hour) metrics and SLA targets
-- **Interactive Visualizations**: Charts, heatmaps, calendars, and KPI cards using Chart.js
-- **Smart Filtering**: Filter by month, year, team, and type with dynamic updates
+- **Interactive Visualizations**: Charts, calendars, and KPI cards using Chart.js
+- **Filtering**: Filter by month and year (team/type filters were removed from the UI in v2.2+)
+- **Write Support**: Edits RDOs, services, HI, notes and OS management via Apps Script proxy (EditorRDO, Gestão OS)
 - **Offline Fallback**: Embedded service coefficients via servicos-data.js for CORS scenarios
 
 ## Development Commands
@@ -100,10 +101,15 @@ dashboard/
 │   ├── visao-geral.js      # Visão Geral: KPIs, scorecard, perdas, qualidade
 │   ├── gestao-os.js        # Gestão de OS com upload de anexos
 │   ├── os-auditoria.js     # Auditoria de OS (suspeitas, dividir, corrigir)
+│   ├── data-quality.js     # Análise de qualidade dos dados (badge + painel)
 │   ├── period-comparison.js # Comparação entre períodos
+│   ├── export-engine.js    # Exportação CSV/XLSX/JSON/PDF (v2.3.0)
+│   ├── search-index.js     # Busca global com índice invertido (v2.3.0)
+│   ├── ranking-engine.js   # Ranking de performance por turma (v2.3.0)
+│   ├── executive-summary.js # Resumo executivo automático (v2.3.0)
 │   ├── alerts-system.js    # Sistema de alertas com anti-XSS
-│   ├── safe-html.js        # Utilitários de sanitização HTML
-│   ├── field-helper.js     # Normalização de campos (datas ISO, nomes)
+│   ├── safe-html.js        # Utilitários de sanitização HTML (+ mostrarToast)
+│   ├── field-helper.js     # Normalização de campos + operadoresPadraoTurma()
 │   └── servicos-data.js    # ❌ GENERATED - service coefficients fallback
 │
 ├── servicos.json           # ❌ GENERATED - service coefficients via HTTP
@@ -119,18 +125,22 @@ dashboard/
 Handles data loading from Google Sheets using public API key (read-only).
 
 **Responsibilities:**
-- Fetch data from 7 sheets: RDO, Servicos, HorasImprodutivas, Efetivo, Equipamentos, Materiais, Transportes
+- Fetch data from the 4 sheets the dashboard consumes: RDO, Servicos, HorasImprodutivas, Efetivo
+  (Materiais, TransporteSucatas e Equipamentos são escritos pelo app mas não lidos aqui)
 - Convert 2D arrays to JavaScript objects with field normalization
-- Enrich services with coefficients from `servicos.json` (or fallback to `SERVICOS_BASE`)
-- Calculate HH Improdutivas with special rules (Chuva ÷ 2, Trens > 15min)
+- Enrich services with coefficients from `SERVICOS_BASE` (or HTTP override via `servicos.json`)
+- Calculate HH Improdutivas with special rules (Chuva ÷ 2, Trens < 20min = 0)
+- Load O.S_Medidas (Gestão OS) e feriados extras da aba Config
 - 5-minute cache to reduce API calls
 
 **Key Methods:**
 ```javascript
-await carregarTodosDados()  // Load all 7 sheets in parallel
+await carregarTodosDados()  // Load the 4 sheets in parallel
 converterParaObjetos(array)  // Convert Sheets array to objects
 enriquecerServicosComCoeficientes(servicos)  // Add coefficients
-calcularHHImprodutivas(hi, efetivos)  // Calculate unproductive hours
+calcularHHImprodutivas(hi, efetivos)  // Calculate unproductive hours (per-row)
+carregarOSMedidas()          // Set de O.S da aba O.S_Medidas
+carregarFeriadosExtras()     // Feriados estaduais/municipais da aba Config
 ```
 
 #### 2. CalculadoraMedicao (`calculations.js`)
@@ -147,44 +157,45 @@ Core business logic for financial calculations.
 
 **Key Methods:**
 ```javascript
-calcularMedicaoTMC(turma, mes, ano)  // TMC billing
+calcularMedicaoTMC(turma, mes, ano)  // TMC billing (código preservado, sem UI)
 calcularMedicaoTP(turma, mes, ano)   // TP billing with SLA
 calcularMedicaoTS(turma, mes, ano)   // TS billing
 calcularHHServicos(rdos)             // HH from services
-calcularHHImprodutivas(rdos)         // HH from unproductive hours
+calcularHHImprodutivas(rdos)         // HH from unproductive hours (merge de sobreposições)
 calcularHHPorDia(rdos)               // Daily breakdown with status
-getDiasUteis(mes, ano)               // Business days (Easter calculation included)
+getDiasUteis(mes, ano)               // Dias úteis (Páscoa + feriadosExtras da aba Config)
 ```
+
+> **Duas implementações de HI coexistem por design:**
+> `CalculadoraMedicao.calcularHHImprodutivas()` mescla sobreposições via `_mergeHIIntervals()`
+> e é a fonte oficial para **totais e faturamento**. `GoogleSheetsAPI.calcularHHImprodutivas()`
+> calcula HH **por linha de apontamento** (sem merge) para exibição/atribuição individual
+> (Análise de Perdas, tabelas de apontamentos). Quando há HIs sobrepostas no mesmo RDO, a soma
+> das linhas pode exceder o total oficial — isso é esperado.
+> Fallback de operadores quando falta Efetivo: `operadoresPadraoTurma()` (TP=12, TS=5, TMC=6).
 
 #### 3. DashboardMain (`main.js`)
 Main orchestrator coordinating all modules.
 
 **Responsibilities:**
 - Initialize application and load data
-- Manage filters (month, year, team, type)
+- Manage filters (month, year)
 - Coordinate calculations with CalculadoraMedicao
-- Update KPIs (Total RDOs, Total HH, Billing, Avg SLA, Staff Averages)
+- Update KPI cards de média de efetivo (TP/TMC/TS)
 - Render charts via dashboardCharts
-- Render tables (TPs, TMCs, TSs)
-- Render heatmap for selected team
-- Delegate to specialized modules (acompanhamentoDiario, analiseTMC, calendarioTP, calendarioTS)
+- Render tabela de TSs
+- Delegate to specialized modules (visaoGeral, calendarioTP, calendarioTS, gestaoOS, dataQuality, rankingEngine, executiveSummary, periodComparison)
 
 **Key Methods:**
 ```javascript
 async inicializar()          // Load data and render
 async aplicarFiltros()       // Re-calculate on filter change
 renderizarDashboard()        // Update all visualizations
-atualizarKPIs()              // Update KPI cards
-renderizarTabelaTPs()        // TP details table
-renderizarHeatmap()          // Daily productivity heatmap
+atualizarKPIs()              // KPIs de média de efetivo
+renderizarTabelaTSs()        // TS details table
 ```
 
 #### 4. Specialized Modules
-
-**acompanhamento-diario.js**: Daily tracking and progress monitoring
-- Renders daily RDO summary with HH breakdown
-- Shows service details and unproductive hours per day
-- Provides day-by-day progress view
 
 **editor-rdo.js**: EditorRDO — Edição in-modal de RDOs
 - Classe singleton `EditorRDO` (instância global `editorRDO`)
@@ -208,9 +219,9 @@ renderizarHeatmap()          // Daily productivity heatmap
 
 ## Data Flow
 
-### 1. Google Sheets Structure (7 Tabs)
+### 1. Google Sheets Structure
 
-**Source**: Spreadsheet ID `1H40DX9HwwOwXJquM9bX1qCYuam90hYpiC8enGb9TYFQ`
+**Source**: Spreadsheet ID definido em `js/config.js` (`CONFIG.SPREADSHEET_ID` — arquivo gitignored)
 
 ```
 RDO (Main)
@@ -228,11 +239,11 @@ Servicos
 
 HorasImprodutivas (HI)
 ├─ Columns: Número RDO, Número OS, Data RDO, Código Turma, Encarregado,
-│           Tipo (Chuva/RUMO), Descrição, Hora Início, Hora Fim
+│           Tipo (Chuva/RUMO), Descrição, Hora Início, Hora Fim, Operadores
 ├─ Special Rules:
 │   ├─ "Chuva" type: HH = (duration × operators) ÷ 2
-│   └─ "RUMO" (trains): Only count if duration >= 15 minutes
-└─ Operators fetched from Efetivo tab
+│   └─ Trens: só contam se duração >= 20 minutos (METAS.MINUTOS_MINIMOS_TREM)
+└─ Operadores: coluna própria; fallback Efetivo; último fallback operadoresPadraoTurma()
 
 Efetivo (Staff)
 ├─ Columns: Número RDO, Número OS, Data RDO, Código Turma, Encarregado,
@@ -246,7 +257,7 @@ Equipamentos, Materiais, Transportes
 
 ### 2. Service Coefficients
 
-**Source**: `servicos.json` (~175 railway maintenance services)
+**Source**: `servicos.json` (102 railway maintenance services — gerado de `app/src/main/res/raw/servicos.json`)
 
 ```json
 [
@@ -272,7 +283,7 @@ metaDiaria = 72 HH (12 × 6)
 
 // HH Calculation
 hhServicos = Σ(quantidade × coeficiente)  // Sum all services
-hhImprodutivas = Calculated with special rules (Chuva ÷ 2, Trens > 15min)
+hhImprodutivas = Calculated with special rules (Chuva ÷ 2, Trens < 20min = 0, merge de sobreposições)
 hhTotal = hhServicos + hhImprodutivas
 
 // SLA Calculation (capped at 110%)
@@ -332,8 +343,8 @@ if (tipo.includes('Chuva')) {
   hhImprodutivas = hhImprodutivas / 2  // Rain counts as half
 }
 
-if (tipo.includes('trem') && duracaoHoras < 0.25) {
-  hhImprodutivas = 0  // Trains under 15 min don't count
+if (tipo.includes('trem') && duracaoHoras < METAS.MINUTOS_MINIMOS_TREM / 60) {
+  hhImprodutivas = 0  // Trens com menos de 20 min não contam
 }
 ```
 
@@ -360,14 +371,16 @@ if (tipo.includes('trem') && duracaoHoras < 0.25) {
 
 ```javascript
 const CONFIG = {
-  SPREADSHEET_ID: '1H40DX9HwwOwXJquM9bX1qCYuam90hYpiC8enGb9TYFQ',
-  API_KEY: 'AIzaSyCT-HEiAY4qN6UtoxTARgykRr_GyM4N0AA',
+  SPREADSHEET_ID: '<id da planilha>',
+  API_KEY: '<api key do Google Cloud>',
   SHEETS: {
     RDO: 'RDO',
     SERVICOS: 'Servicos',
     HI: 'HorasImprodutivas',
     // ... etc
-  }
+  },
+  SECRET_KEY: '<chave de acesso via URL>',
+  APPS_SCRIPT_URL: '<URL do deployment do Apps Script>'
 };
 ```
 
@@ -402,17 +415,6 @@ const PRECOS_ENCOGEL = {
 - **Custom Heatmap**: CSS-based calendar grid with color coding
 
 **File**: `js/charts.js` - Single `dashboardCharts` global object
-
-### CSS Heatmap System
-
-**Color Coding**:
-```css
-.heatmap-day.verde    { background: #4CAF50; }  /* >= 72 HH (100% of daily target) */
-.heatmap-day.amarelo  { background: #FFC107; }  /* 80-95 HH (warning zone) */
-.heatmap-day.vermelho { background: #f44336; }  /* < 80 HH (critical) */
-```
-
-**Hover Tooltips**: Pure CSS `.heatmap-tooltip` positioned absolutely
 
 ### Field Normalization
 
@@ -685,6 +687,39 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.4.0 (2026-06-09)** - Correções de varredura + feriados extras + testes:
+
+**Correções:**
+- `carregarOSMedidas()`: O.S combinadas ("1017755/1018836") agora registram cada parte
+  individual no Set (antes a string combinada era registrada inteira e `getMediu()` de
+  uma O.S individual falhava)
+- Fallback de operadores em HI agora usa a composição padrão da turma via
+  `operadoresPadraoTurma()` (TP=12, TS=5, TMC=6) — antes era 12 fixo, inflando HI de TS
+  em ~70% quando faltava Efetivo. Aplicado em `calculations.js`, `sheets-api.js` e
+  `visao-geral.js`
+- Heatmap de produtividade removido: dependia do filtro de turma extinto da UI e era
+  inalcançável desde a v2.2 (o Calendário TP cobre a visão diária por turma)
+
+**Novidades:**
+- **Feriados extras**: chave `feriados_extras` na aba Config do Sheets (datas DD/MM/YYYY
+  separadas por vírgula) entra no cálculo de dias úteis — para feriados
+  estaduais/municipais, sem precisar de deploy
+- **Testes automatizados**: `npm test` roda `tests/calculations.test.js` (node:test, sem
+  dependências) cobrindo merge de HI, dias úteis/Páscoa, feriados extras, validação de
+  O.S e medição TP ponta a ponta
+- **`npm run gen-config-example`**: regenera `config.example.js` a partir do `config.js`
+  local com placeholders — elimina o drift do template (estava sem suporte a TS e
+  quebrava com ReferenceError)
+
+**Limpeza de código morto:**
+- `main.js`: `renderizarHeatmap`, `renderizarTabelaTMCs`, `popularSelectTurmas`,
+  `extrairTurmasUnicas`, cálculos órfãos em `atualizarKPIs`, referência a `filtroAnoMinimal`
+- `filters.js`: favoritos (nunca tiveram UI), `filtrarTurmasPorTipo`, `obterFiltros`
+- `sheets-api.js`: `carregarAbaSemCache`
+- Cache-busting unificado: todos os scripts em `index.html` usam `?v=<versão do dashboard>`
+
+---
+
 **Version 2.1.0 (2026-05-31)** - Edição In-Modal de RDOs + Limpeza:
 
 **Novo módulo `editor-rdo.js` (classe EditorRDO):**
@@ -789,9 +824,11 @@ if (tipo.includes('NovoTipo')) {
 **Version 1.1.0 (2024-12-01)**:
 - Field normalization, null checks, getCampoNormalizado utility
 
-## Apps Script — Ações de Notas (requer atualização manual)
+## Apps Script — Ações de Notas
 
-As ações `salvarNotaDia` e `obterNotasDia` precisam ser adicionadas ao Apps Script para que as notas de dias sem RDO funcionem em todos os dispositivos. Adicione ao `doPost` switch e as funções correspondentes:
+✅ **Já implantado** (verificado em 2026-06-09): as ações `salvarNotaDia` e `obterNotasDia`
+constam no script implantado (ver `appscript_atual.md`) e na cópia versionada
+`apps-script-atualizar-os.gs`. O código abaixo fica como referência da implementação:
 
 ```javascript
 // No switch de doPost:
@@ -833,11 +870,22 @@ function obterNotasDia() {
 }
 ```
 
-Enquanto o Apps Script não for atualizado, o dashboard carrega sem notas (array vazio) e as tentativas de salvar mostram um alerta de erro.
+Se o Apps Script implantado não tiver essas ações, o dashboard carrega sem notas (array vazio) e as tentativas de salvar mostram um alerta de erro (fallback silencioso).
+
+## Apps Script — Sincronização do código
+
+O script implantado no Google Apps Script suporta 18 ações (ver header de
+`apps-script-atualizar-os.gs`). Duas cópias existem neste repositório:
+
+- `apps-script-atualizar-os.gs` — cópia versionada do script (manter em sincronia ao editar)
+- `appscript_atual.md` — dump do script efetivamente implantado (referência de contrato)
+
+⚠️ Alterações no Apps Script exigem atualização **manual** no editor do Google
+(Extensões → Apps Script → Implantar). O deploy automático do GitHub Actions NÃO cobre o Apps Script.
 
 ## Version Information
 
-- **Current Version**: 2.3.1
+- **Current Version**: 2.4.0
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)
@@ -863,7 +911,8 @@ Enquanto o Apps Script não for atualizado, o dashboard carrega sem notas (array
 
 1. **No Database**: Dashboard reads directly from Google Sheets (source of truth)
 2. **Client-side Only**: Pure HTML/CSS/JS, no server required
-3. **Read-only**: Cannot modify data (by design)
+3. **Leitura via API key / Escrita via Apps Script**: leitura usa a Sheets API (key pública read-only);
+   escrita (EditorRDO, Gestão OS, notas) passa pelo proxy Apps Script (`APPS_SCRIPT_URL`)
 4. **Real-time Calculations**: All billing calculations happen in browser
 5. **Link Authentication**: Simple secret key in URL (vs Android app's user sessions)
 

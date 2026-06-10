@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 The project also includes a **web dashboard** (`dashboard/`) hosted on **Cloudflare Workers** (workers.dev) for management reporting, synced via Google Sheets. Deploy automático via GitHub Actions em cada push para `master`.
 
 ### Key Features
-- **Calculadora HH**: Calculate work hours based on ~100 predefined railway service coefficients
+- **Calculadora HH**: Calculate work hours based on 102 predefined railway service coefficients
 - **RDO Management**: Create, store, and manage daily work reports with auto-generated RDO numbers
 - **Histórico**: View and filter historical RDOs with calendar integration
 - **Export**: Export RDO data to CSV/JSON formats via FileProvider
@@ -67,8 +67,13 @@ The project also includes a **web dashboard** (`dashboard/`) hosted on **Cloudfl
 ```bash
 # Sync servicos.json to dashboard (run after editing app/src/main/res/raw/servicos.json)
 npm run sync-servicos
-# or
-node scripts/sync-servicos.js
+
+# Testes do dashboard (calculations.js, validarNumeroOS, feriados) — node:test, sem dependências
+npm test
+
+# Regenera dashboard/js/config.example.js a partir do config.js local (secrets → placeholders)
+# Rodar sempre que a ESTRUTURA do config.js mudar (novas constantes/funções)
+npm run gen-config-example
 ```
 
 ### Utility Scripts (scripts/)
@@ -305,6 +310,7 @@ dashboard/
     ├── safe-html.js            # Utilitários de sanitização HTML
     ├── auth.js                 # Autenticação (SECRET_KEY simples)
     ├── os-auditoria.js         # Auditoria de OS com divisão e correção de OS
+    ├── data-quality.js         # Análise de qualidade dos dados (badge + painel)
     ├── export-engine.js        # Exportação avançada: CSV/XLSX/JSON/PDF (v2.3.0)
     ├── search-index.js         # Busca global com índice invertido e autocomplete (v2.3.0)
     ├── ranking-engine.js       # Ranking de performance por turma, score 0–100 (v2.3.0)
@@ -651,14 +657,14 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - Orchestração: editar `GoogleSheetsService.kt` apenas se o fluxo principal mudar
 
 ## Version Information
-- **versionCode**: 23
-- **versionName**: "5.1.6"
+- **versionCode**: 24
+- **versionName**: "5.1.7"
 - **AGP Version**: 8.13.1
 - **Kotlin Version**: 2.0.21
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 10
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.3.1
+- **Dashboard Version**: 2.4.0
 
 ## Release Information
 
@@ -692,6 +698,42 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 > **IMPORTANTE**: Após gerar o APK release, atualizar `hash_md5`, `tamanho_apk_mb`, `versao_recomendada` e `url_download` na aba Config. O `versao_minima` usa `versionCode` (número inteiro), não `versionName`.
 
 ## Version History
+
+### Version 5.1.7 (versionCode 24) - 2026-06-09
+**Permissão de notificações + hash SHA-256**
+
+- **Fix**: `POST_NOTIFICATIONS` agora é solicitada em runtime na `HomeActivity` (Android 13+).
+  Antes a permissão só era declarada no manifest — notificações de sync e de **atualização
+  obrigatória** falhavam silenciosamente até o usuário habilitar manualmente nas configurações
+- **Melhoria**: validação de integridade do APK aceita SHA-256 (hash de 64 caracteres na chave
+  `hash_md5` da aba Config) com retrocompatibilidade MD5 (32 caracteres). Para usar:
+  `Get-FileHash app-release.apk -Algorithm SHA256` e colar o hash na aba Config
+
+---
+
+### Dashboard 2.4.0 — 2026-06-09
+**Correções de varredura geral + feriados extras + testes automatizados**
+
+**Correções:**
+- `carregarOSMedidas()`: O.S combinadas ("1017755/1018836") agora registram cada parte no Set
+- Fallback de operadores em HI usa composição padrão da turma (`operadoresPadraoTurma()`:
+  TP=12, TS=5, TMC=6) em vez de 12 fixo — corrigido em `calculations.js`, `sheets-api.js`
+  e `visao-geral.js`
+- Heatmap removido (inalcançável desde a remoção do filtro de turma na v2.2)
+
+**Novidades:**
+- Feriados extras via chave `feriados_extras` na aba Config do Sheets (afeta dias úteis/metas)
+- Testes: `npm test` → `tests/calculations.test.js` (16 testes, node:test, sem dependências)
+- `npm run gen-config-example` → regenera `config.example.js` sem secrets (corrige drift
+  que quebrava o template para turmas TS)
+
+**Limpeza de código morto:** `renderizarHeatmap`, `renderizarTabelaTMCs`,
+`popularSelectTurmas`, `extrairTurmasUnicas`, favoritos de filtros, `filtrarTurmasPorTipo`,
+`obterFiltros`, `carregarAbaSemCache`, referência a `filtroAnoMinimal`
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/{main,filters,sheets-api,calculations,visao-geral,field-helper}.js`, `dashboard/js/config.example.js`, `tests/calculations.test.js`, `scripts/gen-config-example.js`, `package.json`
+
+---
 
 ### Dashboard 2.3.1 — 2026-06-08
 **Bug fixes pós-deploy v2.3.0**
