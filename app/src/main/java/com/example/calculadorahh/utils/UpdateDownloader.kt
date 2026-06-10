@@ -37,9 +37,10 @@ object UpdateDownloader {
 
     /**
      * Baixa o APK da [url] para o cache do app, reportando progresso via [onProgress] (0–100).
-     * Valida o MD5 após o download se [expectedMd5] não for vazio.
+     * Valida a integridade após o download se [expectedMd5] não for vazio:
+     * hash de 64 caracteres → SHA-256; 32 caracteres → MD5 (legado da aba Config).
      *
-     * @return File do APK baixado, ou null em caso de erro ou MD5 inválido.
+     * @return File do APK baixado, ou null em caso de erro ou hash inválido.
      */
     suspend fun download(
         url: String,
@@ -120,15 +121,19 @@ object UpdateDownloader {
             onProgress(100)
             Log.d(TAG, "Download concluído: ${destino.length()} bytes")
 
-            // Validar MD5
+            // Validar hash de integridade.
+            // SHA-256 quando o hash esperado tem 64 caracteres hex; MD5 (32) para
+            // retrocompatibilidade com a chave hash_md5 da aba Config.
             if (expectedMd5.isNotBlank()) {
-                val md5Real = calcularMd5(destino)
-                if (!md5Real.equals(expectedMd5.trim(), ignoreCase = true)) {
-                    Log.e(TAG, "MD5 inválido! Esperado: $expectedMd5, Real: $md5Real")
+                val esperado = expectedMd5.trim()
+                val algoritmo = if (esperado.length == 64) "SHA-256" else "MD5"
+                val hashReal = calcularHash(destino, algoritmo)
+                if (!hashReal.equals(esperado, ignoreCase = true)) {
+                    Log.e(TAG, "$algoritmo inválido! Esperado: $esperado, Real: $hashReal")
                     destino.delete()
                     return@withContext null
                 }
-                Log.d(TAG, "MD5 válido: $md5Real")
+                Log.d(TAG, "$algoritmo válido: $hashReal")
             }
 
             destino
@@ -167,8 +172,8 @@ object UpdateDownloader {
         }
     }
 
-    private fun calcularMd5(file: File): String {
-        val digest = MessageDigest.getInstance("MD5")
+    private fun calcularHash(file: File, algoritmo: String): String {
+        val digest = MessageDigest.getInstance(algoritmo)
         file.inputStream().use { input ->
             val buffer = ByteArray(8 * 1024)
             var bytesRead: Int

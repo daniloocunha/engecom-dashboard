@@ -1,7 +1,9 @@
 package com.example.calculadorahh.ui.activities
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -10,6 +12,7 @@ import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.calculadorahh.BuildConfig
 import com.example.calculadorahh.data.database.DatabaseHelper
@@ -65,6 +68,12 @@ class HomeActivity : AppCompatActivity() {
         }
     }
 
+    // Launcher do prompt de permissão de notificações (Android 13+).
+    // Resultado não bloqueia nada — sync e updates funcionam sem notificações.
+    private val permissaoNotificacaoLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* sem ação: permissão é opcional */ }
+
     @SuppressLint("SetTextI18n")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -75,6 +84,22 @@ class HomeActivity : AppCompatActivity() {
 
         configurarListeners()
         verificarStatusUpdate()
+        solicitarPermissaoNotificacao()
+    }
+
+    /**
+     * Solicita POST_NOTIFICATIONS no Android 13+ (API 33).
+     * Sem essa permissão as notificações de sync e de atualização obrigatória
+     * do RDOSyncWorker falham silenciosamente. O sistema só exibe o prompt
+     * enquanto o usuário não decidir; negações repetidas são respeitadas.
+     */
+    private fun solicitarPermissaoNotificacao() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS)
+                != PackageManager.PERMISSION_GRANTED
+        ) {
+            permissaoNotificacaoLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
     }
 
     override fun onResume() {
