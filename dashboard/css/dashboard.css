@@ -386,89 +386,6 @@ body {
 }
 
 /* ============================================
-   HEATMAP
-   ============================================ */
-
-.heatmap-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-    gap: 8px;
-    padding: 1rem;
-}
-
-.heatmap-day {
-    aspect-ratio: 1;
-    border-radius: 8px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 600;
-    color: white;
-    transition: all 0.3s;
-    cursor: pointer;
-    position: relative;
-}
-
-.heatmap-day:hover {
-    transform: scale(1.1);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
-    z-index: 10;
-}
-
-.heatmap-day.verde {
-    background: linear-gradient(135deg, #4CAF50 0%, #388E3C 100%);
-    color: white;
-}
-
-.heatmap-day.amarelo {
-    background: linear-gradient(135deg, #FFC107 0%, #FFA000 100%);
-    color: #333; /* Texto escuro para melhor contraste em fundo amarelo (WCAG AA) */
-}
-
-.heatmap-day.vermelho {
-    background: linear-gradient(135deg, #F44336 0%, #D32F2F 100%);
-    color: white;
-}
-
-.heatmap-day.cinza {
-    background: linear-gradient(135deg, #9E9E9E 0%, #757575 100%);
-}
-
-.heatmap-day-number {
-    font-size: 1.1rem;
-    margin-bottom: 2px;
-}
-
-.heatmap-day-hh {
-    font-size: 0.65rem;
-    opacity: 0.9;
-}
-
-/* Tooltip para heatmap */
-.heatmap-tooltip {
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: rgba(0, 0, 0, 0.9);
-    color: white;
-    padding: 8px 12px;
-    border-radius: 6px;
-    font-size: 0.75rem;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.3s;
-    margin-bottom: 8px;
-}
-
-.heatmap-day:hover .heatmap-tooltip {
-    opacity: 1;
-}
-
-/* ============================================
    ALERTAS
    ============================================ */
 
@@ -602,14 +519,6 @@ canvas {
    RESPONSIVE
    ============================================ */
 
-@media (max-width: 1200px) {
-    /* Tablets landscape */
-    .heatmap-grid {
-        grid-template-columns: repeat(auto-fill, minmax(55px, 1fr));
-        gap: 7px;
-    }
-}
-
 @media (max-width: 992px) {
     /* Tablets portrait */
     .kpi-card h3 {
@@ -649,24 +558,6 @@ canvas {
         width: 50px;
         height: 50px;
         font-size: 1.25rem;
-    }
-
-    .heatmap-grid {
-        grid-template-columns: repeat(auto-fill, minmax(45px, 1fr));
-        gap: 5px;
-        padding: 0.5rem;
-    }
-
-    .heatmap-day {
-        font-size: 0.65rem;
-    }
-
-    .heatmap-day-number {
-        font-size: 0.9rem;
-    }
-
-    .heatmap-day-hh {
-        font-size: 0.55rem;
     }
 
     .table {
@@ -747,21 +638,6 @@ canvas {
         font-size: 1rem;
     }
 
-    .heatmap-grid {
-        grid-template-columns: repeat(7, 1fr); /* 7 dias por semana */
-        gap: 4px;
-        padding: 0.5rem;
-    }
-
-    .heatmap-day {
-        font-size: 0.6rem;
-    }
-
-    .heatmap-tooltip {
-        font-size: 0.65rem;
-        padding: 6px 10px;
-    }
-
     .table-responsive {
         font-size: 0.7rem;
     }
@@ -813,16 +689,6 @@ canvas {
 
 @media (max-width: 400px) {
     /* Mobile muito pequeno */
-    .heatmap-grid {
-        grid-template-columns: repeat(7, 1fr);
-        gap: 3px;
-        padding: 0.25rem;
-    }
-
-    .heatmap-day-hh {
-        display: none; /* Ocultar HH nos quadrados em telas muito pequenas */
-    }
-
     .table {
         font-size: 0.65rem;
     }

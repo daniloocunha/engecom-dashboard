@@ -63,6 +63,9 @@ class DashboardMain {
         // 🚀 Limpar cache ao carregar novos dados
         this.calculadora.limparCache();
 
+        // Feriados extras (estaduais/municipais) da aba Config — afetam dias úteis e metas
+        this.calculadora.feriadosExtras = await sheetsAPI.carregarFeriadosExtras();
+
         // Carregar na calculadora
         await this.calculadora.carregarDados(
             this.dados.rdos,
@@ -159,95 +162,6 @@ class DashboardMain {
     }
 
     /**
-     * Extrai turmas únicas da planilha
-     */
-    extrairTurmasUnicas() {
-        const turmasSet = new Set();
-
-        this.dados.rdos.forEach(rdo => {
-            const turma = rdo['Código Turma'] || rdo.codigoTurma || '';
-            if (turma && turma.trim() !== '') {
-                turmasSet.add(turma.trim());
-            }
-        });
-
-        const turmas = Array.from(turmasSet).sort();
-        debugLog('[Dashboard] Turmas encontradas na planilha:', turmas);
-
-        return turmas;
-    }
-
-    /**
-     * Popula select de turmas dinamicamente
-     */
-    popularSelectTurmas() {
-        const select = document.getElementById('filtroTurma');
-        if (!select) return;
-
-        const turmas = this.extrairTurmasUnicas();
-
-        // Limpar options existentes (exceto "todas")
-        while (select.options.length > 1) {
-            select.remove(1);
-        }
-
-        // Separar TPs, TMCs e TSs
-        const tps = turmas.filter(t => t.startsWith('TP-') || t.startsWith('TP '));
-        const tmcs = turmas.filter(t => t.startsWith('TMC-') || t.startsWith('TMC '));
-        const tss = turmas.filter(t => t.startsWith('TS-') || t.startsWith('TS '));
-        const outras = turmas.filter(t => !tps.includes(t) && !tmcs.includes(t) && !tss.includes(t));
-
-        // Criar optgroups
-        if (tps.length > 0) {
-            const optgroupTPs = document.createElement('optgroup');
-            optgroupTPs.label = 'TPs - Turmas de Produção';
-            tps.forEach(turma => {
-                const option = document.createElement('option');
-                option.value = turma;
-                option.textContent = turma;
-                optgroupTPs.appendChild(option);
-            });
-            select.appendChild(optgroupTPs);
-        }
-
-        if (tmcs.length > 0) {
-            const optgroupTMCs = document.createElement('optgroup');
-            optgroupTMCs.label = 'TMCs - Turmas de Manutenção';
-            tmcs.forEach(turma => {
-                const option = document.createElement('option');
-                option.value = turma;
-                option.textContent = turma;
-                optgroupTMCs.appendChild(option);
-            });
-            select.appendChild(optgroupTMCs);
-        }
-
-        if (tss.length > 0) {
-            const optgroupTSs = document.createElement('optgroup');
-            optgroupTSs.label = 'TSs - Turmas de Solda';
-            tss.forEach(turma => {
-                const option = document.createElement('option');
-                option.value = turma;
-                option.textContent = turma;
-                optgroupTSs.appendChild(option);
-            });
-            select.appendChild(optgroupTSs);
-        }
-
-        if (outras.length > 0) {
-            const optgroupOutras = document.createElement('optgroup');
-            optgroupOutras.label = 'Outras';
-            outras.forEach(turma => {
-                const option = document.createElement('option');
-                option.value = turma;
-                option.textContent = turma;
-                optgroupOutras.appendChild(option);
-            });
-            select.appendChild(optgroupOutras);
-        }
-    }
-
-    /**
      * Configura filtros iniciais (mês/ano atual)
      */
     configurarFiltros() {
@@ -257,9 +171,6 @@ class DashboardMain {
 
         // Popular anos dinamicamente (2024 até ano atual + 1)
         this.popularSelectAnos();
-
-        // Popular turmas dinamicamente do Google Sheets
-        this.popularSelectTurmas();
 
         // Setar valores nos selects
         document.getElementById('filtroMes').value = this.filtros.mes;
@@ -277,21 +188,17 @@ class DashboardMain {
      */
     popularSelectAnos() {
         const anoAtual = new Date().getFullYear();
-        const selects = ['filtroAno', 'filtroAnoMinimal'];
+        const select = document.getElementById('filtroAno');
+        if (!select) return;
 
-        selects.forEach(selectId => {
-            const select = document.getElementById(selectId);
-            if (!select) return;
-
-            select.innerHTML = '';
-            for (let ano = 2024; ano <= anoAtual + 1; ano++) {
-                const option = document.createElement('option');
-                option.value = ano;
-                option.textContent = ano;
-                if (ano === anoAtual) option.selected = true;
-                select.appendChild(option);
-            }
-        });
+        select.innerHTML = '';
+        for (let ano = 2024; ano <= anoAtual + 1; ano++) {
+            const option = document.createElement('option');
+            option.value = ano;
+            option.textContent = ano;
+            if (ano === anoAtual) option.selected = true;
+            select.appendChild(option);
+        }
     }
 
     /**
@@ -426,9 +333,6 @@ class DashboardMain {
         // 3. Tabelas
         this.renderizarTabelaTSs();
 
-        // 4. Heatmap
-        this.renderizarHeatmap();
-
         // 7. Inicializar calendário TP
         calendarioTP.setFiltros(this.filtros.mes, this.filtros.ano, this.filtros.turma);
         calendarioTP.renderizarTodos();
@@ -501,41 +405,11 @@ class DashboardMain {
     }
 
     /**
-     * Atualiza cards de KPIs (incluindo TSs)
+     * Atualiza cards de KPIs de média de efetivo por tipo de turma
      */
     atualizarKPIs() {
-        const { tmcs, tps, tss, totalGeral } = this.estatisticas;
-
-        // Total de RDOs (exclui deletados, respeita filtros de turma/tipo)
-        const totalRDOs = this.dados.rdos.filter(rdo => {
-            if (!FieldHelper.rdoNoPeriodo(rdo, this.filtros.mes, this.filtros.ano)) return false;
-            const codigoTurma = (rdo['Código Turma'] || rdo.codigoTurma || '').trim();
-            if (this.filtros.turma && this.filtros.turma !== 'todas' && codigoTurma !== this.filtros.turma) return false;
-            if (this.filtros.tipo && this.filtros.tipo !== 'todos') {
-                const tipoTurma = getTipoTurma(codigoTurma);
-                if (tipoTurma !== this.filtros.tipo) return false;
-            }
-            return true;
-        }).length;
-
-        // Total HH (TPs)
-        const totalHH = tps.reduce((sum, tp) => sum + tp.hh.total, 0);
-
-        // Faturamento Total / Média SLA — elementos podem não existir (removidos do HTML)
-        // Mantidos apenas para cálculos internos usados em outros módulos
-
-        // Média SLA (TPs)
-        const mediaSLA = tps.length > 0
-            ? tps.reduce((sum, tp) => sum + tp.percentualSLA, 0) / tps.length
-            : 0;
-
-        // Média de Efetivo (TPs)
         this.renderizarKPIMediaEfetivo('TP');
-
-        // Média de Efetivo (TMCs)
         this.renderizarKPIMediaEfetivo('TMC');
-
-        // Média de Efetivo (TSs)
         this.renderizarKPIMediaEfetivo('TS');
     }
 
@@ -553,48 +427,6 @@ class DashboardMain {
             kpiOperadores.textContent = mediaEfetivo.operadores.toFixed(1);
             kpiTotal.textContent = mediaEfetivo.total.toFixed(1);
         }
-    }
-
-    /**
-     * Renderiza tabela de TMCs
-     */
-    renderizarTabelaTMCs() {
-        const tbody = document.querySelector('#tabelaTMCs tbody');
-        tbody.innerHTML = '';
-
-        const { tmcs } = this.estatisticas;
-
-        if (tmcs.length === 0) {
-            tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Nenhuma TMC encontrada no período</td></tr>';
-            return;
-        }
-
-        tmcs.forEach(tmc => {
-            // Buscar local (do primeiro RDO da turma)
-            const rdo = tmc.rdos[0];
-            const local = rdo ? (rdo.Local || rdo.local || '-') : '-';
-
-            // Calcular média de efetivo da turma
-            const rdosTurma = this.calculadora.filtrarRDOsPorTurma(tmc.turma, this.filtros.mes, this.filtros.ano);
-            const diasUteis = this.calculadora.getDiasUteis(this.filtros.mes, this.filtros.ano);
-            const mediaEfetivo = this.calculadora.calcularMediaEfetivo(rdosTurma, diasUteis);
-
-            const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td><strong>${_escHtml(tmc.turma)}</strong></td>
-                <td>${_escHtml(local)}</td>
-                <td>${tmc.diasUteis}</td>
-                <td>${tmc.diasTrabalhados}</td>
-                <td>${tmc.mediaEncarregado.toFixed(3)}</td>
-                <td>${tmc.mediaOperadores.toFixed(2)}</td>
-                <td>${mediaEfetivo.total.toFixed(2)}</td>
-                <td>${formatarMoeda(tmc.engecom.total)}</td>
-                <td>${formatarMoeda(tmc.encogel.total)}</td>
-                <td><strong>${formatarMoeda(tmc.totalGeral)}</strong></td>
-            `;
-
-            tbody.appendChild(tr);
-        });
     }
 
     /**
@@ -672,63 +504,6 @@ class DashboardMain {
 
             tbody.appendChild(tr);
         });
-    }
-
-    /**
-     * Renderiza heatmap de produtividade diária
-     */
-    renderizarHeatmap() {
-        const container = document.getElementById('heatmapContainer');
-
-        const { tps } = this.estatisticas;
-
-        if (tps.length === 0) {
-            container.innerHTML = '<p class="text-center text-muted">Selecione uma TP específica para ver o heatmap diário</p>';
-            return;
-        }
-
-        // Se filtrou uma turma específica, mostrar heatmap
-        if (this.filtros.turma !== 'todas') {
-            const tpSelecionada = tps.find(tp => tp.turma === this.filtros.turma);
-
-            if (tpSelecionada && tpSelecionada.analiseDiaria) {
-                container.innerHTML = '<div class="heatmap-grid"></div>';
-                const grid = container.querySelector('.heatmap-grid');
-
-                tpSelecionada.analiseDiaria.forEach(dia => {
-                    const [d, m, a] = dia.data.split('/');
-
-                    const dayDiv = document.createElement('div');
-                    dayDiv.className = `heatmap-day ${dia.status}`;
-                    // Adicionar observações se existirem (campos escapados para prevenir XSS)
-                    let tooltipObservacoes = '';
-                    if (dia.observacoes && dia.observacoes.length > 0) {
-                        tooltipObservacoes = '<hr style="margin: 8px 0; border-color: rgba(255,255,255,0.3);">';
-                        tooltipObservacoes += '<strong>Observações:</strong><br>';
-                        tooltipObservacoes += dia.observacoes.map(obs => `• ${escapeHtml(obs)}`).join('<br>');
-                    }
-
-                    dayDiv.innerHTML = `
-                        <div class="heatmap-day-number">${d}</div>
-                        <div class="heatmap-day-hh">${dia.hhTotal.toFixed(0)} HH</div>
-                        <div class="heatmap-tooltip">
-                            ${escapeHtml(dia.data)}<br>
-                            Serviços: ${dia.hhServicos.toFixed(1)} HH<br>
-                            Improdutivas: ${dia.hhImprodutivas.toFixed(1)} HH<br>
-                            Total: ${dia.hhTotal.toFixed(1)} HH<br>
-                            Meta: ${formatarPercentual(dia.percentualMeta)}
-                            ${tooltipObservacoes}
-                        </div>
-                    `;
-
-                    grid.appendChild(dayDiv);
-                });
-            } else {
-                container.innerHTML = '<p class="text-center text-muted">Nenhum dado disponível para heatmap</p>';
-            }
-        } else {
-            container.innerHTML = '<p class="text-center text-muted">Selecione uma TP específica nos filtros para visualizar o heatmap diário</p>';
-        }
     }
 
     /**

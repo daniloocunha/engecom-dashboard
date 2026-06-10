@@ -127,7 +127,8 @@ class VisaoGeral {
 
                 // ── HI ──
                 const efetivo   = calc.indices.efetivosPorRDO.get(numRDO);
-                const opDefault = efetivo ? (parseInt(efetivo['Operadores'] || efetivo.operadores || 0) || 12) : 12;
+                const opPadrao  = operadoresPadraoTurma(turmaId); // TP=12, TS=5, TMC=6
+                const opDefault = efetivo ? (parseInt(efetivo['Operadores'] || efetivo.operadores || 0) || opPadrao) : opPadrao;
                 let hhHIDia = 0;
                 (calc.indices.hiPorRDO.get(numRDO) || []).forEach(hi => {
                     const tipo   = (hi['Tipo'] || hi.tipo || '').trim();

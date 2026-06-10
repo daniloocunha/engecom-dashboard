@@ -11,6 +11,10 @@ class CalculadoraMedicao {
         this.efetivos = [];
         this.equipamentos = [];
 
+        // Feriados extras (estaduais/municipais) lidos da aba Config do Sheets
+        // Formato: array de strings "DD/MM/YYYY" — ver sheetsAPI.carregarFeriadosExtras()
+        this.feriadosExtras = [];
+
         // 🚀 Sistema de cache para otimização de performance
         this.cacheCalculos = new Map();
         this.cacheHabilitado = true;
@@ -671,11 +675,12 @@ class CalculadoraMedicao {
             // ⚡ Lookup O(1) via índice Map (Sprint 3)
             const hisRDO = this.indices.hiPorRDO.get(numeroRDO) || [];
 
-            // ⚡ Lookup O(1) via índice
+            // ⚡ Lookup O(1) via índice; fallback usa composição padrão da turma (TP=12, TS=5, TMC=6)
             const efetivo = this.indices.efetivosPorRDO.get(numeroRDO);
-            const opDefault = efetivo
-                ? parseInt(efetivo.Operadores || efetivo.operadores || 12)
-                : 12;
+            const opEfetivo = efetivo ? parseInt(efetivo.Operadores || efetivo.operadores || 0) : 0;
+            const opDefault = opEfetivo > 0
+                ? opEfetivo
+                : operadoresPadraoTurma(FieldHelper.getRDOCodigoTurma(rdo));
 
             // Mescla sobreposições antes de somar (evita dupla-contagem)
             totalHH += this._mergeHIIntervals(hisRDO, opDefault);
@@ -729,11 +734,12 @@ class CalculadoraMedicao {
             // ⚡ Lookup O(1) via índice Map (Sprint 3)
             const hisDia = this.indices.hiPorRDO.get(numeroRDO) || [];
 
-            // ⚡ Lookup O(1) via índice
+            // ⚡ Lookup O(1) via índice; fallback usa composição padrão da turma
             const efetivoDia = this.indices.efetivosPorRDO.get(numeroRDO);
-            const opDefaultDia = efetivoDia
-                ? parseInt(efetivoDia.Operadores || efetivoDia.operadores || 12)
-                : 12;
+            const opEfetivoDia = efetivoDia ? parseInt(efetivoDia.Operadores || efetivoDia.operadores || 0) : 0;
+            const opDefaultDia = opEfetivoDia > 0
+                ? opEfetivoDia
+                : operadoresPadraoTurma(FieldHelper.getRDOCodigoTurma(rdo));
 
             // Mescla sobreposições antes de somar (evita dupla-contagem)
             hhPorDia[data].hhImprodutivas += this._mergeHIIntervals(hisDia, opDefaultDia);
@@ -904,6 +910,12 @@ class CalculadoraMedicao {
             this.formatarData(sextaFeiraSanta),
             this.formatarData(corpusChristi)
         );
+
+        // Feriados extras (estaduais/municipais) configurados na aba Config do Sheets
+        // (chave "feriados_extras", datas DD/MM/YYYY separadas por vírgula)
+        this.feriadosExtras.forEach(f => {
+            if (typeof f === 'string' && f.endsWith(`/${ano}`)) feriados.push(f);
+        });
 
         return feriados;
     }

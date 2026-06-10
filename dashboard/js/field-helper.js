@@ -197,7 +197,21 @@ class FieldHelper {
     }
 }
 
+/**
+ * Retorna o número padrão de operadores parados em uma HI, conforme a
+ * composição da turma (COMPOSICAO_PADRAO do config.js).
+ * TP = 12 operadores; TS = operadores + soldadores (5); TMC = 6.
+ * Fallback 12 quando o tipo é desconhecido (comportamento legado).
+ */
+function operadoresPadraoTurma(codigoTurma) {
+    const tipo = (typeof getTipoTurma === 'function') ? getTipoTurma(codigoTurma || '') : 'DESCONHECIDO';
+    const comp = (typeof COMPOSICAO_PADRAO !== 'undefined' && COMPOSICAO_PADRAO[tipo]) || null;
+    if (!comp) return 12;
+    return ((comp.operadores || 0) + (comp.soldadores || 0)) || 12;
+}
+
 // Exportar para uso global
 if (typeof window !== 'undefined') {
     window.FieldHelper = FieldHelper;
+    window.operadoresPadraoTurma = operadoresPadraoTurma;
 }

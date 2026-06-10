@@ -36,26 +36,6 @@ class GoogleSheetsAPI {
     }
 
     /**
-     * Carrega dados de uma aba sem usar cache
-     */
-    async carregarAbaSemCache(nomeAba, range = 'A:Z') {
-        const url = `${this.baseURL}/${this.spreadsheetId}/values/${nomeAba}!${range}?key=${this.apiKey}`;
-
-        try {
-            const controller = new AbortController();
-            const timeoutId  = setTimeout(() => controller.abort(), 30000);
-            const response   = await fetch(url, { signal: controller.signal });
-            clearTimeout(timeoutId);
-            if (!response.ok) return [];
-
-            const data = await response.json();
-            return data.values || [];
-        } catch (error) {
-            return [];
-        }
-    }
-
-    /**
      * Carrega dados de uma aba específica com cache inteligente
      */
     async carregarAba(nomeAba, range = 'A:Z') {
@@ -482,9 +462,10 @@ class GoogleSheetsAPI {
                 operadores = efetivo ? parseInt(efetivo['Operadores'] || efetivo.operadores || 0) : 0;
 
                 if (operadores <= 0) {
-                    // Último fallback: usar composição padrão da turma (12 para TP)
-                    operadores = 12;
-                    debugLog(`⚠️ [HI] ${numeroRDO}: Usando fallback 12 operadores (sem dados em HI nem Efetivo)`);
+                    // Último fallback: composição padrão da turma (TP=12, TS=5, TMC=6)
+                    const codigoTurma = hi['Código Turma'] || hi.codigoTurma || '';
+                    operadores = operadoresPadraoTurma(codigoTurma);
+                    debugLog(`⚠️ [HI] ${numeroRDO}: Usando fallback ${operadores} operadores (composição padrão ${codigoTurma || 'desconhecida'})`);
                 } else {
                     debugLog(`[HI] ${numeroRDO}: Usando operadores do Efetivo (legado): ${operadores}`);
                 }
@@ -631,20 +612,48 @@ class GoogleSheetsAPI {
             const osSet = new Set();
             for (let i = 1; i < raw.length; i++) {
                 const val = String(raw[i][colOS] || '').trim();
-                if (validarNumeroOS(val)) osSet.add(val);
-                // Suporte a múltiplas OS no mesmo campo (ex: "1017755/1018836")
-                else if (val.includes('/')) {
-                    val.split('/').forEach(parte => {
-                        const p = parte.trim();
-                        if (validarNumeroOS(p)) osSet.add(p);
-                    });
-                }
+                if (!val) continue;
+                // O.S combinadas ("1017755/1018836"): registrar cada parte E a string
+                // combinada — RDOs podem usar tanto a O.S individual quanto a combinada
+                const partes = val.includes('/') ? val.split('/').map(p => p.trim()) : [val];
+                let algumaValida = false;
+                partes.forEach(p => {
+                    if (validarNumeroOS(p)) { osSet.add(p); algumaValida = true; }
+                });
+                if (algumaValida && partes.length > 1) osSet.add(val);
             }
             debugLog('[API] O.S_Medidas carregadas:', osSet.size, 'registros');
             return osSet;
         } catch (e) {
             console.warn('[API] Aba O.S_Medidas não encontrada ou erro ao carregar:', e.message);
             return new Set();
+        }
+    }
+
+    /**
+     * Carrega feriados extras (estaduais/municipais) da aba Config.
+     * Procura a chave "feriados_extras" na coluna A; o valor (coluna B) deve conter
+     * datas DD/MM/YYYY separadas por vírgula. Ex: "20/11/2026, 08/12/2026".
+     * Retorna array de strings DD/MM/YYYY (vazio se a chave não existir).
+     */
+    async carregarFeriadosExtras() {
+        try {
+            const raw = await this.carregarAba(CONFIG.SHEETS.CONFIG, 'A:B');
+            if (!raw || raw.length === 0) return [];
+
+            const linha = raw.find(r => String(r[0] || '').trim().toLowerCase() === 'feriados_extras');
+            if (!linha || !linha[1]) return [];
+
+            const feriados = String(linha[1])
+                .split(',')
+                .map(d => d.trim())
+                .filter(d => /^\d{2}\/\d{2}\/\d{4}$/.test(d));
+
+            debugLog('[API] Feriados extras carregados:', feriados);
+            return feriados;
+        } catch (e) {
+            console.warn('[API] Não foi possível carregar feriados extras:', e.message);
+            return [];
         }
     }
 
