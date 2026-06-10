@@ -777,18 +777,18 @@ class GestaoOS {
         this._salvarNoServidor(numeroOS); // sincronizar anexos com o servidor
     }
 
-    /**
-     * Retorna URL de thumbnail do Google Drive que funciona em <img> sem login.
-     * - lh3.googleusercontent.com/d/ID=w200 : URL CDN do Google, funciona sem sessão
-     *   para arquivos com permissão "qualquer pessoa com o link".
-     * - drive.google.com/thumbnail exige cookies de sessão Google (falha em outros PCs).
-     */
+    /** Extrai o fileId de uma URL do Drive ou do campo fileId */
+    _driveFileId(a) {
+        return a.fileId ||
+               (a.url || '').match(/\/d\/([^/?&]+)/)?.[1] ||
+               (a.url || '').match(/[?&]id=([^&]+)/)?.[1] || '';
+    }
+
+    /** URL de imagem do Drive via CDN (funciona sem cookie para arquivos com "qualquer pessoa com o link") */
     _driveThumbUrl(a) {
-        const id = a.fileId ||
-                   (a.url || '').match(/\/d\/([^/?&]+)/)?.[1] ||
-                   (a.url || '').match(/[?&]id=([^&]+)/)?.[1] || '';
+        const id = this._driveFileId(a);
         if (!id) return a.url || '';
-        return `https://lh3.googleusercontent.com/d/${encodeURIComponent(id)}=w200`;
+        return `https://lh3.googleusercontent.com/d/${encodeURIComponent(id)}`;
     }
 
     _anexosHTML(numeroOS, modalOsId) {
@@ -807,27 +807,24 @@ class GestaoOS {
         const items = anexos.map((a, i) => {
             const isImg = (a.tipo || '').startsWith('image/');
             const isPdf = (a.tipo || '') === 'application/pdf';
-            const thumbUrl = this._driveThumbUrl(a);
+            const fileId = this._driveFileId(a);
+            const previewUrl = fileId
+                ? `https://drive.google.com/file/d/${encodeURIComponent(fileId)}/preview`
+                : a.url;
 
-            // Miniatura: imagem real para fotos, ícone para PDF/outros
-            const thumb = isImg
-                ? `<img src="${_esc(thumbUrl)}"
-                        style="width:72px;height:72px;object-fit:cover;border-radius:6px;display:block;background:#e9ecef;"
-                        title="${_escAttr(a.nome)}"
-                        onerror="this.onerror=null;this.style.display='none';this.nextElementSibling.style.display='flex';">
-                   <span style="display:none;width:72px;height:72px;border-radius:6px;background:#e9ecef;
-                                 align-items:center;justify-content:center;font-size:2rem;" title="${_escAttr(a.nome)}">🖼️</span>`
-                : `<span style="display:flex;width:72px;height:72px;border-radius:6px;background:#e9ecef;
-                                align-items:center;justify-content:center;font-size:2.2rem;"
-                          title="${_escAttr(a.nome)}">${isPdf ? '📄' : '📎'}</span>`;
+            // Ícone de thumbnail clicável (Drive não permite <img> cross-origin)
+            const icone = isImg ? '🖼️' : isPdf ? '📄' : '📎';
+            const thumb = `<span style="display:flex;width:72px;height:72px;border-radius:6px;
+                                        background:#e9ecef;align-items:center;justify-content:center;
+                                        font-size:2rem;" title="${_escAttr(a.nome)}">${icone}</span>`;
 
             const nomeExibido = a.nome.length > 14 ? a.nome.slice(0, 12) + '…' : a.nome;
 
-            // Imagens abrem no lightbox inline; PDFs/outros abrem em nova aba
-            const wrapper = isImg
-                ? `<div onclick="event.stopPropagation();gestaoOS._abrirLightbox('${_esc(a.url)}','${_escAttr(a.nome)}')"
+            // Imagens/PDFs abrem no lightbox via iframe; outros abrem em nova aba
+            const wrapper = (isImg || isPdf)
+                ? `<div onclick="event.stopPropagation();gestaoOS._abrirLightbox('${_esc(previewUrl)}','${_escAttr(a.nome)}','${_esc(a.url)}')"
                         style="border:1px solid #dee2e6;border-radius:6px;overflow:hidden;display:block;cursor:zoom-in;"
-                        title="Clique para ampliar">
+                        title="Clique para visualizar">
                      ${thumb}
                    </div>`
                 : `<a href="${_esc(a.url)}" target="_blank" title="${_escAttr(a.nome)}"
@@ -911,41 +908,48 @@ class GestaoOS {
         if (cont) cont.innerHTML = this._anexosHTML(numeroOS, modalOsId);
     }
 
-    /** Abre lightbox inline para visualizar imagem sem abrir nova aba */
-    _abrirLightbox(url, nome) {
+    /** Abre lightbox inline via iframe (funciona com arquivos do Drive sem CORS) */
+    _abrirLightbox(previewUrl, nome, urlOriginal) {
         let lb = document.getElementById('gestaoOsLightbox');
         if (!lb) {
             lb = document.createElement('div');
             lb.id = 'gestaoOsLightbox';
             lb.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;' +
                 'background:rgba(0,0,0,0.88);z-index:10000;display:flex;flex-direction:column;' +
-                'align-items:center;justify-content:center;cursor:zoom-out;';
+                'align-items:center;justify-content:center;';
             lb.innerHTML = `
-              <div style="position:relative;max-width:92vw;max-height:92vh;text-align:center;"
+              <div style="position:relative;width:92vw;height:88vh;text-align:center;"
                    onclick="event.stopPropagation()">
-                <img id="gestaoOsLightboxImg"
-                     style="max-width:90vw;max-height:82vh;border-radius:8px;
-                            box-shadow:0 8px 40px rgba(0,0,0,0.7);cursor:default;display:block;">
+                <iframe id="gestaoOsLightboxFrame"
+                        style="width:100%;height:100%;border:none;border-radius:8px;
+                               box-shadow:0 8px 40px rgba(0,0,0,0.7);"
+                        allowfullscreen></iframe>
                 <div id="gestaoOsLightboxNome"
-                     style="color:#fff;margin-top:10px;font-size:0.88rem;opacity:0.85;"></div>
+                     style="color:#fff;margin-top:8px;font-size:0.88rem;opacity:0.85;"></div>
                 <a id="gestaoOsLightboxLink" href="#" target="_blank"
                    onclick="event.stopPropagation()"
-                   style="display:inline-block;margin-top:6px;color:#8ec5fc;font-size:0.8rem;">
+                   style="display:inline-block;margin-top:4px;color:#8ec5fc;font-size:0.8rem;">
                   ↗ Abrir original em nova aba
                 </a>
               </div>
-              <button onclick="document.getElementById('gestaoOsLightbox').style.display='none'"
+              <button onclick="document.getElementById('gestaoOsLightbox').style.display='none';document.getElementById('gestaoOsLightboxFrame').src=''"
                       style="position:absolute;top:18px;right:22px;background:none;border:none;
                              color:#fff;font-size:2rem;cursor:pointer;line-height:1;opacity:0.8;">✕</button>`;
-            lb.onclick = () => { lb.style.display = 'none'; };
+            lb.onclick = () => {
+                lb.style.display = 'none';
+                document.getElementById('gestaoOsLightboxFrame').src = '';
+            };
             document.body.appendChild(lb);
             document.addEventListener('keydown', e => {
-                if (e.key === 'Escape' && lb.style.display !== 'none') lb.style.display = 'none';
+                if (e.key === 'Escape' && lb.style.display !== 'none') {
+                    lb.style.display = 'none';
+                    document.getElementById('gestaoOsLightboxFrame').src = '';
+                }
             });
         }
-        document.getElementById('gestaoOsLightboxImg').src = url;
+        document.getElementById('gestaoOsLightboxFrame').src = previewUrl;
         document.getElementById('gestaoOsLightboxNome').textContent = nome || '';
-        document.getElementById('gestaoOsLightboxLink').href = url;
+        document.getElementById('gestaoOsLightboxLink').href = urlOriginal || previewUrl;
         lb.style.display = 'flex';
     }
 
