@@ -68,3 +68,5 @@ dashboard/RELATORIO_PONTOS_CONFUSAO_VISAO_GERAL.md
 dashboard/.claude/settings.local.json
 .claude/launch.json
 .claude/worktrees/
+__pycache__/
+*.pyc

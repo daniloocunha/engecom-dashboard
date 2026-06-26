@@ -79,7 +79,11 @@ npm run gen-config-example
 ### Utility Scripts (scripts/)
 - `scripts/update_config_release.py` — Atualiza a aba Config no Sheets após um release do app
   (`python scripts/update_config_release.py` mostra os valores; `--apply --versao N --hash H --tamanho M --url U [--mensagem T]` atualiza)
-- `scripts/importar_rdos.py` — Importa RDOs de mensagens WhatsApp/TXT para Sheets
+- `scripts/importar_rdos.py` — Importa RDOs de mensagens WhatsApp/TXT para Sheets (grava direto via service-account)
+- `scripts/mensagem_para_linhas.py` — Converte a mensagem de RDO do app em linhas TSV prontas para colar no
+  Sheets (offline, sem credencial): `python scripts/mensagem_para_linhas.py mensagem.txt` (ou via stdin).
+  Reaproveita o parser de `importar_rdos.py`; tolera os dois formatos do app (com emoji `*📅 Data:*` e simples
+  `*Data:*`). Número RDO inicia em `-001` por OS+data — ajustar o sufixo na coluna B se já existir.
 - `scripts/cleanup_sheets.py` — Limpeza e normalização de RDOs no Sheets (headers, deletados, HI)
 - `scripts/cleanup_op6.py` — Limpa coluna Operadores na aba HorasImprodutivas
 - `scripts/read_sheets.py` — Lê dados do Sheets via JWT manual para diagnóstico

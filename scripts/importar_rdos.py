@@ -16,13 +16,10 @@ import argparse
 from datetime import datetime
 from collections import defaultdict
 
-try:
-    from google.oauth2 import service_account
-    from googleapiclient.discovery import build
-    from googleapiclient.errors import HttpError
-except ImportError:
-    print("Instale as dependências: pip install google-auth google-api-python-client")
-    sys.exit(1)
+# As bibliotecas do Google são importadas tardiamente (dentro de build_service)
+# para que o parser deste módulo possa ser reutilizado por scripts offline
+# (ex.: mensagem_para_linhas.py) sem exigir google-auth/google-api-python-client.
+HttpError = Exception  # placeholder; redefinido em build_service() quando online
 
 # ── Configuração ──────────────────────────────────────────────────────────────
 SPREADSHEET_ID   = "1wHFUIQ8uRplRBNSV6TEyatR7_ilURZTC0qXWhubb1Fs"
@@ -99,8 +96,12 @@ def split_into_sections(block: str) -> dict[str, str]:
 
 
 def field(text: str, label: str) -> str:
-    """Extrai o valor de '*Label* valor' no texto."""
-    match = re.search(rf"\*{re.escape(label)}\*\s*(.*?)(?:\n|$)", text)
+    """Extrai o valor de '*Label* valor' no texto.
+
+    Tolera um prefixo (emoji/espaço) dentro dos asteriscos antes do rótulo, ex.:
+    '*📅 Data:*' e '*Data:*' são ambos aceitos.
+    """
+    match = re.search(rf"\*[^*\n]*?{re.escape(label)}\*\s*(.*?)(?:\n|$)", text)
     return strip_bold(match.group(1)) if match else ""
 
 
@@ -182,8 +183,9 @@ def parse_hi(hi_text: str) -> list[dict]:
     """
     items = []
     current_type = ""
+    # A seta pode ou não vir entre asteriscos (formato completo: '→'; simples: '*→*')
     entry_re = re.compile(
-        r"\d+\.\s*(.+?)\s*\*Horário:\*\s*(\d{2}:\d{2})\s*\*→\*\s*(\d{2}:\d{2})"
+        r"\d+\.\s*(.+?)\s*\*Horário:\*\s*(\d{2}:\d{2})\s*\*?→\*?\s*(\d{2}:\d{2})"
     )
     type_re = re.compile(r"^\s*\*(.+?):\*\s*$")
 
@@ -249,7 +251,7 @@ def parse_rdo_block(block: str) -> dict | None:
 
     # Encarregado no cabeçalho é nome (não número)
     encarregado = ""
-    for m in re.finditer(r"\*Encarregado:\*\s*(.*?)(?:\n|$)", header):
+    for m in re.finditer(r"\*[^*\n]*?Encarregado:\*\s*(.*?)(?:\n|$)", header):
         val = strip_bold(m.group(1))
         if val and not val.isdigit():
             encarregado = val
@@ -354,6 +356,15 @@ def make_rdo_key(numero_os: str, data: str) -> str:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def build_service():
+    global HttpError
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+        from googleapiclient.errors import HttpError as _HttpError
+    except ImportError:
+        print("Instale as dependências: pip install google-auth google-api-python-client")
+        sys.exit(1)
+    HttpError = _HttpError  # disponibiliza para os blocos except do módulo
     creds = service_account.Credentials.from_service_account_file(
         CREDENTIALS_FILE, scopes=SCOPES
     )
