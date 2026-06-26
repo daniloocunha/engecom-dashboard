@@ -96,8 +96,23 @@ def to_tsv(rows: list[list]) -> str:
     return "\n".join("\t".join(cell(c) for c in row) for row in rows)
 
 
-def build_all_rows(rdos: list[dict], transportes_por_idx: dict) -> dict:
-    """Monta as linhas de cada aba. Sequencial do Número RDO começa em 001 por OS+data."""
+def operadores_hi(rdo: dict) -> int:
+    """Quantidade de operadores que conta para as HH Improdutivas de uma HI.
+
+    Regra por tipo de turma (código da turma):
+      - TS (soldagem): operadores + soldador  (a equipe é de soldadores)
+      - TP / demais:   apenas operadores
+    A mensagem não traz o nº de operadores por HI, então usamos o efetivo da turma.
+    """
+    e = rdo["efetivo"]
+    turma = (rdo.get("codigoTurma") or "").strip().upper()
+    if turma.startswith("TS"):
+        return e["operadores"] + e["soldador"]
+    return e["operadores"]
+
+
+def build_all_rows(rdos: list[dict], transportes_por_idx: dict, inicio: int = 1) -> dict:
+    """Monta as linhas de cada aba. Sequencial do Número RDO começa em `inicio` por OS+data."""
     counters: dict[str, int] = {}
     out = {
         "RDO": [], "Servicos": [], "Materiais": [], "HorasImprodutivas": [],
@@ -106,11 +121,14 @@ def build_all_rows(rdos: list[dict], transportes_por_idx: dict) -> dict:
 
     for idx, rdo in enumerate(rdos):
         key = make_rdo_key(rdo["numeroOS"], rdo["data"])
-        counters[key] = counters.get(key, 0) + 1
+        if key not in counters:
+            counters[key] = inicio
+        else:
+            counters[key] += 1
         numero_rdo = f"{key}-{counters[key]:03d}"
 
         e = rdo["efetivo"]
-        total_efetivo = sum(e.values())
+        hi_operadores = operadores_hi(rdo)
         prefixo = [numero_rdo, rdo["numeroOS"], rdo["data"], rdo["codigoTurma"], rdo["encarregado"]]
 
         # RDO (22 colunas A–V)
@@ -135,7 +153,7 @@ def build_all_rows(rdos: list[dict], transportes_por_idx: dict) -> dict:
         # HorasImprodutivas (10 colunas A–J)
         for hi in rdo["horasImprodutivas"]:
             out["HorasImprodutivas"].append(prefixo + [
-                hi["tipo"], hi["descricao"], hi["horaInicio"], hi["horaFim"], total_efetivo,
+                hi["tipo"], hi["descricao"], hi["horaInicio"], hi["horaFim"], hi_operadores,
             ])
 
         # TransporteSucatas (11 colunas A–K)
@@ -146,7 +164,7 @@ def build_all_rows(rdos: list[dict], transportes_por_idx: dict) -> dict:
             ])
 
         # Efetivo (11 colunas A–K)
-        if total_efetivo > 0:
+        if sum(e.values()) > 0:
             out["Efetivo"].append(prefixo + [
                 e["encarregado"], e["operadores"], e["operadorEGP"],
                 e["tecnicoSeguranca"], e["soldador"], e["motoristas"],
@@ -160,8 +178,20 @@ def build_all_rows(rdos: list[dict], transportes_por_idx: dict) -> dict:
 
 
 def main():
-    if len(sys.argv) > 1:
-        with open(sys.argv[1], encoding="utf-8") as f:
+    import argparse
+    parser = argparse.ArgumentParser(
+        description="Converte mensagem de RDO do app em linhas TSV para colar no Sheets."
+    )
+    parser.add_argument("arquivo", nargs="?", help="Arquivo .txt com a mensagem (ou via stdin)")
+    parser.add_argument(
+        "--inicio", type=int, default=1, metavar="N",
+        help="Sufixo inicial do Número RDO por OS+data (default 1). "
+             "Use 2 se já existir um RDO daquela OS+data na planilha.",
+    )
+    args = parser.parse_args()
+
+    if args.arquivo:
+        with open(args.arquivo, encoding="utf-8") as f:
             text = f.read()
     else:
         if sys.stdin.isatty():
@@ -187,14 +217,14 @@ def main():
         print("Nenhum RDO válido encontrado na mensagem.", file=sys.stderr)
         sys.exit(1)
 
-    out = build_all_rows(rdos, transportes_por_idx)
+    out = build_all_rows(rdos, transportes_por_idx, inicio=args.inicio)
 
     print(f"\n✅ {len(rdos)} RDO(s) convertido(s).")
     for rdo in rdos:
         key = make_rdo_key(rdo["numeroOS"], rdo["data"])
-        print(f"   • {key}-001  |  {rdo['data']}  |  Turma {rdo['codigoTurma']}  |  OS {rdo['numeroOS']}")
-    print("\n⚠️  Número RDO começa em -001 por OS+data. Se já existir um na planilha, "
-          "ajuste o sufixo na coluna B antes de colar.\n")
+        print(f"   • {key}-{args.inicio:03d}  |  {rdo['data']}  |  Turma {rdo['codigoTurma']}  |  OS {rdo['numeroOS']}")
+    print(f"\n⚠️  Número RDO começa em -{args.inicio:03d} por OS+data. Se já existir um na planilha, "
+          "rode de novo com --inicio 2 (ou ajuste o sufixo na coluna B antes de colar).\n")
     print("Para cada bloco abaixo: vá na aba indicada, clique na primeira linha vazia "
           "da coluna A e cole (Ctrl+V).\n")
 
