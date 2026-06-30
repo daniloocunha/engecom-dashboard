@@ -4,6 +4,23 @@ Todas as correções e melhorias realizadas no dashboard.
 
 ---
 
+## 🆕 Gerador de Crachá — `cracha.html`
+
+Página standalone para gerar crachás no padrão Engecom (frente e verso),
+acessível em `/cracha.html` (não exige a SECRET_KEY do dashboard).
+
+- Formulário com foto, nome, cargo, matrícula, contato e URL de validação
+- Preview ao vivo da **frente** e do **verso**, fiel ao layout oficial
+- QR Code de validação (matrícula embutida) + código de barras CODE128 com o ID
+- Cadastro da **turma** (salvo em `localStorage`) para gerar vários crachás
+- Exportação em PNG de alta resolução (por lado), **impressão da turma** e
+  **download de todos em `.zip`**
+- Exportação via `modern-screenshot` (foreignObject) — preserva clip-path,
+  cantos arredondados, gradientes e ícones
+- Logos `assets/logo-engecom-{navy,white}.png` derivados de `logo.png`
+
+---
+
 ## 🚀 [1.1.0] - 2025-11-20
 
 ### 🔴 BUGS CRÍTICOS CORRIGIDOS
