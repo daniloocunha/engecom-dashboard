@@ -378,6 +378,84 @@ class CalendarioTP {
         return resultado;
     }
 
+    // ── Observação do Dia (aba Notas do Sheets — compartilhada) ──────────────
+
+    /** Retorna a nota do dia (aba Notas do Sheets) para turma+data. */
+    _notaDoDia(turma, dataFmt) {
+        return (this.notas || []).find(n => n.turma === turma && n.data === dataFmt)?.nota || '';
+    }
+
+    /** Alterna o formulário de edição da Observação do Dia no modal de detalhes. */
+    toggleFormNotaDia() {
+        const view = document.getElementById('nota-dia-view-tp');
+        const form = document.getElementById('nota-dia-form-tp');
+        if (!view || !form) return;
+        const abrir = form.style.display === 'none';
+        form.style.display = abrir ? 'block' : 'none';
+        view.style.display = abrir ? 'none' : '';
+        if (abrir) {
+            const input = document.getElementById('nota-dia-input-tp');
+            if (input) {
+                input.value = this._notaDoDia(this._notaCtx?.turma, this._notaCtx?.data);
+                input.focus();
+            }
+        }
+    }
+
+    /** Salva a Observação do Dia (aba Notas) a partir do modal de detalhes. */
+    async salvarNotaDiaModal(btn) {
+        const ctx = this._notaCtx;
+        if (!ctx) return;
+        const val  = (document.getElementById('nota-dia-input-tp')?.value || '').trim();
+        const orig = btn.innerHTML;
+        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        try {
+            await editorRDO._api({ acao: 'salvarNotaDia', turma: ctx.turma, data: ctx.data, nota: val });
+            const idx = (this.notas || []).findIndex(n => n.turma === ctx.turma && n.data === ctx.data);
+            if (val) {
+                if (idx >= 0) this.notas[idx].nota = val;
+                else (this.notas = this.notas || []).push({ turma: ctx.turma, data: ctx.data, nota: val });
+            } else if (idx >= 0) {
+                this.notas.splice(idx, 1);
+            }
+            const view = document.getElementById('nota-dia-view-tp');
+            if (view) view.innerHTML = val ? escapeHtml(val) : '<em class="text-muted">Sem observação do dia</em>';
+            this.toggleFormNotaDia();
+            this.renderizarTodos(); // atualiza o 📝 na célula do calendário (modal fica aberto)
+        } catch (err) {
+            alert('Erro ao salvar observação do dia: ' + err.message);
+        } finally {
+            btn.disabled = false; btn.innerHTML = orig;
+        }
+    }
+
+    /** Seção "Observação do Dia" exibida no modal de detalhes (TP). */
+    _htmlSecaoNotaDia(turma, dataFmt) {
+        const nota = this._notaDoDia(turma, dataFmt);
+        return `
+            <div class="alert mb-2" style="background:#f3e5f5;border:1px solid #ce93d8;">
+                <h6 class="alert-heading d-flex align-items-center gap-2" style="color:#6a1b9a;">
+                    <i class="fas fa-sticky-note me-1"></i>Observação do Dia
+                    <span class="badge" style="background:#9c27b0;font-size:.6rem;">Google Sheets</span>
+                    <button class="btn btn-link btn-sm p-0" style="color:#6a1b9a;"
+                            onclick="calendarioTP.toggleFormNotaDia()" title="Editar observação do dia">
+                        <i class="fas fa-pencil-alt" style="font-size:.75rem;"></i>
+                    </button>
+                </h6>
+                <div id="nota-dia-view-tp">${nota ? escapeHtml(nota) : '<em class="text-muted">Sem observação do dia</em>'}</div>
+                <div id="nota-dia-form-tp" style="display:none;">
+                    <textarea id="nota-dia-input-tp" class="form-control form-control-sm mb-2" rows="2"
+                              placeholder="Ex: chuva à tarde, visita do fiscal…">${escapeHtml(nota)}</textarea>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm text-white" style="background:#9c27b0;"
+                                onclick="calendarioTP.salvarNotaDiaModal(this)"><i class="fas fa-save me-1"></i>Salvar</button>
+                        <button class="btn btn-sm btn-outline-secondary"
+                                onclick="calendarioTP.toggleFormNotaDia()"><i class="fas fa-times me-1"></i>Cancelar</button>
+                    </div>
+                </div>
+            </div>`;
+    }
+
     /**
      * Renderiza calendário para uma turma (estilo novo)
      */
@@ -554,6 +632,13 @@ class CalendarioTP {
                                 📝 ${escapeHtml(dadosDia.observacoes.substring(0, 30))}${dadosDia.observacoes.length > 30 ? '...' : ''}
                             </div>
                         ` : ''}
+                        ${(() => {
+                            const _notaDia = this._notaDoDia(turma, dadosDia.data);
+                            return _notaDia ? `
+                            <div class="dia-obs" style="color: #9c27b0;" title="${escapeHtml(_notaDia)}">
+                                🗒️ ${escapeHtml(_notaDia.substring(0, 30))}${_notaDia.length > 30 ? '...' : ''}
+                            </div>` : '';
+                        })()}
                     </div>
                 `;
             } else {
@@ -703,6 +788,9 @@ class CalendarioTP {
 
         editorRDO.inicializar(dados, 'TP');
 
+        // Contexto para a seção "Observação do Dia" (aba Notas)
+        this._notaCtx = { turma, data: dados.data };
+
         const modalHTML = `
             <div class="modal fade" id="modalDetalhesDia" tabindex="-1">
                 <div class="modal-dialog modal-xl">
@@ -743,6 +831,11 @@ class CalendarioTP {
                                                             <button class="btn btn-link btn-sm p-0 me-1"
                                                                     onclick="editorRDO.mostrarEditCabecalhoOS(${osIdx})" title="Editar O.S">
                                                                 <i class="fas fa-pencil-alt" style="font-size:.7rem;"></i>
+                                                            </button>
+                                                            <button class="btn btn-outline-primary btn-sm py-0 px-1 me-1"
+                                                                    onclick="editorRDO.duplicarRDO('${escapeHtml(os.numeroRDO || '')}')"
+                                                                    title="Duplicar RDO desta O.S">
+                                                                <i class="fas fa-clone" style="font-size:.7rem;"></i>
                                                             </button>
                                                             <button class="btn btn-outline-danger btn-sm py-0 px-1"
                                                                     onclick="editorRDO.excluirRDO('${escapeHtml(os.numeroRDO || '')}')"
@@ -1052,6 +1145,9 @@ class CalendarioTP {
                                 </div>
                             </div>
 
+                            <!-- Observação do Dia (aba Notas — independente do RDO) -->
+                            ${this._htmlSecaoNotaDia(turma, dados.data)}
+
                         </div>
                         <div class="modal-footer">
                             <button id="btn-toggle-edicao" type="button" class="btn btn-outline-warning me-auto"
@@ -1059,6 +1155,10 @@ class CalendarioTP {
                                 <i class="fas fa-edit me-1"></i>Editar
                             </button>
                             ${!dados.multiplosRDOs ? `
+                            <button class="btn btn-outline-primary edit-ctrl" style="display:none;"
+                                    onclick="editorRDO.duplicarRDO()" title="Cria um novo RDO no mesmo dia copiando serviços, HI e efetivo">
+                                <i class="fas fa-clone me-1"></i>Duplicar RDO
+                            </button>
                             <button class="btn btn-outline-danger edit-ctrl" style="display:none;"
                                     onclick="editorRDO.excluirRDO()">
                                 <i class="fas fa-trash me-1"></i>Excluir RDO
@@ -1078,13 +1178,22 @@ class CalendarioTP {
         document.body.insertAdjacentHTML('beforeend', modalHTML);
 
         // Mostrar modal
-        const modal = new bootstrap.Modal(document.getElementById('modalDetalhesDia'));
+        const modalElement = document.getElementById('modalDetalhesDia');
+        const modal = new bootstrap.Modal(modalElement);
         modal.show();
 
         // Renderizar gráficos após o modal ser exibido
         setTimeout(() => {
             this.renderizarGraficosModal(dados);
         }, 100);
+
+        // Remover modal do DOM ao fechar — evita que os IDs internos (tbody-servicos,
+        // srv-row-N, obs-view…) colidam com o modal TS aberto em seguida
+        modalElement.addEventListener('hidden.bs.modal', () => {
+            this.modalCharts.forEach(chart => chart.destroy());
+            this.modalCharts = [];
+            modalElement.remove();
+        });
     }
 
     /**

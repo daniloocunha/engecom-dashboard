@@ -56,12 +56,12 @@ class EditorRDO {
     /** Mostra alerta de erro no topo do modal. */
     _erro(msg) {
         ['editor-alerta-tp', 'editor-alerta-ts'].forEach(id => {
-            const el = document.getElementById(id);
+            const el = this._el(id);
             if (el) { el.textContent = '⚠️ ' + msg; el.style.display = 'block'; }
         });
         setTimeout(() => {
             ['editor-alerta-tp', 'editor-alerta-ts'].forEach(id => {
-                const el = document.getElementById(id);
+                const el = this._el(id);
                 if (el) el.style.display = 'none';
             });
         }, 5000);
@@ -119,6 +119,18 @@ class EditorRDO {
         return modal ? [...modal.querySelectorAll(selector)] : [];
     }
 
+    /**
+     * Busca um elemento por ID dentro do modal ativo (TP ou TS).
+     * Os modais TP e TS compartilham vários IDs (tbody-servicos, srv-row-N, obs-view…)
+     * e o modal TP pode continuar no DOM depois de fechado — um getElementById global
+     * encontraria o elemento errado. Fallback para o documento cobre elementos fora
+     * do modal (ex: alertas com ID único).
+     */
+    _el(id) {
+        const modal = document.getElementById(this._modalId());
+        return (modal && modal.querySelector('#' + id)) || document.getElementById(id);
+    }
+
     // ── Modo de edição ────────────────────────────────────────────────────────
 
     ativarModoEdicao() {
@@ -126,13 +138,13 @@ class EditorRDO {
         this.modoEdicao = true;
 
         const sufixo = this.tipo === 'TS' ? '-ts' : '-tp';
-        const banner = document.getElementById('editor-banner' + sufixo);
+        const banner = this._el('editor-banner' + sufixo);
         if (banner) banner.style.display = 'flex';
 
         this._qa('.edit-ctrl').forEach(el => el.style.display = '');
         this._qa('.view-only').forEach(el => el.style.display = 'none');
 
-        const btn = document.getElementById('btn-toggle-edicao');
+        const btn = this._el('btn-toggle-edicao');
         if (btn) {
             btn.innerHTML = '<i class="fas fa-times me-1"></i>Concluir Edição';
             btn.classList.replace('btn-outline-warning', 'btn-warning');
@@ -143,20 +155,20 @@ class EditorRDO {
         this.modoEdicao = false;
 
         const sufixo = this.tipo === 'TS' ? '-ts' : '-tp';
-        const banner = document.getElementById('editor-banner' + sufixo);
+        const banner = this._el('editor-banner' + sufixo);
         if (banner) banner.style.display = 'none';
 
         this._qa('.edit-ctrl').forEach(el => el.style.display = 'none');
         this._qa('.view-only').forEach(el => el.style.display = '');
 
-        const btn = document.getElementById('btn-toggle-edicao');
+        const btn = this._el('btn-toggle-edicao');
         if (btn) {
             btn.innerHTML = '<i class="fas fa-edit me-1"></i>Editar';
             btn.classList.replace('btn-warning', 'btn-outline-warning');
         }
 
         // Fechar formulário de cabeçalho se estiver aberto
-        const cabForm = document.getElementById('cabecalho-form');
+        const cabForm = this._el('cabecalho-form');
         if (cabForm && cabForm.style.display !== 'none') this.cancelarEditCabecalho();
 
         // Fechar formulários de cabeçalho multi-OS abertos
@@ -175,12 +187,12 @@ class EditorRDO {
     // ── Cabeçalho (OS, Local, KM, Horário) ───────────────────────────────────
 
     mostrarEditCabecalho() {
-        const view = document.getElementById('cabecalho-view');
-        const form = document.getElementById('cabecalho-form');
+        const view = this._el('cabecalho-view');
+        const form = this._el('cabecalho-form');
         if (!view || !form) return;
 
-        const g = id => document.getElementById(id)?.textContent.trim() || '';
-        const s = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
+        const g = id => this._el(id)?.textContent.trim() || '';
+        const s = (id, val) => { const el = this._el(id); if (el) el.value = val; };
         s('cab-os',     g('cab-view-os'));
         s('cab-local',  g('cab-view-local'));
         s('cab-km-ini', g('cab-view-km-ini'));
@@ -190,18 +202,18 @@ class EditorRDO {
 
         view.style.display = 'none';
         form.style.display = 'block';
-        document.getElementById('cab-os')?.focus();
+        this._el('cab-os')?.focus();
     }
 
     cancelarEditCabecalho() {
-        const view = document.getElementById('cabecalho-view');
-        const form = document.getElementById('cabecalho-form');
+        const view = this._el('cabecalho-view');
+        const form = this._el('cabecalho-form');
         if (view) view.style.display = '';
         if (form) form.style.display = 'none';
     }
 
     async salvarCabecalho(btn) {
-        const g = id => document.getElementById(id)?.value.trim() || '';
+        const g = id => this._el(id)?.value.trim() || '';
         const novaOS     = g('cab-os');
         const local      = g('cab-local');
         const kmInicio   = g('cab-km-ini');
@@ -211,7 +223,7 @@ class EditorRDO {
 
         if (!novaOS) { this._erro('O número da O.S não pode ser vazio'); return; }
 
-        const osAtual  = document.getElementById('cab-view-os')?.textContent.trim() || '';
+        const osAtual  = this._el('cab-view-os')?.textContent.trim() || '';
         const osChanged = novaOS !== osAtual;
 
         await this._comFeedback(btn, async () => {
@@ -226,7 +238,7 @@ class EditorRDO {
                 this.numeroRDO = novoNumeroRDO;
                 rdoTarget = novoNumeroRDO;
                 // Atualizar exibição do Número RDO se visível no modal
-                const rdoSpan = document.getElementById('cab-view-rdo');
+                const rdoSpan = this._el('cab-view-rdo');
                 if (rdoSpan) rdoSpan.textContent = novoNumeroRDO;
             }
 
@@ -238,7 +250,7 @@ class EditorRDO {
             });
 
             // Atualizar spans de visualização
-            const sv = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+            const sv = (id, val) => { const el = this._el(id); if (el) el.textContent = val; };
             sv('cab-view-os',     novaOS);
             sv('cab-view-local',  local    || '-');
             sv('cab-view-km-ini', kmInicio || '-');
@@ -272,23 +284,23 @@ class EditorRDO {
 
     mostrarEditCabecalhoOS(idx) {
         this._editOSIdx = idx;
-        const view = document.getElementById('cab-view-os-' + idx);
-        const form = document.getElementById('cab-form-os-' + idx);
+        const view = this._el('cab-view-os-' + idx);
+        const form = this._el('cab-form-os-' + idx);
         if (view) view.style.display = 'none';
         if (form) form.style.display = 'block';
-        document.getElementById('cab-os-os-' + idx)?.focus();
+        this._el('cab-os-os-' + idx)?.focus();
     }
 
     cancelarEditCabecalhoOS(idx) {
-        const view = document.getElementById('cab-view-os-' + idx);
-        const form = document.getElementById('cab-form-os-' + idx);
+        const view = this._el('cab-view-os-' + idx);
+        const form = this._el('cab-form-os-' + idx);
         if (view) view.style.display = '';
         if (form) form.style.display = 'none';
         this._editOSIdx = null;
     }
 
     async salvarCabecalhoOS(idx, btn) {
-        const g = sfx => document.getElementById(sfx + idx)?.value.trim() || '';
+        const g = sfx => this._el(sfx + idx)?.value.trim() || '';
         const novaOS     = g('cab-os-os-');
         const local      = g('cab-local-os-');
         const kmInicio   = g('cab-km-ini-os-');
@@ -327,7 +339,7 @@ class EditorRDO {
             osRef.horarioInicio = horaInicio; osRef.horarioFim = horaFim;
 
             // Atualizar view
-            const view = document.getElementById('cab-view-os-' + idx);
+            const view = this._el('cab-view-os-' + idx);
             if (view) {
                 view.innerHTML = `
                     <span class="badge bg-secondary">${escapeHtml(novaOS)}</span>
@@ -339,6 +351,10 @@ class EditorRDO {
                     <span class="edit-ctrl" style="${this.modoEdicao ? '' : 'display:none;'}">
                         <button class="btn btn-link btn-sm p-0 me-1" onclick="editorRDO.mostrarEditCabecalhoOS(${idx})" title="Editar">
                             <i class="fas fa-pencil-alt" style="font-size:.7rem;"></i>
+                        </button>
+                        <button class="btn btn-outline-primary btn-sm py-0 px-1 me-1"
+                                onclick="editorRDO.duplicarRDO('${escapeHtml(rdoTarget)}')" title="Duplicar RDO">
+                            <i class="fas fa-clone" style="font-size:.7rem;"></i>
                         </button>
                         <button class="btn btn-outline-danger btn-sm py-0 px-1"
                                 onclick="editorRDO.excluirRDO('${escapeHtml(rdoTarget)}')" title="Excluir RDO">
@@ -364,9 +380,9 @@ class EditorRDO {
 
     /** Atualiza preview de HH na linha de edição de serviço. */
     _previewHH(idx) {
-        const sel = document.getElementById('srv-sel-' + idx);
-        const qty = parseFloat(document.getElementById('srv-qty-' + idx)?.value || 0);
-        const pre = document.getElementById('srv-hh-pre-' + idx);
+        const sel = this._el('srv-sel-' + idx);
+        const qty = parseFloat(this._el('srv-qty-' + idx)?.value || 0);
+        const pre = this._el('srv-hh-pre-' + idx);
         if (!sel || !pre) return;
         const coef = parseFloat((sel.value.split('|')[1]) || 0);
         pre.textContent = (isNaN(coef) || coef === 0 || isNaN(qty) || qty === 0) ? '?' : (qty * coef).toFixed(2);
@@ -374,9 +390,9 @@ class EditorRDO {
 
     /** Atualiza preview de HH no formulário "Adicionar Serviço". */
     _previewNovoHH() {
-        const sel = document.getElementById('novo-srv-sel');
-        const qty = parseFloat(document.getElementById('novo-srv-qty')?.value || 0);
-        const pre = document.getElementById('novo-srv-hh-pre');
+        const sel = this._el('novo-srv-sel');
+        const qty = parseFloat(this._el('novo-srv-qty')?.value || 0);
+        const pre = this._el('novo-srv-hh-pre');
         if (!sel || !pre) return;
         const coef = parseFloat((sel.value.split('|')[1]) || 0);
         pre.textContent = (isNaN(coef) || coef === 0 || isNaN(qty) || qty === 0) ? '?' : (qty * coef).toFixed(2);
@@ -385,9 +401,9 @@ class EditorRDO {
     // ── Observações ───────────────────────────────────────────────────────────
 
     mostrarEditObservacoes() {
-        const view     = document.getElementById('obs-view');
-        const form     = document.getElementById('obs-form');
-        const textarea = document.getElementById('obs-input');
+        const view     = this._el('obs-view');
+        const form     = this._el('obs-form');
+        const textarea = this._el('obs-input');
         if (!form || !textarea) return;
         textarea.value = (this.dados.observacoes || '').trim();
         if (view) view.style.display = 'none';
@@ -396,14 +412,14 @@ class EditorRDO {
     }
 
     cancelarEditObservacoes() {
-        const view = document.getElementById('obs-view');
-        const form = document.getElementById('obs-form');
+        const view = this._el('obs-view');
+        const form = this._el('obs-form');
         if (view) view.style.display = '';
         if (form) form.style.display = 'none';
     }
 
     async salvarObservacoes(btn) {
-        const textarea = document.getElementById('obs-input');
+        const textarea = this._el('obs-input');
         if (!textarea) return;
         const novoValor = textarea.value.trim();
 
@@ -411,7 +427,7 @@ class EditorRDO {
             await this._api({ acao: 'atualizarCampoRDO', numeroRDO: this.numeroRDO, campos: { observacoes: novoValor } });
 
             this.dados.observacoes = novoValor;
-            const view = document.getElementById('obs-view');
+            const view = this._el('obs-view');
             if (view) view.textContent = novoValor || '(sem observações)';
             this.cancelarEditObservacoes();
         });
@@ -420,7 +436,7 @@ class EditorRDO {
     // ── Serviços ──────────────────────────────────────────────────────────────
 
     editarServico(idx) {
-        const tr = document.getElementById('srv-row-' + idx);
+        const tr = this._el('srv-row-' + idx);
         if (!tr || tr.dataset.emEdicao) return;
         tr.dataset.emEdicao = 'true';
         tr.dataset.htmlOriginal = tr.innerHTML;
@@ -469,7 +485,7 @@ class EditorRDO {
     }
 
     cancelarEditServico(idx) {
-        const tr = document.getElementById('srv-row-' + idx);
+        const tr = this._el('srv-row-' + idx);
         if (!tr) return;
         tr.innerHTML = tr.dataset.htmlOriginal || '';
         delete tr.dataset.emEdicao;
@@ -478,14 +494,14 @@ class EditorRDO {
 
     async salvarServico(idx, btn) {
         const s   = this.dados.servicos[idx];
-        const sel = document.getElementById('srv-sel-' + idx);
+        const sel = this._el('srv-sel-' + idx);
         if (!sel || !sel.value) { this._erro('Selecione um serviço'); return; }
 
         const parts      = sel.value.split('|');
         const descricao  = parts[0] || '';
         const coeficiente = parseFloat(parts[1] || 0);
-        const quantidade = parseFloat(document.getElementById('srv-qty-' + idx)?.value || 0);
-        const unidade    = document.getElementById('srv-un-' + idx)?.value;
+        const quantidade = parseFloat(this._el('srv-qty-' + idx)?.value || 0);
+        const unidade    = this._el('srv-un-' + idx)?.value;
 
         if (!descricao) { this._erro('Selecione um serviço'); return; }
 
@@ -501,7 +517,7 @@ class EditorRDO {
             s.coeficiente = coeficiente;
             s.hh          = coeficiente > 0 ? (quantidade * coeficiente).toFixed(2) : s.hh;
 
-            const tr = document.getElementById('srv-row-' + idx);
+            const tr = this._el('srv-row-' + idx);
             if (tr) {
                 delete tr.dataset.emEdicao;
                 tr.innerHTML = this._htmlSrvRow(idx, s);
@@ -518,26 +534,26 @@ class EditorRDO {
 
         try {
             await this._api({ acao: 'excluirServico', numeroRDO: rdoAlvo, indice });
-            document.getElementById('srv-row-' + idx)?.remove();
+            this._el('srv-row-' + idx)?.remove();
             this.dados.servicos.splice(idx, 1);
             this._reindexarServicos();
         } catch (err) { this._erro(err.message); }
     }
 
     toggleFormAdicionarServico() {
-        const el = document.getElementById('form-adicionar-servico');
+        const el = this._el('form-adicionar-servico');
         if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
     }
 
     async salvarNovoServico(btn) {
-        const sel = document.getElementById('novo-srv-sel');
+        const sel = this._el('novo-srv-sel');
         if (!sel || !sel.value) { this._erro('Selecione um serviço'); return; }
 
         const parts      = sel.value.split('|');
         const descricao  = parts[0] || '';
         const coeficiente = parseFloat(parts[1] || 0);
-        const quantidade = parseFloat(document.getElementById('novo-srv-qty')?.value || 0);
-        const unidade    = document.getElementById('novo-srv-un')?.value || 'UN';
+        const quantidade = parseFloat(this._el('novo-srv-qty')?.value || 0);
+        const unidade    = this._el('novo-srv-un')?.value || 'UN';
 
         if (!descricao) { this._erro('Selecione um serviço'); return; }
         if (!quantidade || isNaN(quantidade) || quantidade <= 0) { this._erro('Quantidade deve ser maior que zero'); return; }
@@ -546,7 +562,7 @@ class EditorRDO {
         let osRef = this.dados.hhPorOS?.[0] || {};
         let rdoAlvoSrv = this.numeroRDO;
         if (this.dados.multiplosRDOs) {
-            const osSel = document.getElementById('novo-srv-os')?.value;
+            const osSel = this._el('novo-srv-os')?.value;
             if (osSel) {
                 const match = this.dados.hhPorOS.find(o => (o.numeroRDO || o.numeroOS) === osSel);
                 if (match) { osRef = match; rdoAlvoSrv = match.numeroRDO || rdoAlvoSrv; }
@@ -568,7 +584,7 @@ class EditorRDO {
             const novo = { descricao, quantidade, unidade, hh: hhCalc, coeficiente, observacao: '', isCustomizado: false, numeroRDO: null, numeroOS: null };
             this.dados.servicos.push(novo);
 
-            const tbody = document.getElementById('tbody-servicos');
+            const tbody = this._el('tbody-servicos');
             if (tbody) {
                 const idx = this.dados.servicos.length - 1;
                 const tr  = document.createElement('tr');
@@ -579,16 +595,16 @@ class EditorRDO {
 
             // Limpar form
             sel.selectedIndex = 0;
-            const qtyEl = document.getElementById('novo-srv-qty');
+            const qtyEl = this._el('novo-srv-qty');
             if (qtyEl) qtyEl.value = '';
-            const preEl = document.getElementById('novo-srv-hh-pre');
+            const preEl = this._el('novo-srv-hh-pre');
             if (preEl) preEl.textContent = '?';
-            document.getElementById('form-adicionar-servico').style.display = 'none';
+            this._el('form-adicionar-servico').style.display = 'none';
         });
     }
 
     _reindexarServicos() {
-        const tbody = document.getElementById('tbody-servicos');
+        const tbody = this._el('tbody-servicos');
         if (!tbody) return;
         [...tbody.querySelectorAll('tr[id^="srv-row-"]')].forEach((tr, i) => {
             tr.id = 'srv-row-' + i;
@@ -629,7 +645,7 @@ class EditorRDO {
     // ── Horas Improdutivas ────────────────────────────────────────────────────
 
     editarHI(idx) {
-        const tr = document.getElementById('hi-row-' + idx);
+        const tr = this._el('hi-row-' + idx);
         if (!tr || tr.dataset.emEdicao) return;
         tr.dataset.emEdicao = 'true';
         tr.dataset.htmlOriginal = tr.innerHTML;
@@ -675,7 +691,7 @@ class EditorRDO {
     }
 
     cancelarEditHI(idx) {
-        const tr = document.getElementById('hi-row-' + idx);
+        const tr = this._el('hi-row-' + idx);
         if (!tr) return;
         tr.innerHTML = tr.dataset.htmlOriginal || '';
         delete tr.dataset.emEdicao;
@@ -684,10 +700,10 @@ class EditorRDO {
 
     async salvarHI(idx, btn) {
         const hi        = this.dados.horasImprodutivas[idx];
-        const tipo      = document.getElementById('hi-tipo-' + idx)?.value;
-        const descricao = document.getElementById('hi-desc-' + idx)?.value.trim();
-        const horaInicio = document.getElementById('hi-ini-' + idx)?.value.trim();
-        const horaFim    = document.getElementById('hi-fim-' + idx)?.value.trim();
+        const tipo      = this._el('hi-tipo-' + idx)?.value;
+        const descricao = this._el('hi-desc-' + idx)?.value.trim();
+        const horaInicio = this._el('hi-ini-' + idx)?.value.trim();
+        const horaFim    = this._el('hi-fim-' + idx)?.value.trim();
 
         if (!tipo || !horaInicio || !horaFim) { this._erro('Tipo, Hora Início e Hora Fim são obrigatórios'); return; }
 
@@ -702,7 +718,7 @@ class EditorRDO {
             hi.horaInicio = horaInicio;
             hi.horaFim    = horaFim;
 
-            const tr = document.getElementById('hi-row-' + idx);
+            const tr = this._el('hi-row-' + idx);
             if (tr) {
                 delete tr.dataset.emEdicao;
                 tr.innerHTML = this._htmlHIRow(idx, hi);
@@ -719,23 +735,23 @@ class EditorRDO {
 
         try {
             await this._api({ acao: 'excluirHI', numeroRDO: rdoAlvo, indice });
-            document.getElementById('hi-row-' + idx)?.remove();
+            this._el('hi-row-' + idx)?.remove();
             this.dados.horasImprodutivas.splice(idx, 1);
             this._reindexarHIs();
         } catch (err) { this._erro(err.message); }
     }
 
     toggleFormAdicionarHI() {
-        const el = document.getElementById('form-adicionar-hi');
+        const el = this._el('form-adicionar-hi');
         if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
     }
 
     async salvarNovaHI(btn) {
-        const tipo       = document.getElementById('nova-hi-tipo')?.value;
-        const descricao  = document.getElementById('nova-hi-desc')?.value.trim();
-        const horaInicio = document.getElementById('nova-hi-ini')?.value.trim();
-        const horaFim    = document.getElementById('nova-hi-fim')?.value.trim();
-        const operadores = parseInt(document.getElementById('nova-hi-ops')?.value || 12);
+        const tipo       = this._el('nova-hi-tipo')?.value;
+        const descricao  = this._el('nova-hi-desc')?.value.trim();
+        const horaInicio = this._el('nova-hi-ini')?.value.trim();
+        const horaFim    = this._el('nova-hi-fim')?.value.trim();
+        const operadores = parseInt(this._el('nova-hi-ops')?.value || 12);
 
         if (!tipo || !horaInicio || !horaFim) { this._erro('Tipo, Hora Início e Hora Fim são obrigatórios'); return; }
 
@@ -743,7 +759,7 @@ class EditorRDO {
         let osRef = this.dados.hhPorOS?.[0] || {};
         let rdoAlvoHI = this.numeroRDO;
         if (this.dados.multiplosRDOs) {
-            const osSel = document.getElementById('nova-hi-os')?.value;
+            const osSel = this._el('nova-hi-os')?.value;
             if (osSel) {
                 const match = this.dados.hhPorOS.find(o => (o.numeroRDO || o.numeroOS) === osSel);
                 if (match) { osRef = match; rdoAlvoHI = match.numeroRDO || rdoAlvoHI; }
@@ -764,7 +780,7 @@ class EditorRDO {
             const nova = { tipo, descricao: descricao || '', horaInicio, horaFim, hh: '0.00', overlap: false, numeroRDO: null, numeroOS: null };
             this.dados.horasImprodutivas.push(nova);
 
-            const tbody = document.getElementById('tbody-hi');
+            const tbody = this._el('tbody-hi');
             if (tbody) {
                 const idx = this.dados.horasImprodutivas.length - 1;
                 const tr  = document.createElement('tr');
@@ -773,13 +789,13 @@ class EditorRDO {
                 tbody.appendChild(tr);
             }
 
-            ['nova-hi-desc', 'nova-hi-ini', 'nova-hi-fim'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
-            document.getElementById('form-adicionar-hi').style.display = 'none';
+            ['nova-hi-desc', 'nova-hi-ini', 'nova-hi-fim'].forEach(id => { const el = this._el(id); if (el) el.value = ''; });
+            this._el('form-adicionar-hi').style.display = 'none';
         });
     }
 
     _reindexarHIs() {
-        const tbody = document.getElementById('tbody-hi');
+        const tbody = this._el('tbody-hi');
         if (!tbody) return;
         [...tbody.querySelectorAll('tr[id^="hi-row-"]')].forEach((tr, i) => {
             tr.id = 'hi-row-' + i;
@@ -805,6 +821,30 @@ class EditorRDO {
             <td class="edit-ctrl text-center" style="${this.modoEdicao ? '' : 'display:none'}">
                 <div class="edit-ctrl-btns-hi">${this._htmlHIBtns(idx)}</div>
             </td>`;
+    }
+
+    // ── Duplicar RDO ──────────────────────────────────────────────────────────
+
+    /**
+     * Duplica o RDO no mesmo dia (novo Número RDO sequencial), copiando
+     * serviços, HI, efetivo, equipamentos, materiais e transportes.
+     * Depois é só editar o que for diferente no novo RDO.
+     */
+    async duplicarRDO(numeroRDO) {
+        const rdo = numeroRDO || this.numeroRDO;
+        if (!confirm(`Duplicar RDO ${rdo}?\n\nSerá criado um novo RDO no mesmo dia com uma cópia de todos os serviços, HI e efetivo. Depois basta editar o que for diferente.`)) return;
+
+        try {
+            const resp = await this._api({ acao: 'duplicarRDO', numeroRDO: rdo });
+            alert(`RDO duplicado com sucesso!\nNovo número: ${resp.novoNumeroRDO}\n\nA página será recarregada para exibir o novo RDO.`);
+            const modalEl = document.getElementById(this._modalId());
+            if (modalEl) bootstrap.Modal.getInstance(modalEl)?.hide();
+            setTimeout(() => window.location.reload(), 400);
+        } catch (err) {
+            this._erro((err.message || '').includes('desconhecida')
+                ? 'O Apps Script implantado ainda não tem a ação "duplicarRDO". Atualize o script no editor do Google (código em dashboard/apps-script-atualizar-os.gs) e reimplante.'
+                : err.message);
+        }
     }
 
     // ── Excluir RDO ───────────────────────────────────────────────────────────
@@ -879,15 +919,15 @@ class EditorRDO {
             });
         }
 
-        const tbody = document.getElementById('tbody-hi');
+        const tbody = this._el('tbody-hi');
         if (!tbody) return;
         tbody.innerHTML = this.dados.horasImprodutivas
             .map((hi, i) => `<tr id="hi-row-${i}">${this._htmlHIRow(i, hi)}</tr>`)
             .join('');
 
         // Atualizar visuais dos botões de ordem
-        const upBtn   = document.getElementById('hi-sort-asc');
-        const downBtn = document.getElementById('hi-sort-desc');
+        const upBtn   = this._el('hi-sort-asc');
+        const downBtn = this._el('hi-sort-desc');
         if (upBtn)   upBtn.classList.toggle('btn-secondary', this._hiOrdem === 'asc');
         if (upBtn)   upBtn.classList.toggle('btn-outline-secondary', this._hiOrdem !== 'asc');
         if (downBtn) downBtn.classList.toggle('btn-secondary', this._hiOrdem === 'desc');

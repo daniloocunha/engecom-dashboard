@@ -746,6 +746,144 @@ class GestaoOS {
         document.getElementById(`notaEditorModal_${modalOsId}`)?.remove();
     }
 
+    // ── Reprovações / Auditorias (acompanhamento por O.S) ─────────────────
+    // Cada registro: { data: 'YYYY-MM-DD', motivo, fiscal, resultado: 'Reprovada'|'Aprovada' }
+    // Persistência: localStorage + coluna "Reprovacoes" da aba GestaoOS (via Apps Script)
+
+    getReprovacoes(numeroOS) {
+        const local = localStorage.getItem('gestaoOS_reprovacoes_' + numeroOS);
+        if (local !== null) {
+            try {
+                const arr = JSON.parse(local);
+                if (Array.isArray(arr) && arr.length > 0) return arr;
+            } catch { /* fall through */ }
+        }
+        const sv = this._dadosServidor?.[numeroOS];
+        if (sv?.reprovacoes) {
+            try {
+                const arr = typeof sv.reprovacoes === 'string' ? JSON.parse(sv.reprovacoes) : sv.reprovacoes;
+                return Array.isArray(arr) ? arr : [];
+            } catch { return []; }
+        }
+        return [];
+    }
+
+    setReprovacoes(numeroOS, arr) {
+        if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
+        const str = (arr && arr.length > 0) ? JSON.stringify(arr) : '';
+        this._dadosServidor[numeroOS].reprovacoes = str;
+        if (!arr || arr.length === 0) {
+            localStorage.removeItem('gestaoOS_reprovacoes_' + numeroOS);
+        } else {
+            try { localStorage.setItem('gestaoOS_reprovacoes_' + numeroOS, str); } catch (e) { /* quota/privado */ }
+        }
+        this._salvarNoServidor(numeroOS);
+    }
+
+    /** Registra uma nova reprovação (linha em branco com data de hoje) e marca a O.S como Reprovada */
+    novaReprovacao(numeroOS, modalOsId) {
+        const reprov = this.getReprovacoes(numeroOS);
+        const hoje = new Date();
+        const dataISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
+        reprov.push({ data: dataISO, motivo: '', fiscal: '', resultado: 'Reprovada' });
+        this.setReprovacoes(numeroOS, reprov);
+        this.setStatus(numeroOS, 'Reprovada');
+        this._atualizarReprovCont(numeroOS, modalOsId);
+    }
+
+    /** Atualiza um campo de um registro de reprovação (edição inline tipo planilha) */
+    atualizarReprovacao(numeroOS, idx, campo, valor) {
+        const reprov = this.getReprovacoes(numeroOS);
+        if (idx < 0 || idx >= reprov.length) return;
+        reprov[idx][campo] = valor;
+        this.setReprovacoes(numeroOS, reprov);
+        if (campo === 'resultado') {
+            // Sincroniza o status da O.S com o resultado da auditoria mais recente
+            this.setStatus(numeroOS, valor === 'Aprovada' ? 'Aprovada' : 'Reprovada');
+            this._atualizarReprovCont(numeroOS, this._modalAberto?.modalOsId);
+        }
+    }
+
+    excluirReprovacao(numeroOS, idx) {
+        const reprov = this.getReprovacoes(numeroOS);
+        if (idx < 0 || idx >= reprov.length) return;
+        if (!confirm(`Excluir o registro ${idx + 1}ª auditoria da O.S ${numeroOS}?`)) return;
+        reprov.splice(idx, 1);
+        this.setReprovacoes(numeroOS, reprov);
+        this._atualizarReprovCont(numeroOS, this._modalAberto?.modalOsId);
+    }
+
+    _atualizarReprovCont(numeroOS, modalOsId) {
+        if (!modalOsId) return;
+        const cont = document.getElementById(`reprovCont_${modalOsId}`);
+        if (cont) cont.innerHTML = this._reprovacoesHTML(numeroOS, modalOsId);
+    }
+
+    /** Tabela editável (tipo planilha) com o histórico de reprovações da O.S */
+    _reprovacoesHTML(numeroOS, modalOsId) {
+        const reprov = this.getReprovacoes(numeroOS);
+        const osEsc  = _escAttr(numeroOS);
+
+        if (!reprov.length) {
+            return `<div class="text-muted small">
+                      <em>Nenhuma reprovação registrada.</em>
+                      Use <strong>Registrar reprovação</strong> para anotar data, motivo e fiscal de cada auditoria — repita até a O.S ser aprovada.
+                    </div>`;
+        }
+
+        const rows = reprov.map((r, i) => {
+            const aprovada = r.resultado === 'Aprovada';
+            return `<tr style="background:${aprovada ? '#e8f4ff' : '#fdecec'};">
+              <td class="text-center text-muted small align-middle fw-bold">${i + 1}ª</td>
+              <td style="min-width:135px;">
+                <input type="date" class="form-control form-control-sm" value="${_escAttr(r.data || '')}"
+                       onchange="gestaoOS.atualizarReprovacao('${osEsc}', ${i}, 'data', this.value)">
+              </td>
+              <td style="min-width:220px;">
+                <textarea class="form-control form-control-sm" rows="1" placeholder="Motivo da reprovação…"
+                          onchange="gestaoOS.atualizarReprovacao('${osEsc}', ${i}, 'motivo', this.value)">${_esc(r.motivo || '')}</textarea>
+              </td>
+              <td style="min-width:150px;">
+                <input type="text" class="form-control form-control-sm" value="${_escAttr(r.fiscal || '')}"
+                       placeholder="Fiscal que auditou"
+                       onchange="gestaoOS.atualizarReprovacao('${osEsc}', ${i}, 'fiscal', this.value)">
+              </td>
+              <td style="min-width:135px;">
+                <select class="form-select form-select-sm fw-bold"
+                        style="background-color:${aprovada ? '#cfe2ff' : '#f8d7da'};"
+                        onchange="gestaoOS.atualizarReprovacao('${osEsc}', ${i}, 'resultado', this.value)">
+                  <option value="Reprovada" ${!aprovada ? 'selected' : ''}>🔴 Reprovada</option>
+                  <option value="Aprovada"  ${aprovada  ? 'selected' : ''}>🔵 Aprovada</option>
+                </select>
+              </td>
+              <td class="text-center align-middle">
+                <button class="btn btn-sm btn-outline-danger py-0 px-1" title="Excluir registro"
+                        onclick="gestaoOS.excluirReprovacao('${osEsc}', ${i})">🗑️</button>
+              </td>
+            </tr>`;
+        }).join('');
+
+        return `<div class="table-responsive">
+          <table class="table table-sm align-middle mb-1">
+            <thead class="table-light">
+              <tr>
+                <th class="text-center" style="width:44px;">#</th>
+                <th>Data</th>
+                <th>Motivo</th>
+                <th>Fiscal</th>
+                <th>Resultado</th>
+                <th style="width:44px;"></th>
+              </tr>
+            </thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+        <div class="text-muted" style="font-size:0.72rem;">
+          <i class="fas fa-info-circle me-1"></i>As células salvam automaticamente ao sair do campo.
+          Marcar <strong>Aprovada</strong> ou registrar reprovação atualiza o status da O.S.
+        </div>`;
+    }
+
     // ── Anexos via Google Drive (Feature 3) ───────────────────────────────
 
     getAnexos(numeroOS) {
@@ -1056,14 +1194,20 @@ class GestaoOS {
         const anexos = anexosLocal !== null ? anexosLocal
                      : (sv.anexos ? (typeof sv.anexos === 'string' ? sv.anexos : JSON.stringify(sv.anexos)) : '[]');
 
+        // urgente e reprovações: cache em memória tem prioridade; fallback localStorage
+        const urgenteLocal = localStorage.getItem('gestaoOS_urgente_' + numeroOS);
+        const urgente = sv.urgente !== undefined ? sv.urgente : (urgenteLocal === 'sim' ? 'sim' : 'nao');
+        const reprovLocal = localStorage.getItem('gestaoOS_reprovacoes_' + numeroOS);
+        const reprovacoes = sv.reprovacoes !== undefined ? sv.reprovacoes : (reprovLocal || '');
+
         // Atualizar cache com valores definitivos antes de enviar
         if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
-        Object.assign(this._dadosServidor[numeroOS], { status, gevia, nota, mediu, anexos });
+        Object.assign(this._dadosServidor[numeroOS], { status, gevia, nota, mediu, anexos, urgente, reprovacoes });
 
         try {
             const resp = await fetch(url, {
                 method: 'POST',
-                body: JSON.stringify({ acao: 'salvarGestaoOS', numeroOS, status, gevia, nota, mediu, anexos })
+                body: JSON.stringify({ acao: 'salvarGestaoOS', numeroOS, status, gevia, nota, mediu, anexos, urgente, reprovacoes })
             });
             const j = await resp.json();
 
@@ -1106,6 +1250,9 @@ class GestaoOS {
         if (anexosCont) {
             anexosCont.innerHTML = this._anexosHTML(numeroOS, modalOsId);
         }
+
+        // Atualizar reprovações/auditorias
+        this._atualizarReprovCont(numeroOS, modalOsId);
     }
 
     /** Exibe toast persistente com erro do servidor (user-visible, não apenas console) */
@@ -1178,7 +1325,7 @@ class GestaoOS {
         const osNums = new Set();
         for (let i = 0; i < localStorage.length; i++) {
             const key = localStorage.key(i);
-            const match = key && key.match(/^gestaoOS_(status|gevia|notas|nota|mediu|anexos|urgente)_(.+)$/);
+            const match = key && key.match(/^gestaoOS_(status|gevia|notas|nota|mediu|anexos|urgente|reprovacoes)_(.+)$/);
             if (match) osNums.add(match[2]);
         }
 
@@ -1310,7 +1457,7 @@ class GestaoOS {
             'gestaoOS_status_', 'gestaoOS_gevia_',
             'gestaoOS_nota_', 'gestaoOS_notas_',
             'gestaoOS_mediu_', 'gestaoOS_anexos_',
-            'gestaoOS_urgente_'
+            'gestaoOS_urgente_', 'gestaoOS_reprovacoes_'
         ];
         const keysToRemove = [];
         for (let i = 0; i < localStorage.length; i++) {
@@ -1642,6 +1789,20 @@ class GestaoOS {
                   <i class="fas fa-exclamation-triangle me-1 text-warning"></i>Observações dos RDOs
                 </h6>
                 <div class="mb-3">${obsHTML}</div>
+
+                <!-- Reprovações / Auditorias (acompanhamento até aprovação) -->
+                <h6 class="border-bottom pb-1 mb-2">
+                  <i class="fas fa-gavel me-1 text-danger"></i>Reprovações / Auditorias
+                  <button class="btn btn-sm btn-outline-danger ms-2 py-0 px-2" style="font-size:0.75rem;"
+                          onclick="gestaoOS.novaReprovacao('${_escAttr(numeroOS)}','${modalOsId}')">
+                    <i class="fas fa-plus me-1"></i>Registrar reprovação
+                  </button>
+                </h6>
+                <div id="reprovCont_${modalOsId}" class="mb-3">
+                  ${this._servidorRespondeu || this.getReprovacoes(numeroOS).length > 0
+                    ? this._reprovacoesHTML(numeroOS, modalOsId)
+                    : '<div class="text-muted small py-1"><i class="fas fa-spinner fa-spin me-1"></i>Aguardando servidor...</div>'}
+                </div>
 
                 <!-- Notas múltiplas (Feature 2) -->
                 <h6 class="border-bottom pb-1 mb-2">

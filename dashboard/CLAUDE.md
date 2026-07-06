@@ -687,6 +687,43 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.5.0 (2026-07-06)** - Reprovações de O.S + Duplicar RDO + Observação do Dia + bug fixes:
+
+> ⚠️ **Requer atualização manual do Apps Script** (Extensões → Apps Script → colar o conteúdo
+> de `apps-script-atualizar-os.gs` → Implantar). Sem isso: notas de dia continuam sumindo no
+> reload, "Duplicar RDO" retorna erro e as Reprovações ficam apenas no localStorage do navegador.
+
+**Novidades:**
+- **Reprovações / Auditorias por O.S** (`gestao-os.js`): card tipo planilha no modal da O.S —
+  cada registro tem Data, Motivo, Fiscal e Resultado (🔴 Reprovada / 🔵 Aprovada), com edição
+  inline (salva ao sair do campo), exclusão e quantos registros forem necessários até a
+  aprovação. Registrar reprovação marca a O.S como "Reprovada"; marcar resultado "Aprovada"
+  atualiza o status para "Aprovada". Persistência: localStorage + coluna `Reprovacoes` da aba
+  `GestaoOS` (criada automaticamente pelo Apps Script). A coluna `Urgente` também passou a ser
+  sincronizada com o servidor (antes era só local).
+- **Duplicar RDO** (`editor-rdo.js` + ação `duplicarRDO` no Apps Script): botão no modo de
+  edição dos modais de Detalhes do Dia (TP e TS; em dias multi-O.S há um botão por O.S).
+  Cria um novo RDO no mesmo dia com sequencial novo (ex: `-001` → `-002`) copiando a linha da
+  aba RDO + Servicos + HorasImprodutivas + Efetivo + Equipamentos + Materiais + TransporteSucatas.
+- **Observação do Dia em dias com RDO** (`calendario-tp.js`/`calendario-ts.js`): seção roxa
+  "Observação do Dia" no modal de detalhes (independente das Observações do RDO), usando a mesma
+  aba `Notas` dos dias cinza. A célula do calendário mostra 🗒️ roxo quando há nota no dia.
+
+**Bug fixes:**
+- **Edição de RDO nas TSs não funcionava**: o modal TP (`#modalDetalhesDia`) permanecia no DOM
+  depois de fechado e os IDs internos (`srv-row-N`, `tbody-hi`, `form-adicionar-servico`,
+  `obs-view`…) colidiam com o modal TS — os cliques editavam o modal TP invisível. Corrigido
+  com `EditorRDO._el()` (lookup escopado ao modal ativo) e remoção do modal TP no
+  `hidden.bs.modal` (também destrói os charts, eliminando memory leak).
+- **Notas de dia cinza sumiam ao recarregar**: `doPost` fazia `_resposta(obterNotasDia())`,
+  mas a função já retornava `TextOutput` — a dupla serialização devolvia `{}` ao dashboard e
+  nenhuma nota carregava. Além disso o Sheets converte a data em célula `Date`, que nunca
+  casava com `dd/MM/yyyy` (leitura e gravação — gravações repetidas duplicavam linhas).
+  Corrigido no Apps Script (`_notaDataStr()` + retorno de objeto simples) e com normalização
+  defensiva de datas no cliente (`main.js` → `_normalizarDataNota()`).
+
+---
+
 **Version 2.4.0 (2026-06-09)** - Correções de varredura + feriados extras + testes:
 
 **Correções:**
@@ -826,55 +863,24 @@ if (tipo.includes('NovoTipo')) {
 
 ## Apps Script — Ações de Notas
 
-✅ **Já implantado** (verificado em 2026-06-09): as ações `salvarNotaDia` e `obterNotasDia`
-constam no script implantado (ver `appscript_atual.md`) e na cópia versionada
-`apps-script-atualizar-os.gs`. O código abaixo fica como referência da implementação:
+⚠️ **A versão implantada até 2026-07-06 tem 2 bugs** (corrigidos na cópia versionada
+`apps-script-atualizar-os.gs` — precisa ser reimplantada):
 
-```javascript
-// No switch de doPost:
-case 'salvarNotaDia':  return salvarNotaDia(dados);
-case 'obterNotasDia':  return obterNotasDia();
+1. **Dupla serialização**: `salvarNotaDia`/`obterNotasDia` retornavam `ContentService.TextOutput`,
+   mas o `doPost` envolve todo retorno com `_resposta(...)` que faz `JSON.stringify` de novo —
+   o cliente recebia `{}` e nenhuma nota carregava (por isso as notas "sumiam" ao recarregar
+   a página apesar de estarem salvas na aba Notas). As funções agora retornam objeto simples.
+2. **Data convertida em `Date` pelo Sheets**: a comparação `rows[i][1] === data` e a leitura
+   `String(r[1])` nunca casavam com `dd/MM/yyyy`. Agora `_notaDataStr()` normaliza células
+   `Date` com `Utilities.formatDate(..., 'dd/MM/yyyy')` na leitura e na gravação.
 
-// Funções a adicionar:
-function salvarNotaDia(dados) {
-  const { turma, data, nota } = dados;
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
-  let notas   = ss.getSheetByName('Notas');
-  if (!notas) {
-    notas = ss.insertSheet('Notas');
-    notas.appendRow(['Turma', 'Data', 'Nota', 'Atualizado Em']);
-  }
-  const rows = notas.getDataRange().getValues();
-  for (let i = 1; i < rows.length; i++) {
-    if (rows[i][0] === turma && rows[i][1] === data) {
-      if (nota) notas.getRange(i+1, 3, 1, 2).setValues([[nota, new Date().toISOString()]]);
-      else notas.deleteRow(i+1);
-      return ContentService.createTextOutput(JSON.stringify({ sucesso: true }))
-        .setMimeType(ContentService.MimeType.JSON);
-    }
-  }
-  if (nota) notas.appendRow([turma, data, nota, new Date().toISOString()]);
-  return ContentService.createTextOutput(JSON.stringify({ sucesso: true }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-function obterNotasDia() {
-  const ss    = SpreadsheetApp.getActiveSpreadsheet();
-  const notas = ss.getSheetByName('Notas');
-  const arr   = notas ? notas.getDataRange().getValues().slice(1)
-    .filter(r => r[0] && r[1])
-    .map(r => ({ turma: String(r[0]), data: String(r[1]), nota: String(r[2] || '') }))
-    : [];
-  return ContentService.createTextOutput(JSON.stringify({ sucesso: true, notas: arr }))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-```
-
-Se o Apps Script implantado não tiver essas ações, o dashboard carrega sem notas (array vazio) e as tentativas de salvar mostram um alerta de erro (fallback silencioso).
+O cliente (`main.js`) também normaliza as datas recebidas (`_normalizarDataNota`) como defesa.
+Se o Apps Script implantado não tiver essas ações, o dashboard carrega sem notas (array vazio)
+e as tentativas de salvar mostram um alerta de erro (fallback silencioso).
 
 ## Apps Script — Sincronização do código
 
-O script implantado no Google Apps Script suporta 18 ações (ver header de
+O script versionado suporta 19 ações (ver header de
 `apps-script-atualizar-os.gs`). Duas cópias existem neste repositório:
 
 - `apps-script-atualizar-os.gs` — cópia versionada do script (manter em sincronia ao editar)
@@ -883,9 +889,14 @@ O script implantado no Google Apps Script suporta 18 ações (ver header de
 ⚠️ Alterações no Apps Script exigem atualização **manual** no editor do Google
 (Extensões → Apps Script → Implantar). O deploy automático do GitHub Actions NÃO cobre o Apps Script.
 
+⚠️ **Pendente de implantação (v2.5.0, 2026-07-06)**: correção de `salvarNotaDia`/`obterNotasDia`,
+nova ação `duplicarRDO` e suporte às colunas `Urgente`/`Reprovacoes` em
+`salvarGestaoOS`/`listarGestaoOS` (as colunas são criadas automaticamente na primeira gravação).
+Após implantar, atualizar o dump `appscript_atual.md`.
+
 ## Version Information
 
-- **Current Version**: 2.4.0
+- **Current Version**: 2.5.0
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)

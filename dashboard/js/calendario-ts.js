@@ -311,6 +311,84 @@ class CalendarioTS {
         };
     }
 
+    // ── Observação do Dia (aba Notas do Sheets — compartilhada) ──────────────
+
+    /** Retorna a nota do dia (aba Notas do Sheets) para turma+data. */
+    _notaDoDia(turma, dataFmt) {
+        return (this.notas || []).find(n => n.turma === turma && n.data === dataFmt)?.nota || '';
+    }
+
+    /** Alterna o formulário de edição da Observação do Dia no modal de detalhes. */
+    toggleFormNotaDia() {
+        const view = document.getElementById('nota-dia-view-ts');
+        const form = document.getElementById('nota-dia-form-ts');
+        if (!view || !form) return;
+        const abrir = form.style.display === 'none';
+        form.style.display = abrir ? 'block' : 'none';
+        view.style.display = abrir ? 'none' : '';
+        if (abrir) {
+            const input = document.getElementById('nota-dia-input-ts');
+            if (input) {
+                input.value = this._notaDoDia(this._notaCtx?.turma, this._notaCtx?.data);
+                input.focus();
+            }
+        }
+    }
+
+    /** Salva a Observação do Dia (aba Notas) a partir do modal de detalhes. */
+    async salvarNotaDiaModal(btn) {
+        const ctx = this._notaCtx;
+        if (!ctx) return;
+        const val  = (document.getElementById('nota-dia-input-ts')?.value || '').trim();
+        const orig = btn.innerHTML;
+        btn.disabled = true; btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        try {
+            await editorRDO._api({ acao: 'salvarNotaDia', turma: ctx.turma, data: ctx.data, nota: val });
+            const idx = (this.notas || []).findIndex(n => n.turma === ctx.turma && n.data === ctx.data);
+            if (val) {
+                if (idx >= 0) this.notas[idx].nota = val;
+                else (this.notas = this.notas || []).push({ turma: ctx.turma, data: ctx.data, nota: val });
+            } else if (idx >= 0) {
+                this.notas.splice(idx, 1);
+            }
+            const view = document.getElementById('nota-dia-view-ts');
+            if (view) view.innerHTML = val ? escapeHtml(val) : '<em class="text-muted">Sem observação do dia</em>';
+            this.toggleFormNotaDia();
+            this.renderizarTodos(); // atualiza o 🗒️ na célula do calendário (modal fica aberto)
+        } catch (err) {
+            alert('Erro ao salvar observação do dia: ' + err.message);
+        } finally {
+            btn.disabled = false; btn.innerHTML = orig;
+        }
+    }
+
+    /** Seção "Observação do Dia" exibida no modal de detalhes (TS). */
+    _htmlSecaoNotaDia(turma, dataFmt) {
+        const nota = this._notaDoDia(turma, dataFmt);
+        return `
+            <div class="alert mb-2" style="background:#f3e5f5;border:1px solid #ce93d8;">
+                <h6 class="alert-heading d-flex align-items-center gap-2" style="color:#6a1b9a;">
+                    <i class="fas fa-sticky-note me-1"></i>Observação do Dia
+                    <span class="badge" style="background:#9c27b0;font-size:.6rem;">Google Sheets</span>
+                    <button class="btn btn-link btn-sm p-0" style="color:#6a1b9a;"
+                            onclick="calendarioTS.toggleFormNotaDia()" title="Editar observação do dia">
+                        <i class="fas fa-pencil-alt" style="font-size:.75rem;"></i>
+                    </button>
+                </h6>
+                <div id="nota-dia-view-ts">${nota ? escapeHtml(nota) : '<em class="text-muted">Sem observação do dia</em>'}</div>
+                <div id="nota-dia-form-ts" style="display:none;">
+                    <textarea id="nota-dia-input-ts" class="form-control form-control-sm mb-2" rows="2"
+                              placeholder="Ex: chuva à tarde, visita do fiscal…">${escapeHtml(nota)}</textarea>
+                    <div class="d-flex gap-2">
+                        <button class="btn btn-sm text-white" style="background:#9c27b0;"
+                                onclick="calendarioTS.salvarNotaDiaModal(this)"><i class="fas fa-save me-1"></i>Salvar</button>
+                        <button class="btn btn-sm btn-outline-secondary"
+                                onclick="calendarioTS.toggleFormNotaDia()"><i class="fas fa-times me-1"></i>Cancelar</button>
+                    </div>
+                </div>
+            </div>`;
+    }
+
     /**
      * Renderiza o card de calendário para uma turma TS (retorna HTML string)
      */
@@ -402,6 +480,13 @@ class CalendarioTS {
                                 📝 ${escapeHtml(dadosDia.observacoes.substring(0, 30))}${dadosDia.observacoes.length > 30 ? '...' : ''}
                             </div>
                         ` : ''}
+                        ${(() => {
+                            const _notaDia = this._notaDoDia(turma, dadosDia.data);
+                            return _notaDia ? `
+                            <div class="dia-obs" style="margin-top: 4px; color: #9c27b0;" title="${escapeHtml(_notaDia)}">
+                                🗒️ ${escapeHtml(_notaDia.substring(0, 30))}${_notaDia.length > 30 ? '...' : ''}
+                            </div>` : '';
+                        })()}
                     </div>
                 `;
             } else {
@@ -556,6 +641,9 @@ class CalendarioTS {
             'TS',
             servicosFormatados
         );
+
+        // Contexto para a seção "Observação do Dia" (aba Notas)
+        this._notaCtx = { turma, data: dados.data };
 
         const modalHTML = `
             <div class="modal fade" id="modalDetalhesDiaTS" tabindex="-1">
@@ -852,11 +940,18 @@ class CalendarioTS {
                                 </div>
                             </div>
 
+                            <!-- Observação do Dia (aba Notas — independente do RDO) -->
+                            ${this._htmlSecaoNotaDia(turma, dados.data)}
+
                         </div>
                         <div class="modal-footer">
                             <button id="btn-toggle-edicao" type="button" class="btn btn-outline-warning me-auto"
                                     onclick="editorRDO.ativarModoEdicao()">
                                 <i class="fas fa-edit me-1"></i>Editar
+                            </button>
+                            <button class="btn btn-outline-primary edit-ctrl" style="display:none;"
+                                    onclick="editorRDO.duplicarRDO()" title="Cria um novo RDO no mesmo dia copiando serviços, HI e efetivo">
+                                <i class="fas fa-clone me-1"></i>Duplicar RDO
                             </button>
                             <button class="btn btn-outline-danger edit-ctrl" style="display:none;"
                                     onclick="editorRDO.excluirRDO()">
