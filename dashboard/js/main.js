@@ -186,13 +186,32 @@ class DashboardMain {
         return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
     }
 
+    /** Lê {mes, ano} salvos em localStorage; retorna null se ausente/inválido. */
+    _lerFiltroPeriodoSalvo() {
+        try {
+            const raw = localStorage.getItem('dashboardFiltroPeriodo');
+            if (!raw) return null;
+            const { mes, ano } = JSON.parse(raw);
+            if (mes >= 1 && mes <= 12 && ano >= 2020 && ano <= 2100) return { mes, ano };
+        } catch (_e) { /* localStorage indisponível ou JSON inválido */ }
+        return null;
+    }
+
+    /** Salva {mes, ano} em localStorage para restaurar na próxima abertura do dashboard. */
+    _salvarFiltroPeriodo(mes, ano) {
+        try { localStorage.setItem('dashboardFiltroPeriodo', JSON.stringify({ mes, ano })); } catch (_e) { /* quota/privado */ }
+    }
+
     /**
-     * Configura filtros iniciais (mês/ano atual)
+     * Configura filtros iniciais — restaura o último mês/ano usado (localStorage)
+     * ou cai no mês/ano atual quando não há nada salvo ainda.
      */
     configurarFiltros() {
         const now = new Date();
-        this.filtros.mes = now.getMonth() + 1;
-        this.filtros.ano = now.getFullYear();
+        const salvo = this._lerFiltroPeriodoSalvo();
+
+        this.filtros.mes = salvo?.mes ?? (now.getMonth() + 1);
+        this.filtros.ano = salvo?.ano ?? now.getFullYear();
 
         // Popular anos dinamicamente (2024 até ano atual + 1)
         this.popularSelectAnos();
@@ -572,6 +591,9 @@ class DashboardMain {
         this.filtros.ano = ano;
         this.filtros.turma = turma;
         this.filtros.tipo = tipo;
+
+        // Lembrar o período escolhido para a próxima vez que o dashboard for aberto/recarregado
+        this._salvarFiltroPeriodo(mes, ano);
 
         debugLog('[Dashboard] Aplicando filtros:', this.filtros);
 
