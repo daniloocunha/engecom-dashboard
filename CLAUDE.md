@@ -666,7 +666,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 10
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.4.0
+- **Dashboard Version**: 2.5.0
 
 ## Release Information
 
@@ -712,6 +712,37 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 - **Melhoria**: validação de integridade do APK aceita SHA-256 (hash de 64 caracteres na chave
   `hash_md5` da aba Config) com retrocompatibilidade MD5 (32 caracteres). Para usar:
   `Get-FileHash app-release.apk -Algorithm SHA256` e colar o hash na aba Config
+
+---
+
+### Dashboard 2.5.0 — 2026-07-06
+**Reprovações de O.S + Duplicar RDO + Observação do Dia + correções**
+
+> ⚠️ Requer atualização manual do Apps Script (colar `dashboard/apps-script-atualizar-os.gs`
+> no editor do Google e reimplantar). Sem isso as notas de dia continuam sumindo no reload,
+> "Duplicar RDO" retorna erro e as Reprovações ficam só no localStorage do navegador.
+
+**Novidades:**
+- **Reprovações / Auditorias por O.S** (Gestão de O.S): card tipo planilha no modal da O.S —
+  registros com Data, Motivo, Fiscal e Resultado (Reprovada/Aprovada), edição inline com
+  salvamento automático, quantos registros forem necessários até a aprovação. Sincronizado
+  via coluna `Reprovacoes` da aba GestaoOS; a coluna `Urgente` também passou a sincronizar
+- **Duplicar RDO**: botão no modo de edição dos modais TP/TS (por O.S em dias multi-OS) —
+  cria novo RDO no mesmo dia com sequencial novo, copiando RDO + Servicos + HI + Efetivo +
+  Equipamentos + Materiais + TransporteSucatas (ação `duplicarRDO` no Apps Script)
+- **Observação do Dia em dias com RDO**: seção roxa no modal de detalhes TP/TS usando a aba
+  Notas (mesma dos dias cinza); célula do calendário mostra 🗒️ quando há nota
+
+**Bug fixes:**
+- **Edição de RDO nas TSs**: os botões de editar/adicionar não respondiam — o modal TP ficava
+  no DOM após fechado e os IDs duplicados desviavam os cliques para ele. Corrigido com lookup
+  escopado ao modal ativo (`EditorRDO._el()`) e remoção do modal TP no fechamento
+- **Notas de dia cinza sumiam ao recarregar**: dupla serialização em
+  `salvarNotaDia`/`obterNotasDia` no Apps Script (retornavam TextOutput re-serializado para
+  `{}`) + célula de data convertida em `Date` pelo Sheets. Corrigido no .gs e com normalização
+  defensiva de datas no cliente
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/{editor-rdo,calendario-tp,calendario-ts,gestao-os,main}.js`, `dashboard/apps-script-atualizar-os.gs`
 
 ---
 

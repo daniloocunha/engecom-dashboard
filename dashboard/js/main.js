@@ -75,10 +75,18 @@ class DashboardMain {
             this.dados.equipamentos
         );
 
-        // Carregar notas de dias sem RDO (salvas no Sheets via Apps Script)
+        // Carregar notas de dias (salvas no Sheets via Apps Script)
         try {
             const notasResp = await editorRDO._api({ acao: 'obterNotasDia' });
-            this.dados.notas = notasResp.notas || [];
+            // Normalizar data para DD/MM/YYYY — o Sheets converte a célula em Date
+            // e versões antigas do Apps Script devolviam a data em outros formatos
+            this.dados.notas = (notasResp.notas || [])
+                .map(n => ({
+                    turma: (n.turma || '').toString().trim(),
+                    data:  this._normalizarDataNota(n.data),
+                    nota:  (n.nota || '').toString()
+                }))
+                .filter(n => n.turma && n.data);
             debugLog('[Dashboard] Notas carregadas:', this.dados.notas.length);
         } catch (_e) {
             this.dados.notas = [];
@@ -159,6 +167,23 @@ class DashboardMain {
             hi: this.dados.horasImprodutivas.length,
             customizadosSemHH: customizadosSemHH.length
         });
+    }
+
+    /**
+     * Normaliza a data de uma nota de dia para "DD/MM/YYYY".
+     * Aceita: "DD/MM/YYYY" (passa direto), ISO "YYYY-MM-DD..." e
+     * strings de Date JS ("Sat Jul 05 2026 00:00:00 GMT-0300 ...").
+     */
+    _normalizarDataNota(valor) {
+        const s = (valor || '').toString().trim();
+        if (!s) return '';
+        if (/^\d{2}\/\d{2}\/\d{4}$/.test(s)) return s;
+        // ISO date-only / datetime: usar as partes textuais (evita shift de fuso)
+        const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+        if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+        const d = new Date(s);
+        if (isNaN(d.getTime())) return s;
+        return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`;
     }
 
     /**

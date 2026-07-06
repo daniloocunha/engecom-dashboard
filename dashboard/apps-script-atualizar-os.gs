@@ -5,7 +5,7 @@
  *   atualizarOS, listarGestaoOS, salvarGestaoOS, uploadAnexo, deletarAnexo,
  *   atualizarOSCascata, atualizarCampoRDO, atualizarServico, adicionarServico,
  *   excluirServico, atualizarHI, adicionarHI, excluirHI, deletarRDO,
- *   renomearRDO, dividirOS, salvarNotaDia, obterNotasDia
+ *   renomearRDO, dividirOS, duplicarRDO, salvarNotaDia, obterNotasDia
  */
 
 // ID da pasta do Google Drive para os anexos (deixe '' para usar o Drive raiz)
@@ -19,7 +19,7 @@ function doPost(e) {
 
         if (dados.acao === 'atualizarOS')        { return _resposta(atualizarNumerOS(dados.numeroRDO, dados.novaOS)); }
         if (dados.acao === 'listarGestaoOS')      { return _resposta(listarGestaoOS()); }
-        if (dados.acao === 'salvarGestaoOS')      { return _resposta(salvarGestaoOS(dados.numeroOS, dados.status, dados.gevia, dados.nota, dados.mediu, dados.anexos)); }
+        if (dados.acao === 'salvarGestaoOS')      { return _resposta(salvarGestaoOS(dados.numeroOS, dados.status, dados.gevia, dados.nota, dados.mediu, dados.anexos, dados.urgente, dados.reprovacoes)); }
         if (dados.acao === 'uploadAnexo')         { return _resposta(uploadAnexo(dados.numeroOS, dados.nome, dados.tipo, dados.base64)); }
         if (dados.acao === 'deletarAnexo')        { return _resposta(deletarAnexo(dados.fileId)); }
         if (dados.acao === 'atualizarOSCascata')  { return _resposta(atualizarOSCascata(dados.antigaOS, dados.novaOS)); }
@@ -33,6 +33,7 @@ function doPost(e) {
         if (dados.acao === 'deletarRDO')          { return _resposta(deletarRDO(dados)); }
         if (dados.acao === 'renomearRDO')         { return _resposta(renomearRDO(dados)); }
         if (dados.acao === 'dividirOS')           { return _resposta(dividirOS(dados)); }
+        if (dados.acao === 'duplicarRDO')         { return _resposta(duplicarRDO(dados)); }
         if (dados.acao === 'salvarNotaDia')       { return _resposta(salvarNotaDia(dados)); }
         if (dados.acao === 'obterNotasDia')       { return _resposta(obterNotasDia()); }
 
@@ -95,6 +96,8 @@ function listarGestaoOS() {
     var colAt  = _findCol(header, 'Atualizado Em');
     var colMd  = _findColSafe(header, 'Mediu');
     var colAnx = _findColSafe(header, 'Anexos');
+    var colUrg = _findColSafe(header, 'Urgente');
+    var colRep = _findColSafe(header, 'Reprovacoes');
 
     var resultado = {};
     for (var i = 1; i < dados.length; i++) {
@@ -107,6 +110,8 @@ function listarGestaoOS() {
             nota:         (row[colNt] || '').toString(),
             mediu:        colMd  >= 0 ? (row[colMd]  || '').toString().trim() || null : null,
             anexos:       colAnx >= 0 ? (row[colAnx] || '').toString().trim() || '[]' : '[]',
+            urgente:      colUrg >= 0 ? (row[colUrg] || '').toString().trim() || undefined : undefined,
+            reprovacoes:  colRep >= 0 ? (row[colRep] || '').toString().trim() || '' : '',
             atualizadoEm: (row[colAt] || '').toString()
         };
     }
@@ -116,7 +121,7 @@ function listarGestaoOS() {
 
 // === Acao: salvarGestaoOS ===
 
-function salvarGestaoOS(numeroOS, status, gevia, nota, mediu, anexos) {
+function salvarGestaoOS(numeroOS, status, gevia, nota, mediu, anexos, urgente, reprovacoes) {
     if (!numeroOS) return { sucesso: false, erro: 'Parametro obrigatorio: numeroOS' };
 
     var lock = LockService.getScriptLock();
@@ -124,13 +129,13 @@ function salvarGestaoOS(numeroOS, status, gevia, nota, mediu, anexos) {
     catch (e) { return { sucesso: false, erro: 'Servidor ocupado. Tente novamente em instantes.' }; }
 
     try {
-        return _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos);
+        return _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos, urgente, reprovacoes);
     } finally {
         lock.releaseLock();
     }
 }
 
-function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos) {
+function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos, urgente, reprovacoes) {
     var ss    = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = _obterOuCriarAbaGestaoOS(ss);
     var dados  = sheet.getDataRange().getValues();
@@ -142,8 +147,11 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos) {
     var colAt  = _findCol(header, 'Atualizado Em');
     var colMediu = _findColSafe(header, 'Mediu');
     var colAnx   = _findColSafe(header, 'Anexos');
+    var colUrg   = _findColSafe(header, 'Urgente');
+    var colRep   = _findColSafe(header, 'Reprovacoes');
     var agora    = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
     var anexosStr = (typeof anexos === 'string') ? anexos : (anexos ? JSON.stringify(anexos) : '[]');
+    var reprovStr = (typeof reprovacoes === 'string') ? reprovacoes : (reprovacoes ? JSON.stringify(reprovacoes) : '');
 
     for (var i = 1; i < dados.length; i++) {
         if ((dados[i][colOS] || '').toString().trim() === numeroOS.trim()) {
@@ -153,6 +161,8 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos) {
             sheet.getRange(row, colNt + 1).setValue(nota !== undefined ? nota : '');
             if (colMediu >= 0) sheet.getRange(row, colMediu + 1).setValue(mediu !== undefined ? mediu : '');
             if (colAnx   >= 0) sheet.getRange(row, colAnx   + 1).setValue(anexosStr);
+            if (colUrg   >= 0 && urgente !== undefined) sheet.getRange(row, colUrg + 1).setValue(urgente || '');
+            if (colRep   >= 0 && reprovacoes !== undefined) sheet.getRange(row, colRep + 1).setValue(reprovStr);
             sheet.getRange(row, colAt + 1).setValue(agora);
             SpreadsheetApp.flush();
             Logger.log('[GestaoOS] Atualizado: OS ' + numeroOS + ' (linha ' + row + ')');
@@ -162,6 +172,9 @@ function _salvarGestaoOSInterno(numeroOS, status, gevia, nota, mediu, anexos) {
 
     sheet.appendRow([numeroOS.trim(), status || '', gevia || '', nota !== undefined ? nota : '',
                      mediu !== undefined ? mediu : '', anexosStr, agora]);
+    var novaLinha = sheet.getLastRow();
+    if (colUrg >= 0) sheet.getRange(novaLinha, colUrg + 1).setValue(urgente !== undefined ? (urgente || '') : '');
+    if (colRep >= 0) sheet.getRange(novaLinha, colRep + 1).setValue(reprovStr);
     SpreadsheetApp.flush();
     Logger.log('[GestaoOS] Inserido: OS ' + numeroOS);
     return { sucesso: true, acao: 'inserido' };
@@ -257,13 +270,25 @@ function _obterOuCriarAbaGestaoOS(ss) {
     var sheet = ss.getSheetByName('GestaoOS');
     if (!sheet) {
         sheet = ss.insertSheet('GestaoOS');
-        sheet.appendRow(['Número OS', 'Status', 'GE/Via', 'Nota', 'Mediu', 'Anexos', 'Atualizado Em']);
-        var hr = sheet.getRange(1, 1, 1, 7);
+        sheet.appendRow(['Número OS', 'Status', 'GE/Via', 'Nota', 'Mediu', 'Anexos', 'Atualizado Em', 'Urgente', 'Reprovacoes']);
+        var hr = sheet.getRange(1, 1, 1, 9);
         hr.setFontWeight('bold').setBackground('#f3f3f3');
         sheet.setColumnWidth(1, 130); sheet.setColumnWidth(2, 180); sheet.setColumnWidth(3, 120);
         sheet.setColumnWidth(4, 350); sheet.setColumnWidth(5, 100); sheet.setColumnWidth(6, 400);
-        sheet.setColumnWidth(7, 160); sheet.setFrozenRows(1);
+        sheet.setColumnWidth(7, 160); sheet.setColumnWidth(8, 90); sheet.setColumnWidth(9, 400);
+        sheet.setFrozenRows(1);
         Logger.log('[GestaoOS] Aba criada automaticamente');
+    }
+    // Migração automática: adiciona colunas novas em planilhas antigas
+    var header = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0]
+        .map(function(h) { return h.toString().trim(); });
+    var novasColunas = ['Urgente', 'Reprovacoes'];
+    for (var i = 0; i < novasColunas.length; i++) {
+        if (_findColSafe(header, novasColunas[i]) < 0) {
+            var col = sheet.getLastColumn() + 1;
+            sheet.getRange(1, col).setValue(novasColunas[i]).setFontWeight('bold').setBackground('#f3f3f3');
+            Logger.log('[GestaoOS] Coluna "' + novasColunas[i] + '" adicionada (col ' + col + ')');
+        }
     }
     return sheet;
 }
@@ -505,6 +530,92 @@ function dividirOS(dados) {
         SpreadsheetApp.flush();
         Logger.log('[dividirOS] ' + numeroRDO + ' → OS1=' + os1 + ' OS2=' + os2 + ' novoRDO=' + novoNumeroRDO);
         return { sucesso: true, novoNumeroRDO: novoNumeroRDO };
+
+    } catch (err) {
+        return { sucesso: false, erro: err.message };
+    } finally {
+        lock.releaseLock();
+    }
+}
+
+// === Acao: duplicarRDO ===
+
+/**
+ * Duplica um RDO completo com um novo Número RDO sequencial no mesmo
+ * dia/O.S (ex: 998070-05.07.26-001 → 998070-05.07.26-002).
+ * Copia a linha da aba RDO e todas as linhas relacionadas em
+ * Servicos, HorasImprodutivas, Efetivo, Equipamentos, Materiais e
+ * TransporteSucatas.
+ */
+function duplicarRDO(dados) {
+    var numeroRDO = (dados.numeroRDO || '').toString().trim();
+    if (!numeroRDO) return { sucesso: false, erro: 'numeroRDO é obrigatório' };
+
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(20000)) return { sucesso: false, erro: 'Servidor ocupado. Tente novamente.' };
+
+    try {
+        var ss = SpreadsheetApp.getActiveSpreadsheet();
+        var rdoSheet = ss.getSheetByName('RDO');
+        if (!rdoSheet) return { sucesso: false, erro: 'Aba "RDO" não encontrada' };
+
+        var rdoValues = rdoSheet.getDataRange().getValues();
+        var header    = rdoValues[0].map(function(h) { return h.toString().trim(); });
+        var colRDO    = _findColSafe(header, 'Número RDO');
+        if (colRDO < 0) return { sucesso: false, erro: 'Coluna "Número RDO" não encontrada' };
+
+        // Localizar a linha original e o maior sequencial do mesmo prefixo OS-DD.MM.YY
+        var idx     = numeroRDO.lastIndexOf('-');
+        var prefixo = idx > 0 ? numeroRDO.substring(0, idx) : numeroRDO;
+        var linhaOrig = null;
+        var maxSeq    = 0;
+        for (var i = 1; i < rdoValues.length; i++) {
+            var n = (rdoValues[i][colRDO] || '').toString().trim();
+            if (n === numeroRDO && !linhaOrig) linhaOrig = rdoValues[i].slice();
+            if (n.indexOf(prefixo + '-') === 0) {
+                var seq = parseInt(n.substring(prefixo.length + 1), 10);
+                if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+            }
+        }
+        if (!linhaOrig) return { sucesso: false, erro: 'RDO não encontrado: ' + numeroRDO };
+
+        var seqStr = String(maxSeq + 1);
+        while (seqStr.length < 3) seqStr = '0' + seqStr;
+        var novoNumeroRDO = prefixo + '-' + seqStr;
+
+        // Duplicar a linha na aba RDO (garantindo Deletado vazio)
+        var novaLinha = linhaOrig.slice();
+        novaLinha[colRDO] = novoNumeroRDO;
+        var colDeletado = _findColSafe(header, 'Deletado');
+        if (colDeletado >= 0) novaLinha[colDeletado] = '';
+        rdoSheet.appendRow(novaLinha);
+
+        // Duplicar linhas das abas relacionadas
+        var abas = ['Servicos', 'HorasImprodutivas', 'Efetivo', 'Equipamentos', 'Materiais', 'TransporteSucatas'];
+        var copiadas = {};
+        for (var a = 0; a < abas.length; a++) {
+            var sheet = ss.getSheetByName(abas[a]);
+            if (!sheet) continue;
+            var vals = sheet.getDataRange().getValues();
+            if (vals.length < 2) { copiadas[abas[a]] = 0; continue; }
+            var hdr  = vals[0].map(function(h) { return h.toString().trim(); });
+            var cRdo = _findColSafe(hdr, 'Número RDO');
+            if (cRdo < 0) continue;
+            var novas = [];
+            for (var r = 1; r < vals.length; r++) {
+                if ((vals[r][cRdo] || '').toString().trim() === numeroRDO) {
+                    var nova = vals[r].slice();
+                    nova[cRdo] = novoNumeroRDO;
+                    novas.push(nova);
+                }
+            }
+            for (var x = 0; x < novas.length; x++) sheet.appendRow(novas[x]);
+            copiadas[abas[a]] = novas.length;
+        }
+
+        SpreadsheetApp.flush();
+        Logger.log('[duplicarRDO] ' + numeroRDO + ' → ' + novoNumeroRDO + ' | ' + JSON.stringify(copiadas));
+        return { sucesso: true, novoNumeroRDO: novoNumeroRDO, copiadas: copiadas };
 
     } catch (err) {
         return { sucesso: false, erro: err.message };
@@ -775,35 +886,61 @@ function deletarRDO(dados) {
     } finally { lock.releaseLock(); }
 }
 
+/**
+ * Normaliza a célula de data da aba Notas para "dd/MM/yyyy".
+ * O Sheets converte automaticamente textos como "05/07/2026" em Date —
+ * sem esta normalização a comparação/leitura nunca casa com o dashboard.
+ */
+function _notaDataStr(v) {
+    if (v instanceof Date) {
+        return Utilities.formatDate(v, 'America/Sao_Paulo', 'dd/MM/yyyy');
+    }
+    return (v || '').toString().trim();
+}
+
+// IMPORTANTE: retornar objeto simples (doPost já envolve com _resposta).
+// A versão anterior retornava ContentService.TextOutput e o _resposta
+// re-serializava para "{}" — o dashboard nunca recebia as notas.
 function salvarNotaDia(dados) {
-    const { turma, data, nota } = dados;
-    const ss    = SpreadsheetApp.getActiveSpreadsheet();
-    let notas   = ss.getSheetByName('Notas');
+    var turma = (dados.turma || '').toString().trim();
+    var data  = (dados.data  || '').toString().trim();
+    var nota  = dados.nota;
+    if (!turma || !data) return { sucesso: false, erro: 'turma e data são obrigatórios' };
+
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var notas = ss.getSheetByName('Notas');
     if (!notas) {
         notas = ss.insertSheet('Notas');
         notas.appendRow(['Turma', 'Data', 'Nota', 'Atualizado Em']);
     }
-    const rows = notas.getDataRange().getValues();
-    for (let i = 1; i < rows.length; i++) {
-        if (rows[i][0] === turma && rows[i][1] === data) {
-            if (nota) notas.getRange(i+1, 3, 1, 2).setValues([[nota, new Date().toISOString()]]);
-            else notas.deleteRow(i+1);
-            return ContentService.createTextOutput(JSON.stringify({ sucesso: true }))
-                .setMimeType(ContentService.MimeType.JSON);
+    var rows = notas.getDataRange().getValues();
+    for (var i = 1; i < rows.length; i++) {
+        if ((rows[i][0] || '').toString().trim() === turma && _notaDataStr(rows[i][1]) === data) {
+            if (nota) notas.getRange(i + 1, 3, 1, 2).setValues([[nota, new Date().toISOString()]]);
+            else notas.deleteRow(i + 1);
+            SpreadsheetApp.flush();
+            return { sucesso: true };
         }
     }
     if (nota) notas.appendRow([turma, data, nota, new Date().toISOString()]);
-    return ContentService.createTextOutput(JSON.stringify({ sucesso: true }))
-        .setMimeType(ContentService.MimeType.JSON);
+    SpreadsheetApp.flush();
+    return { sucesso: true };
 }
 
 function obterNotasDia() {
-    const ss    = SpreadsheetApp.getActiveSpreadsheet();
-    const notas = ss.getSheetByName('Notas');
-    const arr   = notas ? notas.getDataRange().getValues().slice(1)
-        .filter(r => r[0] && r[1])
-        .map(r => ({ turma: String(r[0]), data: String(r[1]), nota: String(r[2] || '') }))
-        : [];
-    return ContentService.createTextOutput(JSON.stringify({ sucesso: true, notas: arr }))
-        .setMimeType(ContentService.MimeType.JSON);
+    var ss    = SpreadsheetApp.getActiveSpreadsheet();
+    var notas = ss.getSheetByName('Notas');
+    var arr   = [];
+    if (notas) {
+        var rows = notas.getDataRange().getValues();
+        for (var i = 1; i < rows.length; i++) {
+            if (!rows[i][0] || !rows[i][1]) continue;
+            arr.push({
+                turma: (rows[i][0] || '').toString().trim(),
+                data:  _notaDataStr(rows[i][1]),
+                nota:  (rows[i][2] || '').toString()
+            });
+        }
+    }
+    return { sucesso: true, notas: arr };
 }
