@@ -687,6 +687,25 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.5.1 (2026-07-06)** - Filtro persistente + Reprovações com 2 datas + Urgente/Notas no modal:
+
+**Novidades:**
+- **Filtro de mês/ano persistente**: o período selecionado é salvo em `localStorage`
+  (`dashboardFiltroPeriodo`) e restaurado na próxima abertura/reload do dashboard — antes
+  qualquer atualização de página voltava para o mês atual, mesmo analisando outro período
+- **Reprovações / Auditorias — 2 datas**: o card agora registra **Data de Solicitação**
+  (quando a auditoria foi pedida/agendada) e **Data do Resultado** (quando saiu
+  Aprovada/Reprovada), substituindo o campo único "Data" da v2.5.0. Registros antigos (só
+  com `data`) continuam sendo lidos normalmente (fallback de compatibilidade)
+- **Gestão de O.S — colunas Urgente e Notas migradas para o modal**: a tabela principal
+  ficou mais enxuta (11 colunas); marcar "Urgente" e ver/editar/excluir anotações agora
+  acontece dentro do modal da O.S (`modal-xl`, mais espaço). O destaque laranja de urgência
+  na linha da tabela continua funcionando normalmente
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/{main,gestao-os}.js`
+
+---
+
 **Version 2.5.0 (2026-07-06)** - Reprovações de O.S + Duplicar RDO + Observação do Dia + bug fixes:
 
 > ⚠️ **Requer atualização manual do Apps Script** (Extensões → Apps Script → colar o conteúdo
@@ -896,7 +915,7 @@ Após implantar, atualizar o dump `appscript_atual.md`.
 
 ## Version Information
 
-- **Current Version**: 2.5.0
+- **Current Version**: 2.5.1
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)

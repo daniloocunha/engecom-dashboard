@@ -477,28 +477,30 @@ class GestaoOS {
         if (!this._dadosServidor[numeroOS]) this._dadosServidor[numeroOS] = {};
         this._dadosServidor[numeroOS].urgente = valor ? 'sim' : 'nao';
         this._salvarNoServidor(numeroOS);
-        const cel = document.getElementById(`urgente-cel-${CSS.escape(numeroOS)}`);
-        if (cel) cel.innerHTML = this._urgenteHTML(numeroOS);
-        // Atualizar cor da linha (urgente tem prioridade visual)
+
+        // Atualizar o toggle dentro do modal, se estiver aberto
+        const modalOsId = numeroOS.replace(/[^a-zA-Z0-9]/g, '_');
+        const wrap = document.getElementById(`urgenteModalWrap_${modalOsId}`);
+        if (wrap) wrap.innerHTML = this._urgenteModalHTML(numeroOS, modalOsId);
+
+        // Atualizar cor da linha da tabela (urgente tem prioridade visual)
         this._atualizarCorLinha(numeroOS, this.getStatus(
             (() => { let g = null; this._grupos?.forEach(gt => { if (gt.ordens.has(numeroOS)) g = gt.ordens.get(numeroOS); }); return g || {}; })()
         ));
     }
 
-    _urgenteHTML(numeroOS) {
+    toggleUrgente(numeroOS, modalOsId) {
+        this.setUrgente(numeroOS, !this.getUrgente(numeroOS));
+    }
+
+    /** Botão de toggle "Urgente" exibido dentro do modal da O.S */
+    _urgenteModalHTML(numeroOS, modalOsId) {
         const urgente = this.getUrgente(numeroOS);
         const osEsc = _escAttr(numeroOS);
-        if (urgente) {
-            return `<button class="btn btn-sm btn-warning py-0 px-1"
-                        onclick="event.stopPropagation();gestaoOS.setUrgente('${osEsc}', false)"
-                        title="Clique para desmarcar urgente" style="font-size:0.78rem;white-space:nowrap;">
-                      🔥 Sim
-                    </button>`;
-        }
-        return `<button class="btn btn-sm btn-outline-secondary py-0 px-1"
-                    onclick="event.stopPropagation();gestaoOS.setUrgente('${osEsc}', true)"
-                    title="Clique para marcar como urgente" style="font-size:0.78rem;white-space:nowrap;">
-                  ○ Não
+        return `<button class="btn btn-sm w-100 ${urgente ? 'btn-warning' : 'btn-outline-secondary'}"
+                    onclick="gestaoOS.toggleUrgente('${osEsc}','${modalOsId}')"
+                    title="Clique para ${urgente ? 'desmarcar' : 'marcar como'} urgente">
+                  ${urgente ? '🔥 Urgente' : '○ Não urgente'}
                 </button>`;
     }
 
@@ -546,127 +548,90 @@ class GestaoOS {
         this._salvarNoServidor(numeroOS);
     }
 
-    _notaHTML(numeroOS) {
+    /** Lista de anotações (com editar/excluir por item) para exibir dentro do modal da O.S */
+    _notasModalHTML(numeroOS, modalOsId) {
         const notas = this.getNotas(numeroOS);
-        const n = notas.length;
-        const title = n > 0 ? _escAttr(notas[0].slice(0, 80)) + (n > 1 ? ` (+${n - 1})` : '') : 'Adicionar anotação';
-        const label = n > 0 ? `📝 ${n}` : '➕';
-        return `<button class="btn btn-sm btn-outline-secondary py-0 px-1"
-                    onclick="event.stopPropagation();gestaoOS.abrirNotasPanel('${_escAttr(numeroOS)}')"
-                    title="${title}" style="font-size:0.8rem;">${label}</button>`;
-    }
-
-    /** Abre/fecha painel inline de múltiplas notas sob a linha da tabela */
-    abrirNotasPanel(numeroOS) {
-        const panelId  = `notaPanel_${CSS.escape(numeroOS)}`;
-        const existing = document.getElementById(panelId);
-        if (existing) { existing.remove(); return; }
-
-        const panelEl  = document.createElement('tr');
-        panelEl.id     = panelId;
-        panelEl.innerHTML = `
-          <td colspan="13" class="p-2" style="background:#fffde7;border-top:2px solid #ffc107;">
-            <div id="notaPanelInner_${CSS.escape(numeroOS)}">
-              ${this._notasPanelContent(numeroOS)}
-            </div>
-          </td>`;
-
-        const tr = document.getElementById(`nota-cel-${CSS.escape(numeroOS)}`)?.closest('tr');
-        if (tr?.nextSibling) tr.parentNode.insertBefore(panelEl, tr.nextSibling);
-        else if (tr) tr.parentNode.appendChild(panelEl);
-    }
-
-    _notasPanelContent(numeroOS) {
-        const notas  = this.getNotas(numeroOS);
-        const osEsc  = _escAttr(numeroOS);
-        const liItems = notas.map((nota, i) => `
-          <div class="d-flex align-items-start gap-1 mb-1" id="notaItem_${CSS.escape(numeroOS)}_${i}">
+        if (!notas.length) {
+            return this._servidorRespondeu
+                ? '<em class="text-muted">Nenhuma anotação</em>'
+                : '<div class="text-muted py-1"><i class="fas fa-spinner fa-spin me-1"></i>Aguardando servidor...</div>';
+        }
+        const osEsc = _escAttr(numeroOS);
+        return notas.map((nota, i) => `
+          <div class="d-flex align-items-start gap-1 mb-1" id="notaItemModal_${modalOsId}_${i}">
             <div class="flex-grow-1 border rounded p-1 bg-white small" style="white-space:pre-wrap;">${_esc(nota)}</div>
             <button class="btn btn-xs btn-outline-secondary py-0 px-1" style="font-size:0.7rem;"
-                    onclick="gestaoOS.editarNotaPanel('${osEsc}', ${i})" title="Editar">✏️</button>
+                    onclick="gestaoOS.editarNotaModal('${osEsc}','${modalOsId}', ${i})" title="Editar">✏️</button>
             <button class="btn btn-xs btn-outline-danger py-0 px-1" style="font-size:0.7rem;"
-                    onclick="gestaoOS.excluirNotaPanel('${osEsc}', ${i})" title="Excluir">🗑️</button>
+                    onclick="gestaoOS.excluirNotaModal('${osEsc}','${modalOsId}', ${i})" title="Excluir">🗑️</button>
           </div>`).join('');
-
-        return `
-          ${liItems || '<div class="text-muted small mb-2">Nenhuma anotação ainda.</div>'}
-          <div class="d-flex gap-2 mt-1">
-            <button class="btn btn-sm btn-warning py-0 px-2"
-                    onclick="gestaoOS.iniciarNovaNotaPanel('${osEsc}')">
-              <i class="fas fa-plus me-1"></i>Nova anotação
-            </button>
-            <button class="btn btn-sm btn-outline-secondary py-0 px-2"
-                    onclick="gestaoOS.abrirNotasPanel('${osEsc}')">
-              <i class="fas fa-times"></i> Fechar
-            </button>
-          </div>
-          <div id="notaNovaArea_${CSS.escape(numeroOS)}"></div>`;
     }
 
-    _atualizarPanelNotas(numeroOS) {
-        const inner = document.getElementById(`notaPanelInner_${CSS.escape(numeroOS)}`);
-        if (inner) inner.innerHTML = this._notasPanelContent(numeroOS);
-        const cel = document.getElementById(`nota-cel-${CSS.escape(numeroOS)}`);
-        if (cel) cel.innerHTML = this._notaHTML(numeroOS);
+    /** Atualiza a lista de anotações no modal aberto (se houver) */
+    _atualizarNotasModal(numeroOS) {
+        const modalOsId    = numeroOS.replace(/[^a-zA-Z0-9]/g, '_');
+        const notaDisplay  = document.getElementById(`notaDisplay_${modalOsId}`);
+        if (notaDisplay) notaDisplay.innerHTML = this._notasModalHTML(numeroOS, modalOsId);
     }
 
-    iniciarNovaNotaPanel(numeroOS) {
-        const areaEl = document.getElementById(`notaNovaArea_${CSS.escape(numeroOS)}`);
+    iniciarNovaNotaModal(numeroOS, modalOsId) {
+        const areaEl = document.getElementById(`notaNovaArea_${modalOsId}`);
         if (!areaEl || areaEl.querySelector('textarea')) return;
         areaEl.innerHTML = `
           <div class="mt-2 d-flex gap-2 align-items-start">
-            <textarea id="notaNovaTA_${CSS.escape(numeroOS)}"
+            <textarea id="notaNovaTAModal_${modalOsId}"
                       class="form-control form-control-sm flex-grow-1" rows="2"
                       placeholder="Digite a nova anotação..." style="font-size:0.85rem;resize:vertical;"></textarea>
             <div class="d-flex flex-column gap-1">
-              <button class="btn btn-sm btn-warning py-0 px-2"
-                      onclick="gestaoOS.salvarNovaNotaPanel('${_escAttr(numeroOS)}')">
+              <button class="btn btn-sm btn-info py-0 px-2"
+                      onclick="gestaoOS.salvarNovaNotaModal('${_escAttr(numeroOS)}','${modalOsId}')">
                 <i class="fas fa-save"></i>
               </button>
               <button class="btn btn-sm btn-outline-secondary py-0 px-2"
-                      onclick="document.getElementById('notaNovaArea_${CSS.escape(numeroOS)}').innerHTML=''">
+                      onclick="document.getElementById('notaNovaArea_${modalOsId}').innerHTML=''">
                 <i class="fas fa-times"></i>
               </button>
             </div>
           </div>`;
-        setTimeout(() => document.getElementById(`notaNovaTA_${CSS.escape(numeroOS)}`)?.focus(), 50);
+        setTimeout(() => document.getElementById(`notaNovaTAModal_${modalOsId}`)?.focus(), 50);
     }
 
-    salvarNovaNotaPanel(numeroOS) {
-        const ta = document.getElementById(`notaNovaTA_${CSS.escape(numeroOS)}`);
+    salvarNovaNotaModal(numeroOS, modalOsId) {
+        const ta = document.getElementById(`notaNovaTAModal_${modalOsId}`);
         if (!ta) return;
         const texto = ta.value.trim();
         if (!texto) return;
         const notas = this.getNotas(numeroOS);
         notas.push(texto);
         this.setNotas(numeroOS, notas);
-        this._atualizarPanelNotas(numeroOS);
         this._atualizarNotasModal(numeroOS);
+        const areaEl = document.getElementById(`notaNovaArea_${modalOsId}`);
+        if (areaEl) areaEl.innerHTML = '';
     }
 
-    editarNotaPanel(numeroOS, idx) {
+    editarNotaModal(numeroOS, modalOsId, idx) {
         const notas = this.getNotas(numeroOS);
         if (idx < 0 || idx >= notas.length) return;
-        const itemEl = document.getElementById(`notaItem_${CSS.escape(numeroOS)}_${idx}`);
+        const itemEl = document.getElementById(`notaItemModal_${modalOsId}_${idx}`);
         if (!itemEl) return;
         const textoAtual = notas[idx];
         itemEl.innerHTML = `
-          <textarea id="notaEditTA_${CSS.escape(numeroOS)}_${idx}"
+          <textarea id="notaEditTAModal_${modalOsId}_${idx}"
                     class="form-control form-control-sm flex-grow-1" rows="2"
                     style="font-size:0.85rem;resize:vertical;">${_esc(textoAtual)}</textarea>
-          <button class="btn btn-sm btn-warning py-0 px-1"
-                  onclick="gestaoOS.salvarEdicaoNotaPanel('${_escAttr(numeroOS)}', ${idx})">
+          <button class="btn btn-sm btn-info py-0 px-1"
+                  onclick="gestaoOS.salvarEdicaoNotaModal('${_escAttr(numeroOS)}','${modalOsId}', ${idx})">
             <i class="fas fa-save"></i>
           </button>
           <button class="btn btn-sm btn-outline-secondary py-0 px-1"
-                  onclick="gestaoOS._atualizarPanelNotas('${_escAttr(numeroOS)}')">
+                  onclick="gestaoOS._atualizarNotasModal('${_escAttr(numeroOS)}')">
             <i class="fas fa-times"></i>
           </button>`;
-        setTimeout(() => document.getElementById(`notaEditTA_${CSS.escape(numeroOS)}_${idx}`)?.focus(), 50);
+        setTimeout(() => document.getElementById(`notaEditTAModal_${modalOsId}_${idx}`)?.focus(), 50);
     }
 
-    salvarEdicaoNotaPanel(numeroOS, idx) {
-        const ta = document.getElementById(`notaEditTA_${CSS.escape(numeroOS)}_${idx}`);
+    salvarEdicaoNotaModal(numeroOS, modalOsId, idx) {
+        const ta = document.getElementById(`notaEditTAModal_${modalOsId}_${idx}`);
         if (!ta) return;
         const texto = ta.value.trim();
         if (!texto) return;
@@ -674,80 +639,20 @@ class GestaoOS {
         if (idx < 0 || idx >= notas.length) return;
         notas[idx] = texto;
         this.setNotas(numeroOS, notas);
-        this._atualizarPanelNotas(numeroOS);
         this._atualizarNotasModal(numeroOS);
     }
 
-    excluirNotaPanel(numeroOS, idx) {
+    excluirNotaModal(numeroOS, modalOsId, idx) {
         const notas = this.getNotas(numeroOS);
         if (idx < 0 || idx >= notas.length) return;
         notas.splice(idx, 1);
         this.setNotas(numeroOS, notas);
-        this._atualizarPanelNotas(numeroOS);
         this._atualizarNotasModal(numeroOS);
-    }
-
-    /** Atualiza a seção de notas no modal aberto (se houver) */
-    _atualizarNotasModal(numeroOS) {
-        const modalOsId  = numeroOS.replace(/[^a-zA-Z0-9]/g, '_');
-        const notaDisplay = document.getElementById(`notaDisplay_${modalOsId}`);
-        if (!notaDisplay) return;
-        const notas = this.getNotas(numeroOS);
-        notaDisplay.innerHTML = notas.length
-            ? notas.map((n, i) => `<div class="border rounded p-1 mb-1 bg-white small" style="white-space:pre-wrap;">${_esc(n)}</div>`).join('')
-            : '<em class="text-muted">Nenhuma anotação</em>';
-    }
-
-    /** Editor de nota dentro do modal (mantém compatibilidade com modal antigo) */
-    abrirEditorNotaModal(numeroOS, modalOsId) {
-        const editorId = `notaEditorModal_${modalOsId}`;
-        const existing = document.getElementById(editorId);
-        if (existing) { existing.remove(); return; }
-
-        const display = document.getElementById(`notaDisplay_${modalOsId}`);
-        if (!display) return;
-
-        const editor = document.createElement('div');
-        editor.id    = editorId;
-        editor.innerHTML = `
-          <div class="mt-2 d-flex gap-2 align-items-start">
-            <textarea id="notaTAModal_${modalOsId}"
-                      class="form-control flex-grow-1" rows="3"
-                      placeholder="Digite a nova anotação..."
-                      style="font-size:0.85rem;resize:vertical;"></textarea>
-            <div class="d-flex flex-column gap-1">
-              <button class="btn btn-sm btn-warning"
-                      onclick="gestaoOS.salvarNotaModal('${_escAttr(numeroOS)}','${modalOsId}')"
-                      title="Salvar">
-                <i class="fas fa-save"></i> Salvar
-              </button>
-              <button class="btn btn-sm btn-outline-secondary"
-                      onclick="document.getElementById('${editorId}').remove()"
-                      title="Cancelar">
-                <i class="fas fa-times"></i>
-              </button>
-            </div>
-          </div>`;
-        display.parentNode.insertBefore(editor, display.nextSibling);
-        setTimeout(() => document.getElementById(`notaTAModal_${modalOsId}`)?.focus(), 50);
-    }
-
-    salvarNotaModal(numeroOS, modalOsId) {
-        const ta = document.getElementById(`notaTAModal_${modalOsId}`);
-        if (!ta) return;
-        const texto = ta.value.trim();
-        if (!texto) return;
-        const notas = this.getNotas(numeroOS);
-        notas.push(texto);
-        this.setNotas(numeroOS, notas);
-        this._atualizarNotasModal(numeroOS);
-        const cel = document.getElementById(`nota-cel-${CSS.escape(numeroOS)}`);
-        if (cel) cel.innerHTML = this._notaHTML(numeroOS);
-        document.getElementById(`notaEditorModal_${modalOsId}`)?.remove();
     }
 
     // ── Reprovações / Auditorias (acompanhamento por O.S) ─────────────────
-    // Cada registro: { data: 'YYYY-MM-DD', motivo, fiscal, resultado: 'Reprovada'|'Aprovada' }
+    // Cada registro: { dataSolicitacao: 'YYYY-MM-DD', dataResultado: 'YYYY-MM-DD',
+    //                   motivo, fiscal, resultado: 'Reprovada'|'Aprovada' }
     // Persistência: localStorage + coluna "Reprovacoes" da aba GestaoOS (via Apps Script)
 
     getReprovacoes(numeroOS) {
@@ -780,12 +685,15 @@ class GestaoOS {
         this._salvarNoServidor(numeroOS);
     }
 
-    /** Registra uma nova reprovação (linha em branco com data de hoje) e marca a O.S como Reprovada */
+    /**
+     * Registra uma nova reprovação (Data de Solicitação e Data do Resultado
+     * pré-preenchidas com hoje — editáveis) e marca a O.S como Reprovada.
+     */
     novaReprovacao(numeroOS, modalOsId) {
         const reprov = this.getReprovacoes(numeroOS);
         const hoje = new Date();
         const dataISO = `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}-${String(hoje.getDate()).padStart(2, '0')}`;
-        reprov.push({ data: dataISO, motivo: '', fiscal: '', resultado: 'Reprovada' });
+        reprov.push({ dataSolicitacao: dataISO, dataResultado: dataISO, motivo: '', fiscal: '', resultado: 'Reprovada' });
         this.setReprovacoes(numeroOS, reprov);
         this.setStatus(numeroOS, 'Reprovada');
         this._atualizarReprovCont(numeroOS, modalOsId);
@@ -833,17 +741,24 @@ class GestaoOS {
 
         const rows = reprov.map((r, i) => {
             const aprovada = r.resultado === 'Aprovada';
+            // Compatibilidade: registros antigos (v2.5.0) tinham só o campo "data"
+            const dataSolicitacao = r.dataSolicitacao ?? r.data ?? '';
+            const dataResultado   = r.dataResultado   ?? r.data ?? '';
             return `<tr style="background:${aprovada ? '#e8f4ff' : '#fdecec'};">
               <td class="text-center text-muted small align-middle fw-bold">${i + 1}ª</td>
-              <td style="min-width:135px;">
-                <input type="date" class="form-control form-control-sm" value="${_escAttr(r.data || '')}"
-                       onchange="gestaoOS.atualizarReprovacao('${osEsc}', ${i}, 'data', this.value)">
+              <td style="min-width:150px;">
+                <input type="date" class="form-control form-control-sm" value="${_escAttr(dataSolicitacao)}"
+                       onchange="gestaoOS.atualizarReprovacao('${osEsc}', ${i}, 'dataSolicitacao', this.value)">
               </td>
-              <td style="min-width:220px;">
+              <td style="min-width:150px;">
+                <input type="date" class="form-control form-control-sm" value="${_escAttr(dataResultado)}"
+                       onchange="gestaoOS.atualizarReprovacao('${osEsc}', ${i}, 'dataResultado', this.value)">
+              </td>
+              <td style="min-width:260px;">
                 <textarea class="form-control form-control-sm" rows="1" placeholder="Motivo da reprovação…"
                           onchange="gestaoOS.atualizarReprovacao('${osEsc}', ${i}, 'motivo', this.value)">${_esc(r.motivo || '')}</textarea>
               </td>
-              <td style="min-width:150px;">
+              <td style="min-width:160px;">
                 <input type="text" class="form-control form-control-sm" value="${_escAttr(r.fiscal || '')}"
                        placeholder="Fiscal que auditou"
                        onchange="gestaoOS.atualizarReprovacao('${osEsc}', ${i}, 'fiscal', this.value)">
@@ -868,7 +783,8 @@ class GestaoOS {
             <thead class="table-light">
               <tr>
                 <th class="text-center" style="width:44px;">#</th>
-                <th>Data</th>
+                <th>Data Solicitação</th>
+                <th>Data Resultado</th>
                 <th>Motivo</th>
                 <th>Fiscal</th>
                 <th>Resultado</th>
@@ -880,6 +796,8 @@ class GestaoOS {
         </div>
         <div class="text-muted" style="font-size:0.72rem;">
           <i class="fas fa-info-circle me-1"></i>As células salvam automaticamente ao sair do campo.
+          <strong>Data Solicitação</strong>: quando a auditoria foi pedida/agendada.
+          <strong>Data Resultado</strong>: quando saiu o resultado (Aprovada/Reprovada).
           Marcar <strong>Aprovada</strong> ou registrar reprovação atualiza o status da O.S.
         </div>`;
     }
@@ -1237,13 +1155,8 @@ class GestaoOS {
         if (!modalEl) return;
 
         // Atualizar notas
-        const notas = this.getNotas(numeroOS);
         const notaDisplay = document.getElementById(`notaDisplay_${modalOsId}`);
-        if (notaDisplay) {
-            notaDisplay.innerHTML = notas.length
-                ? notas.map(n => `<div class="border rounded p-1 mb-1 bg-white" style="white-space:pre-wrap;">${_esc(n)}</div>`).join('')
-                : '<em class="text-muted">Nenhuma anotação</em>';
-        }
+        if (notaDisplay) notaDisplay.innerHTML = this._notasModalHTML(numeroOS, modalOsId);
 
         // Atualizar anexos
         const anexosCont = document.getElementById(`anexosCont_${modalOsId}`);
@@ -1735,14 +1648,13 @@ class GestaoOS {
               </div>`).join('')
             : '<span class="text-muted small">Nenhuma observação registrada nos RDOs</span>';
 
-        const notas   = this.getNotas(numeroOS);
         const modalId = 'modalDetalheOS_' + modalOsId;
         document.getElementById(modalId)?.remove();
         this._modalAberto = { id: modalId, numeroOS, modalOsId };
 
         const modalHTML = `
         <div class="modal fade" id="${modalId}" tabindex="-1" aria-hidden="true">
-          <div class="modal-dialog modal-lg modal-dialog-scrollable">
+          <div class="modal-dialog modal-xl modal-dialog-scrollable">
             <div class="modal-content">
               <div class="modal-header">
                 <h5 class="modal-title">
@@ -1782,6 +1694,10 @@ class GestaoOS {
                     <div class="text-muted small mb-1">Status</div>
                     ${this._statusModalHTML(grupo, modalOsId)}
                   </div>
+                  <div class="col-6 col-md-2">
+                    <div class="text-muted small mb-1">Urgente</div>
+                    <div id="urgenteModalWrap_${modalOsId}">${this._urgenteModalHTML(numeroOS, modalOsId)}</div>
+                  </div>
                 </div>
 
                 <!-- ⚠️ Observações dos RDOs em destaque -->
@@ -1808,7 +1724,7 @@ class GestaoOS {
                 <h6 class="border-bottom pb-1 mb-2">
                   <i class="fas fa-sticky-note me-1 text-info"></i>Anotações
                   <button class="btn btn-sm btn-outline-info ms-2 py-0 px-2"
-                          onclick="gestaoOS.abrirEditorNotaModal('${_escAttr(numeroOS)}','${modalOsId}')"
+                          onclick="gestaoOS.iniciarNovaNotaModal('${_escAttr(numeroOS)}','${modalOsId}')"
                           style="font-size:0.75rem;">
                     <i class="fas fa-plus me-1"></i>Nova nota
                   </button>
@@ -1816,12 +1732,9 @@ class GestaoOS {
                 <div class="mb-1 border rounded p-2 bg-light small"
                      id="notaDisplay_${modalOsId}"
                      style="min-height:40px;">
-                  ${notas.length
-                    ? notas.map(n => `<div class="border rounded p-1 mb-1 bg-white" style="white-space:pre-wrap;">${_esc(n)}</div>`).join('')
-                    : (!this._servidorRespondeu
-                        ? '<div class="text-muted py-1"><i class="fas fa-spinner fa-spin me-1"></i>Aguardando servidor...</div>'
-                        : '<em class="text-muted">Nenhuma anotação</em>')}
+                  ${this._notasModalHTML(numeroOS, modalOsId)}
                 </div>
+                <div id="notaNovaArea_${modalOsId}"></div>
 
                 <!-- Anexos (Feature 3) -->
                 <h6 class="border-bottom pb-1 mb-2 mt-3">
@@ -2146,11 +2059,9 @@ class GestaoOS {
                   <td class="text-muted small" title="${_escAttr(o.local)}" style="max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${_esc(o.local)}</td>
                   <td class="text-end text-nowrap fw-bold text-primary" style="min-width:68px;">${hhProd}</td>
                   <td class="text-end text-nowrap fw-bold text-warning" style="min-width:58px;">${hhImpr}</td>
-                  <td class="text-center" id="urgente-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._urgenteHTML(o.numeroOS)}</td>
                   <td class="text-center" id="mediu-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._mediuHTML(o.numeroOS)}</td>
                   <td id="status-cel-${CSS.escape(o.numeroOS)}" onclick="event.stopPropagation();">${this._statusSelectHTML(o)}</td>
                   <td id="gevia-cel-${CSS.escape(o.numeroOS)}"  onclick="event.stopPropagation();">${this._geviaHTML(o.numeroOS)}</td>
-                  <td class="text-center" id="nota-cel-${CSS.escape(o.numeroOS)}"   onclick="event.stopPropagation();">${this._notaHTML(o.numeroOS)}</td>
                 </tr>`;
             }).join('');
 
@@ -2164,7 +2075,7 @@ class GestaoOS {
                        </td>
                        <td class="text-end text-primary">${turmaHHProdAprov.toFixed(2)}</td>
                        <td class="text-end text-warning">${turmaHHImprAprov.toFixed(2)}</td>
-                       <td colspan="5" class="text-muted small">
+                       <td colspan="3" class="text-muted small">
                          Total: <strong>${(turmaHHProdAprov + turmaHHImprAprov).toFixed(2)} HH</strong>
                        </td>
                      </tr>
@@ -2191,11 +2102,9 @@ class GestaoOS {
                         <th class="text-nowrap" style="min-width:110px;">Local</th>
                         <th class="text-end text-nowrap text-primary" style="min-width:68px;" title="HH Produtivas (Σ qtd × coef)">HH Prod</th>
                         <th class="text-end text-nowrap text-warning" style="min-width:58px;" title="HH Improdutivas">HI</th>
-                        <th class="text-center text-nowrap" style="min-width:72px;">Urgente</th>
                         <th class="text-center text-nowrap" style="min-width:82px;">Já Medida</th>
                         <th class="text-nowrap" style="min-width:130px;">Status</th>
                         <th class="text-nowrap" style="min-width:100px;">GeVia</th>
-                        <th class="text-center text-nowrap" style="min-width:62px;">Notas</th>
                       </tr>
                     </thead>
                     <tbody>${rows}</tbody>

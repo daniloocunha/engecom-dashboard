@@ -666,7 +666,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 10
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.5.0
+- **Dashboard Version**: 2.5.1
 
 ## Release Information
 
@@ -712,6 +712,20 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 - **Melhoria**: validação de integridade do APK aceita SHA-256 (hash de 64 caracteres na chave
   `hash_md5` da aba Config) com retrocompatibilidade MD5 (32 caracteres). Para usar:
   `Get-FileHash app-release.apk -Algorithm SHA256` e colar o hash na aba Config
+
+---
+
+### Dashboard 2.5.1 — 2026-07-06
+**Filtro persistente + Reprovações com 2 datas + Urgente/Notas no modal**
+
+- **Filtro de mês/ano persistente**: salvo em `localStorage`, restaurado ao reabrir/recarregar
+  o dashboard (antes voltava sempre para o mês atual)
+- **Reprovações / Auditorias**: substituído o campo único "Data" por **Data de Solicitação** +
+  **Data do Resultado** (com fallback de leitura para registros antigos da v2.5.0)
+- **Gestão de O.S**: colunas Urgente e Notas removidas da tabela — funcionalidade migrada para
+  dentro do modal da O.S (agora `modal-xl`)
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/{main,gestao-os}.js`
 
 ---
 
