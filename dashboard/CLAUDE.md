@@ -96,6 +96,7 @@ dashboard/
 │   ├── filters.js          # Filter utilities
 │   ├── main.js             # DashboardMain class - orchestration
 │   ├── editor-rdo.js       # EditorRDO — edição in-modal de RDOs via Apps Script
+│   ├── novo-rdo.js         # NovoRDO — criação de RDO novo (cabeçalho + Serviços) via Apps Script
 │   ├── calendario-tp.js    # TP calendar visualization + EditorRDO integration
 │   ├── calendario-ts.js    # TS calendar visualization + EditorRDO integration
 │   ├── visao-geral.js      # Visão Geral: KPIs, scorecard, perdas, qualidade
@@ -206,6 +207,21 @@ renderizarTabelaTSs()        // TS details table
 - Notas de dias sem RDO: salvas no Google Sheets via Apps Script (`salvarNotaDia` / `obterNotasDia`)
 - Renomear Número RDO em cascata quando O.S muda (`renomearRDO` Apps Script)
 - Excluir RDO (marca Deletado = "Sim" no Sheets)
+
+**novo-rdo.js**: NovoRDO — Criação de RDO novo pelo dashboard
+- Classe singleton `NovoRDO` (instância global `novoRDO`)
+- Ativado pelo botão "Novo RDO" na navbar (`#modalNovoRDO`)
+- Escopo enxuto: cabeçalho do RDO (Data, Turma, Encarregado, Local, O.S, KM, Horários,
+  Tema DDS, Nome Colaboradores, Observações) + Serviços (lista dinâmica em memória,
+  reaproveitando o spinner de `SERVICOS_BASE` com preview de HH). Materiais, Equipamentos,
+  HI, Efetivo e Transportes ficam de fora — adicionados depois via `EditorRDO` no calendário
+- Turma/Encarregado: `<datalist>` com sugestões de RDOs já existentes (`calculadora.indices`),
+  mas aceita valor novo digitado
+- Validação client-side espelha `RDOValidator.kt` do app (obrigatórios + confirmações
+  não-bloqueantes de KM fim < início e horário cruzando meia-noite)
+- Geração do Número RDO e escrita nas abas RDO + Servicos via nova ação `criarRDO` no Apps
+  Script (mesmo formato `OS-dd.MM.yy-XXX` do app)
+- Após sucesso: fecha o modal e recarrega a página (mesmo padrão de `duplicarRDO`/`excluirRDO`)
 
 **calendario-tp.js**: TP calendar visualization
 - Monthly calendar view for TP teams
@@ -687,6 +703,34 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.5.2 (2026-07-08)** - Criar Novo RDO pelo Dashboard:
+
+> ⚠️ **Requer atualização manual do Apps Script** (Extensões → Apps Script → colar o conteúdo
+> de `apps-script-atualizar-os.gs` → Implantar). Sem isso, o botão "Novo RDO" retorna erro
+> "Acao desconhecida: criarRDO".
+
+**Novidades:**
+- **Novo RDO** (`novo-rdo.js` + botão na navbar): permite lançar um RDO novo diretamente pelo
+  dashboard, sem precisar do app Android. Escopo enxuto: cabeçalho completo (Data, Turma,
+  Encarregado, Local, O.S, KM, Horários, Tema DDS, Nome Colaboradores, Observações, Houve
+  Transporte) + lista dinâmica de Serviços (spinner com `SERVICOS_BASE` + preview de HH em
+  tempo real, mesmo padrão do `EditorRDO`). Materiais, Equipamentos, HI, Efetivo e Transportes
+  continuam sendo adicionados depois via edição do RDO no calendário
+- Turma e Encarregado usam `<datalist>` (combobox editável): sugere valores já usados em RDOs
+  existentes (via `calculadora.indices.turmasUnicas`/`rdosPorTurma`), mas aceita texto novo
+- Validação client-side espelha as regras de `RDOValidator.kt` do app (campos obrigatórios,
+  formato de horário, diferença > 24h bloqueante, confirmação não-bloqueante para KM fim <
+  início e horário cruzando meia-noite)
+- Apps Script: nova ação `criarRDO` gera o Número RDO no mesmo formato do app
+  (`OS-dd.MM.yy-XXX`, maior sufixo existente + 1, sob `LockService` para evitar colisão entre
+  criações simultâneas) e grava nas abas RDO + Servicos, com rollback manual em caso de falha
+  no meio da escrita
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/novo-rdo.js` (novo),
+`dashboard/apps-script-atualizar-os.gs`
+
+---
+
 **Version 2.5.1 (2026-07-06)** - Filtro persistente + Reprovações com 2 datas + Urgente/Notas no modal:
 
 **Novidades:**
@@ -899,7 +943,7 @@ e as tentativas de salvar mostram um alerta de erro (fallback silencioso).
 
 ## Apps Script — Sincronização do código
 
-O script versionado suporta 19 ações (ver header de
+O script versionado suporta 20 ações (ver header de
 `apps-script-atualizar-os.gs`). Duas cópias existem neste repositório:
 
 - `apps-script-atualizar-os.gs` — cópia versionada do script (manter em sincronia ao editar)
@@ -911,11 +955,17 @@ O script versionado suporta 19 ações (ver header de
 ⚠️ **Pendente de implantação (v2.5.0, 2026-07-06)**: correção de `salvarNotaDia`/`obterNotasDia`,
 nova ação `duplicarRDO` e suporte às colunas `Urgente`/`Reprovacoes` em
 `salvarGestaoOS`/`listarGestaoOS` (as colunas são criadas automaticamente na primeira gravação).
-Após implantar, atualizar o dump `appscript_atual.md`.
+
+⚠️ **Pendente de implantação (v2.5.2, 2026-07-08)**: nova ação `criarRDO` (cria RDO + Serviços a
+partir do modal "Novo RDO" do dashboard) e refatoração interna de `adicionarServico` (helper
+`_linhaServico` compartilhado — comportamento externo inalterado). Sem reimplantar, o botão
+"Novo RDO" mostra erro "Acao desconhecida: criarRDO".
+
+Após cada reimplantação, atualizar o dump `appscript_atual.md`.
 
 ## Version Information
 
-- **Current Version**: 2.5.1
+- **Current Version**: 2.5.2
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)

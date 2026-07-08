@@ -5,7 +5,7 @@
  *   atualizarOS, listarGestaoOS, salvarGestaoOS, uploadAnexo, deletarAnexo,
  *   atualizarOSCascata, atualizarCampoRDO, atualizarServico, adicionarServico,
  *   excluirServico, atualizarHI, adicionarHI, excluirHI, deletarRDO,
- *   renomearRDO, dividirOS, duplicarRDO, salvarNotaDia, obterNotasDia
+ *   renomearRDO, dividirOS, duplicarRDO, criarRDO, salvarNotaDia, obterNotasDia
  */
 
 // ID da pasta do Google Drive para os anexos (deixe '' para usar o Drive raiz)
@@ -34,6 +34,7 @@ function doPost(e) {
         if (dados.acao === 'renomearRDO')         { return _resposta(renomearRDO(dados)); }
         if (dados.acao === 'dividirOS')           { return _resposta(dividirOS(dados)); }
         if (dados.acao === 'duplicarRDO')         { return _resposta(duplicarRDO(dados)); }
+        if (dados.acao === 'criarRDO')            { return _resposta(criarRDO(dados)); }
         if (dados.acao === 'salvarNotaDia')       { return _resposta(salvarNotaDia(dados)); }
         if (dados.acao === 'obterNotasDia')       { return _resposta(obterNotasDia()); }
 
@@ -624,6 +625,142 @@ function duplicarRDO(dados) {
     }
 }
 
+// === Acao: criarRDO ===
+
+/** Converte "dd/MM/yyyy" em "dd.MM.yy" por split de texto (sem passar por Date/timezone). */
+function _dataParaPrefixo(dataStr) {
+    var p = (dataStr || '').toString().trim().split('/');
+    if (p.length !== 3 || p[2].length < 2) return null;
+    return p[0] + '.' + p[1] + '.' + p[2].slice(-2);
+}
+
+function _validarCriarRDO(dados) {
+    var obrig = ['data', 'codigoTurma', 'encarregado', 'local', 'numeroOS', 'nomeColaboradores', 'kmInicio', 'kmFim'];
+    for (var i = 0; i < obrig.length; i++) {
+        var v = dados[obrig[i]];
+        if (v === undefined || v === null || v.toString().trim() === '') {
+            return 'Campo obrigatório ausente: ' + obrig[i];
+        }
+    }
+    if (!_dataParaPrefixo(dados.data)) return 'Data inválida (esperado dd/MM/yyyy)';
+
+    if (dados.houveServico) {
+        if (!dados.temaDDS || !dados.temaDDS.toString().trim()) return 'Tema DDS é obrigatório quando houve serviço';
+        var re = /^([01]\d|2[0-3]):[0-5]\d$/;
+        if (!re.test(dados.horarioInicio || '')) return 'Horário Início inválido (esperado HH:mm)';
+        if (!re.test(dados.horarioFim    || '')) return 'Horário Fim inválido (esperado HH:mm)';
+
+        var ini = dados.horarioInicio.split(':'), fim = dados.horarioFim.split(':');
+        var minIni = parseInt(ini[0], 10) * 60 + parseInt(ini[1], 10);
+        var minFim = parseInt(fim[0], 10) * 60 + parseInt(fim[1], 10);
+        var diffMin = minFim >= minIni ? (minFim - minIni) : (24 * 60 - minIni) + minFim;
+        if (diffMin > 24 * 60) return 'Diferença entre Horário Início e Fim maior que 24h';
+
+        if (!Array.isArray(dados.servicos) || dados.servicos.length === 0) {
+            return 'Informe ao menos um serviço quando houve serviço';
+        }
+        for (var s = 0; s < dados.servicos.length; s++) {
+            var svc = dados.servicos[s];
+            if (!svc.descricao || !svc.descricao.toString().trim()) return 'Serviço #' + (s + 1) + ' sem descrição';
+            if (!(parseFloat(svc.quantidade) > 0)) return 'Serviço #' + (s + 1) + ' com quantidade inválida';
+        }
+    } else {
+        if (!dados.observacoes || !dados.observacoes.toString().trim()) return 'Observações são obrigatórias quando não houve serviço';
+    }
+    return null;
+}
+
+/**
+ * Cria um RDO novo (cabeçalho + Serviços) diretamente do dashboard, sem passar pelo app Android.
+ * Gera o Número RDO no mesmo formato do app (OS-dd.MM.yy-XXX), usando o maior sufixo já
+ * existente para o prefixo OS+data (mesma lógica de duplicarRDO), dentro de um lock para
+ * serializar criações concorrentes.
+ */
+function criarRDO(dados) {
+    var erroValidacao = _validarCriarRDO(dados);
+    if (erroValidacao) return { sucesso: false, erro: erroValidacao };
+
+    var lock = LockService.getScriptLock();
+    if (!lock.tryLock(20000)) return { sucesso: false, erro: 'Servidor ocupado. Tente novamente.' };
+
+    var linhaRDO = -1;
+    var linhasServicos = [];
+
+    try {
+        var ss = SpreadsheetApp.getActiveSpreadsheet();
+        var rdoSheet = ss.getSheetByName('RDO');
+        if (!rdoSheet) return { sucesso: false, erro: 'Aba "RDO" não encontrada' };
+
+        var rdoValues = rdoSheet.getDataRange().getValues();
+        var header    = rdoValues[0].map(function(h) { return h.toString().trim(); });
+        var colRDO    = _findColSafe(header, 'Número RDO');
+        if (colRDO < 0) return { sucesso: false, erro: 'Coluna "Número RDO" não encontrada' };
+
+        var prefixo = dados.numeroOS.toString().trim() + '-' + _dataParaPrefixo(dados.data);
+        var maxSeq = 0;
+        for (var i = 1; i < rdoValues.length; i++) {
+            var n = (rdoValues[i][colRDO] || '').toString().trim();
+            if (n.indexOf(prefixo + '-') === 0) {
+                var seq = parseInt(n.substring(prefixo.length + 1), 10);
+                if (!isNaN(seq) && seq > maxSeq) maxSeq = seq;
+            }
+        }
+        var seqStr = String(maxSeq + 1);
+        while (seqStr.length < 3) seqStr = '0' + seqStr;
+        var numeroRDO = prefixo + '-' + seqStr;
+
+        try {
+            var agora = Utilities.formatDate(new Date(), 'America/Sao_Paulo', 'dd/MM/yyyy HH:mm:ss');
+            rdoSheet.appendRow([
+                '',                                             // A: ID (sem equivalente no dashboard)
+                numeroRDO,                                       // B: Número RDO
+                dados.data,                                      // C: Data
+                dados.codigoTurma,                               // D: Código Turma
+                dados.encarregado,                               // E: Encarregado
+                dados.local,                                     // F: Local
+                dados.numeroOS,                                  // G: Número OS
+                dados.statusOS || '',                            // H: Status OS
+                dados.kmInicio, dados.kmFim,                     // I, J: KM Início/Fim
+                dados.horarioInicio || '', dados.horarioFim || '', // K, L: Horário Início/Fim
+                dados.clima || '',                               // M: Clima
+                dados.temaDDS || '',                             // N: Tema DDS
+                dados.houveServico ? 'Sim' : 'Não',              // O: Houve Serviço
+                dados.houveTransporte ? 'Sim' : 'Não',           // P: Houve Transporte
+                dados.nomeColaboradores,                         // Q: Nome Colaboradores
+                dados.observacoes || '',                         // R: Observações
+                '',                                              // S: Deletado
+                '',                                              // T: Data Sincronização (não se aplica)
+                agora,                                            // U: Data Criação
+                'Dashboard'                                       // V: Versão App (marca origem)
+            ]);
+            linhaRDO = rdoSheet.getLastRow();
+
+            if (dados.houveServico) {
+                var svcSheet = ss.getSheetByName('Servicos');
+                if (!svcSheet) throw new Error('Aba "Servicos" não encontrada');
+                for (var s = 0; s < dados.servicos.length; s++) {
+                    svcSheet.appendRow(_linhaServico(numeroRDO, dados, dados.servicos[s]));
+                    linhasServicos.push(svcSheet.getLastRow());
+                }
+            }
+
+            SpreadsheetApp.flush();
+            Logger.log('[criarRDO] ' + numeroRDO + ' | ' + linhasServicos.length + ' serviço(s)');
+            return { sucesso: true, numeroRDO: numeroRDO, linhaRDO: linhaRDO, servicosInseridos: linhasServicos.length };
+
+        } catch (errEscrita) {
+            var svcSheetRollback = ss.getSheetByName('Servicos');
+            for (var r = linhasServicos.length - 1; r >= 0; r--) svcSheetRollback.deleteRow(linhasServicos[r]);
+            if (linhaRDO > 0) rdoSheet.deleteRow(linhaRDO);
+            SpreadsheetApp.flush();
+            Logger.log('[criarRDO] erro, rollback aplicado: ' + errEscrita.message);
+            return { sucesso: false, erro: 'Falha ao gravar RDO: ' + errEscrita.message };
+        }
+    } finally {
+        lock.releaseLock();
+    }
+}
+
 // ════════════════════════════════════════════════════════════════════
 // EDIÇÃO VIA DASHBOARD
 // ════════════════════════════════════════════════════════════════════
@@ -728,6 +865,21 @@ function atualizarServico(body) {
     } finally { lock.releaseLock(); }
 }
 
+/**
+ * Monta a linha (array) para a aba Servicos, na ordem exata de suas 11 colunas.
+ * Compartilhado por adicionarServico() e criarRDO() — não chamar adicionarServico()
+ * de dentro de criarRDO() pois ela adquire seu próprio LockService (lock aninhado quebraria
+ * o lock externo ao liberar prematuramente no seu próprio finally).
+ */
+function _linhaServico(numeroRDO, cabecalho, s) {
+    return [
+        numeroRDO, cabecalho.numeroOS || '', cabecalho.data || '',
+        cabecalho.codigoTurma || '', cabecalho.encarregado || '',
+        s.descricao, s.quantidade, s.unidade || 'UN',
+        s.observacoes || '', 'NÃO', ''
+    ];
+}
+
 function adicionarServico(body) {
     if (!body.numeroRDO || !body.descricao || body.quantidade === undefined) {
         return { sucesso: false, erro: 'numeroRDO, descricao e quantidade são obrigatórios' };
@@ -739,12 +891,7 @@ function adicionarServico(body) {
         var sheet = ss.getSheetByName('Servicos');
         if (!sheet) return { sucesso: false, erro: 'Aba "Servicos" não encontrada' };
 
-        sheet.appendRow([
-            body.numeroRDO, body.numeroOS || '', body.data || '',
-            body.codigoTurma || '', body.encarregado || '',
-            body.descricao, body.quantidade, body.unidade || 'UN',
-            body.observacoes || '', 'NÃO', ''
-        ]);
+        sheet.appendRow(_linhaServico(body.numeroRDO, body, body));
         SpreadsheetApp.flush();
         Logger.log('[adicionarServico] RDO ' + body.numeroRDO + ' | ' + body.descricao);
         return { sucesso: true, ultimaLinha: sheet.getLastRow() };

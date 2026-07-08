@@ -55,6 +55,10 @@
                     <div id="buscaGlobalDrop" class="busca-global-drop" style="display:none;"></div>
                 </div>
 
+                <button class="btn btn-outline-light btn-sm" onclick="novoRDO.abrirModal()" title="Criar um novo RDO">
+                    <i class="fas fa-plus me-1"></i>
+                    Novo RDO
+                </button>
                 <button class="btn btn-outline-light btn-sm" onclick="exportEngine.abrirModal()" title="Exportar dados do período">
                     <i class="fas fa-download me-1"></i>
                     Exportar
@@ -571,7 +575,7 @@
             <p class="text-muted mb-0">
                 <strong>Engecom Engenharia / Encogel</strong> - Consórcio RUMO Logística
                 <br>
-                <small>Dashboard v2.5.1 | <i class="fas fa-shield-alt"></i> Acesso Restrito</small>
+                <small>Dashboard v2.5.2 | <i class="fas fa-shield-alt"></i> Acesso Restrito</small>
             </p>
         </div>
     </footer>
@@ -580,30 +584,31 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <!-- Scripts do Dashboard (cache-bust: altere ?v=X.Y.Z a cada release) -->
-    <script src="js/safe-html.js?v=2.5.1"></script>
-    <script src="js/config.js?v=2.5.1"></script>
-    <script src="js/auth.js?v=2.5.1"></script>
-    <script src="js/field-helper.js?v=2.5.1"></script>
-    <script src="js/alerts-system.js?v=2.5.1"></script>
+    <script src="js/safe-html.js?v=2.5.2"></script>
+    <script src="js/config.js?v=2.5.2"></script>
+    <script src="js/auth.js?v=2.5.2"></script>
+    <script src="js/field-helper.js?v=2.5.2"></script>
+    <script src="js/alerts-system.js?v=2.5.2"></script>
     <!-- Dados de serviços embutidos (fallback para CORS quando abrindo como file://) -->
-    <script src="js/servicos-data.js?v=2.5.1"></script>
-    <script src="js/sheets-api.js?v=2.5.1"></script>
-    <script src="js/calculations.js?v=2.5.1"></script>
-    <script src="js/charts.js?v=2.5.1"></script>
-    <script src="js/filters.js?v=2.5.1"></script>
-    <script src="js/editor-rdo.js?v=2.5.1"></script>
-    <script src="js/calendario-tp.js?v=2.5.1"></script>
-    <script src="js/calendario-ts.js?v=2.5.1"></script>
-    <script src="js/period-comparison.js?v=2.5.1"></script>
-    <script src="js/gestao-os.js?v=2.5.1"></script>
-    <script src="js/os-auditoria.js?v=2.5.1"></script>
-    <script src="js/visao-geral.js?v=2.5.1"></script>
-    <script src="js/data-quality.js?v=2.5.1"></script>
-    <script src="js/export-engine.js?v=2.5.1"></script>
-    <script src="js/search-index.js?v=2.5.1"></script>
-    <script src="js/ranking-engine.js?v=2.5.1"></script>
-    <script src="js/executive-summary.js?v=2.5.1"></script>
-    <script src="js/main.js?v=2.5.1"></script>
+    <script src="js/servicos-data.js?v=2.5.2"></script>
+    <script src="js/sheets-api.js?v=2.5.2"></script>
+    <script src="js/calculations.js?v=2.5.2"></script>
+    <script src="js/charts.js?v=2.5.2"></script>
+    <script src="js/filters.js?v=2.5.2"></script>
+    <script src="js/editor-rdo.js?v=2.5.2"></script>
+    <script src="js/novo-rdo.js?v=2.5.2"></script>
+    <script src="js/calendario-tp.js?v=2.5.2"></script>
+    <script src="js/calendario-ts.js?v=2.5.2"></script>
+    <script src="js/period-comparison.js?v=2.5.2"></script>
+    <script src="js/gestao-os.js?v=2.5.2"></script>
+    <script src="js/os-auditoria.js?v=2.5.2"></script>
+    <script src="js/visao-geral.js?v=2.5.2"></script>
+    <script src="js/data-quality.js?v=2.5.2"></script>
+    <script src="js/export-engine.js?v=2.5.2"></script>
+    <script src="js/search-index.js?v=2.5.2"></script>
+    <script src="js/ranking-engine.js?v=2.5.2"></script>
+    <script src="js/executive-summary.js?v=2.5.2"></script>
+    <script src="js/main.js?v=2.5.2"></script>
 
     <script>
         // Inicialização com retry automático
@@ -665,6 +670,132 @@
             }
         }
     </script>
+
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <!-- Modal Novo RDO                                             -->
+    <!-- ═══════════════════════════════════════════════════════════ -->
+    <div class="modal fade" id="modalNovoRDO" tabindex="-1" aria-labelledby="modalNovoRDOLabel" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-scrollable">
+            <div class="modal-content">
+                <div class="modal-header bg-primary bg-opacity-10">
+                    <h5 class="modal-title" id="modalNovoRDOLabel">
+                        <i class="fas fa-plus-circle me-2 text-primary"></i>Novo RDO
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Fechar"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="novo-rdo-alerta" class="alert alert-danger" style="display:none;"></div>
+
+                    <h6 class="text-muted mb-2">Cabeçalho</h6>
+                    <div class="row g-2 mb-3">
+                        <div class="col-6 col-md-3">
+                            <label class="form-label form-label-sm mb-0">Data</label>
+                            <input type="date" id="nr-data" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label form-label-sm mb-0">Código Turma</label>
+                            <input type="text" id="nr-turma" class="form-control form-control-sm" list="dlTurmas" onchange="novoRDO.onTurmaChange()">
+                            <datalist id="dlTurmas"></datalist>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label form-label-sm mb-0">Encarregado</label>
+                            <input type="text" id="nr-encarregado" class="form-control form-control-sm" list="dlEncarregados">
+                            <datalist id="dlEncarregados"></datalist>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label form-label-sm mb-0">Número O.S</label>
+                            <input type="text" id="nr-numero-os" class="form-control form-control-sm">
+                        </div>
+
+                        <div class="col-12 col-md-4">
+                            <label class="form-label form-label-sm mb-0">Local</label>
+                            <input type="text" id="nr-local" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label form-label-sm mb-0">Status OS</label>
+                            <input type="text" id="nr-status-os" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label form-label-sm mb-0">Clima</label>
+                            <input type="text" id="nr-clima" class="form-control form-control-sm">
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label form-label-sm mb-0">KM Início</label>
+                            <input type="text" id="nr-km-inicio" class="form-control form-control-sm" placeholder="000+000">
+                        </div>
+                        <div class="col-6 col-md-2">
+                            <label class="form-label form-label-sm mb-0">KM Fim</label>
+                            <input type="text" id="nr-km-fim" class="form-control form-control-sm" placeholder="000+000">
+                        </div>
+
+                        <div class="col-12">
+                            <label class="form-label form-label-sm mb-0">Nome Colaboradores</label>
+                            <input type="text" id="nr-colaboradores" class="form-control form-control-sm" placeholder="Nomes separados por vírgula">
+                        </div>
+
+                        <div class="col-12 col-md-6 d-flex align-items-center gap-2 mt-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="nr-houve-servico" checked onchange="novoRDO.toggleHouveServico()">
+                                <label class="form-check-label" for="nr-houve-servico">Houve Serviço</label>
+                            </div>
+                        </div>
+                        <div class="col-12 col-md-6 d-flex align-items-center gap-2 mt-2">
+                            <div class="form-check form-switch">
+                                <input class="form-check-input" type="checkbox" id="nr-houve-transporte">
+                                <label class="form-check-label" for="nr-houve-transporte">Houve Transporte</label>
+                            </div>
+                            <small class="text-muted">(itens de transporte podem ser adicionados depois, editando o RDO no calendário)</small>
+                        </div>
+                    </div>
+
+                    <div id="nr-secao-servico-fields" class="row g-2 mb-3">
+                        <div class="col-6 col-md-3">
+                            <label class="form-label form-label-sm mb-0">Horário Início</label>
+                            <input type="text" id="nr-horario-inicio" class="form-control form-control-sm" placeholder="HH:mm">
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label form-label-sm mb-0">Horário Fim</label>
+                            <input type="text" id="nr-horario-fim" class="form-control form-control-sm" placeholder="HH:mm">
+                        </div>
+                        <div class="col-12 col-md-6">
+                            <label class="form-label form-label-sm mb-0">Tema DDS</label>
+                            <input type="text" id="nr-tema-dds" class="form-control form-control-sm">
+                        </div>
+                    </div>
+
+                    <div id="nr-secao-servicos" class="mb-3">
+                        <h6 class="text-muted mb-2 d-flex justify-content-between align-items-center">
+                            Serviços
+                            <button type="button" class="btn btn-sm btn-outline-primary" onclick="novoRDO.adicionarLinhaServico()">
+                                <i class="fas fa-plus me-1"></i>Adicionar Serviço
+                            </button>
+                        </h6>
+                        <div class="table-responsive">
+                            <table class="table table-sm align-middle">
+                                <thead>
+                                    <tr><th>Serviço</th><th>Qtd</th><th>Unid.</th><th>HH</th><th></th></tr>
+                                </thead>
+                                <tbody id="nr-tbody-servicos"></tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <div class="mb-2">
+                        <label class="form-label form-label-sm mb-0">
+                            Observações <span id="nr-obs-required-hint" class="text-danger" style="display:none;">*</span>
+                        </label>
+                        <textarea id="nr-observacoes" class="form-control form-control-sm" rows="2"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="button" class="btn btn-primary" onclick="novoRDO.salvar(this)">
+                        <i class="fas fa-save me-1"></i>Criar RDO
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <!-- ═══════════════════════════════════════════════════════════ -->
     <!-- Modal Exportação                                          -->
