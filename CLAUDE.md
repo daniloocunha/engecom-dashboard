@@ -666,7 +666,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 10
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.5.1
+- **Dashboard Version**: 2.5.2
 
 ## Release Information
 
@@ -712,6 +712,31 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 - **Melhoria**: validação de integridade do APK aceita SHA-256 (hash de 64 caracteres na chave
   `hash_md5` da aba Config) com retrocompatibilidade MD5 (32 caracteres). Para usar:
   `Get-FileHash app-release.apk -Algorithm SHA256` e colar o hash na aba Config
+
+---
+
+### Dashboard 2.5.2 — 2026-07-08
+**Criar Novo RDO pelo Dashboard**
+
+> ⚠️ Requer atualização manual do Apps Script (colar `dashboard/apps-script-atualizar-os.gs`
+> no editor do Google e reimplantar). Sem isso, o botão "Novo RDO" retorna erro
+> "Acao desconhecida: criarRDO".
+
+- **Novo RDO** (botão na navbar + `dashboard/js/novo-rdo.js`): lança um RDO novo direto do
+  dashboard, sem precisar do app Android. Escopo enxuto — cabeçalho completo + lista dinâmica
+  de Serviços (spinner com coeficientes + preview de HH); Materiais, Equipamentos, HI, Efetivo
+  e Transportes continuam sendo adicionados depois via edição do RDO no calendário
+- Turma/Encarregado com `<datalist>` editável: sugere valores de RDOs existentes mas aceita
+  texto novo (não há cadastro desses valores em nenhum lugar do sistema)
+- Validação client-side espelha `RDOValidator.kt` do app (obrigatórios, formato de horário,
+  diferença > 24h bloqueante, confirmações não-bloqueantes de KM fim < início e virada de
+  meia-noite)
+- Apps Script: nova ação `criarRDO` — gera o Número RDO no formato `OS-dd.MM.yy-XXX` (mesmo
+  algoritmo de `duplicarRDO`: maior sufixo existente + 1, sob `LockService`) e grava nas abas
+  RDO + Servicos, com rollback manual se a escrita falhar no meio
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/novo-rdo.js`,
+`dashboard/apps-script-atualizar-os.gs`
 
 ---
 
