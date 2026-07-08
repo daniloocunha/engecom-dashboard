@@ -188,6 +188,11 @@ def main():
         help="Sufixo inicial do Número RDO por OS+data (default 1). "
              "Use 2 se já existir um RDO daquela OS+data na planilha.",
     )
+    parser.add_argument(
+        "--outdir", metavar="DIR",
+        help="Escreve um arquivo .tsv por aba nesse diretório (para colar em lote), "
+             "além do resumo. Útil para muitos RDOs.",
+    )
     args = parser.parse_args()
 
     if args.arquivo:
@@ -225,11 +230,26 @@ def main():
         print(f"   • {key}-{args.inicio:03d}  |  {rdo['data']}  |  Turma {rdo['codigoTurma']}  |  OS {rdo['numeroOS']}")
     print(f"\n⚠️  Número RDO começa em -{args.inicio:03d} por OS+data. Se já existir um na planilha, "
           "rode de novo com --inicio 2 (ou ajuste o sufixo na coluna B antes de colar).\n")
-    print("Para cada bloco abaixo: vá na aba indicada, clique na primeira linha vazia "
-          "da coluna A e cole (Ctrl+V).\n")
 
     ordem = ["RDO", "Servicos", "Materiais", "HorasImprodutivas",
              "TransporteSucatas", "Efetivo", "Equipamentos"]
+
+    # Modo lote: escreve um .tsv por aba e não despeja tudo no terminal.
+    if args.outdir:
+        os.makedirs(args.outdir, exist_ok=True)
+        print(f"Arquivos .tsv gravados em {args.outdir} (abrir, Ctrl+A, Ctrl+C e colar na aba):")
+        for aba in ordem:
+            rows = out[aba]
+            if not rows:
+                continue
+            caminho = os.path.join(args.outdir, f"{aba}.tsv")
+            with open(caminho, "w", encoding="utf-8") as f:
+                f.write(to_tsv(rows) + "\n")
+            print(f"  • {aba}.tsv  ({len(rows)} linha(s))")
+        return
+
+    print("Para cada bloco abaixo: vá na aba indicada, clique na primeira linha vazia "
+          "da coluna A e cole (Ctrl+V).\n")
     for aba in ordem:
         rows = out[aba]
         if not rows:
