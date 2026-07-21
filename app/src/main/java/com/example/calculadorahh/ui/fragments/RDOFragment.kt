@@ -6,6 +6,7 @@ import com.example.calculadorahh.domain.managers.*
 import com.example.calculadorahh.data.database.DatabaseHelper
 import com.example.calculadorahh.utils.*
 import com.example.calculadorahh.ui.activities.HistoricoRDOActivity
+import com.example.calculadorahh.ui.activities.ChecklistInspecaoActivity
 
 import android.annotation.SuppressLint
 import android.app.AlertDialog
@@ -478,6 +479,12 @@ class RDOFragment : Fragment() {
                                 compartilharRelatorio(relatorio)
                             }
                             builder.setNegativeButton("Fechar", null)
+                            // Oferece a autoinspeção de qualidade quando houve serviço de solda
+                            if (deveOferecerChecklist(dados)) {
+                                builder.setNeutralButton("Checklist de Qualidade") { _, _ ->
+                                    abrirChecklistInspecao(id)
+                                }
+                            }
                             builder.show()
                         } else {
                             Toast.makeText(requireContext(), "Erro ao salvar RDO no banco de dados", Toast.LENGTH_LONG).show()
@@ -577,6 +584,11 @@ class RDOFragment : Fragment() {
                             // Gerar relatório e compartilhar imediatamente
                             val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados)
                             compartilharRelatorio(relatorio)
+
+                            // Oferece a autoinspeção de qualidade quando houve serviço de solda
+                            if (deveOferecerChecklist(dados)) {
+                                mostrarOfertaChecklist(idSalvo)
+                            }
                         } else {
                             Toast.makeText(requireContext(), "Erro ao salvar RDO", Toast.LENGTH_SHORT).show()
                         }
@@ -980,6 +992,45 @@ class RDOFragment : Fragment() {
         )
 
         modeloLoader.carregarModelo(rdoModelo, views, servicosManager, materiaisManager, hiManager, transportesManager)
+    }
+
+    /** true se o RDO teve serviço e ao menos um deles é de solda. */
+    private fun deveOferecerChecklist(dados: RDOData): Boolean {
+        if (!dados.houveServico) return false
+        return dados.servicos.any { ChecklistManager.ehServicoSolda(it.descricao) }
+    }
+
+    /** Diálogo que convida o usuário a preencher o checklist de qualidade. */
+    private fun mostrarOfertaChecklist(rdoId: Long) {
+        AlertDialog.Builder(requireContext())
+            .setTitle("Checklist de Qualidade — Solda")
+            .setMessage(
+                "Este RDO tem serviço de solda. Deseja preencher agora a autoinspeção " +
+                "de qualidade (mesmo checklist usado pela fiscalização da RUMO)?"
+            )
+            .setPositiveButton("Preencher") { _, _ -> abrirChecklistInspecao(rdoId) }
+            .setNegativeButton("Agora não", null)
+            .show()
+    }
+
+    /** Abre a tela de checklist de inspeção, pré-preenchendo com os dados do RDO. */
+    private fun abrirChecklistInspecao(rdoId: Long) {
+        lifecycleScope.launch {
+            val rdo = withContext(Dispatchers.IO) { databaseHelper.obterRDOPorId(rdoId) }
+            if (rdo == null) {
+                Toast.makeText(requireContext(), "RDO não encontrado", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val intent = Intent(requireContext(), ChecklistInspecaoActivity::class.java).apply {
+                putExtra(ChecklistInspecaoActivity.EXTRA_TIPO, "solda")
+                putExtra(ChecklistInspecaoActivity.EXTRA_NUMERO_RDO, rdo.numeroRDO)
+                putExtra(ChecklistInspecaoActivity.EXTRA_NUMERO_OS, rdo.numeroOS)
+                putExtra(ChecklistInspecaoActivity.EXTRA_DATA, rdo.data)
+                putExtra(ChecklistInspecaoActivity.EXTRA_ENCARREGADO, rdo.encarregado)
+                putExtra(ChecklistInspecaoActivity.EXTRA_LOCAL, rdo.local)
+            }
+            startActivity(intent)
+        }
     }
 
     private fun coletarDadosFormulario(): RDOData {

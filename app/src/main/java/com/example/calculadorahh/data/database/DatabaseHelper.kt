@@ -20,7 +20,7 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
     companion object {
         private const val TAG = "DatabaseHelper"
         private const val DATABASE_NAME = "rdo.db"
-        private const val DATABASE_VERSION = 10
+        private const val DATABASE_VERSION = 11
 
         @Volatile
         private var INSTANCE: DatabaseHelper? = null
@@ -63,6 +63,18 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         private const val COLUMN_MENSAGEM_ERRO_SYNC = "mensagem_erro_sync"
         private const val COLUMN_TENTATIVAS_SYNC = "tentativas_sync"
         private const val COLUMN_CAUSA_NAO_SERVICO = "causa_nao_servico"
+
+        // ===== Tabela de checklists de inspeção (v11) =====
+        private const val TABLE_CHECKLIST = "checklist_inspecao"
+        private const val COL_CHK_ID = "id"
+        private const val COL_CHK_NUMERO_RDO = "numero_rdo"
+        private const val COL_CHK_NUMERO_OS = "numero_os"
+        private const val COL_CHK_TIPO = "tipo"
+        private const val COL_CHK_SITUACAO = "situacao"
+        private const val COL_CHK_NAO_CONFORMIDADES = "nao_conformidades"
+        private const val COL_CHK_CRITICOS = "criticos_reprovados"
+        private const val COL_CHK_DADOS = "dados_json"
+        private const val COL_CHK_DATA_CRIACAO = "data_criacao"
     }
 
     override fun onCreate(db: SQLiteDatabase?) {
@@ -109,7 +121,26 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
 
         // Create UNIQUE index to prevent duplicate RDO numbers (v8+)
         db?.execSQL("CREATE UNIQUE INDEX idx_rdo_numero_rdo_unique ON $TABLE_RDO($COLUMN_NUMERO_RDO)")
+
+        // Tabela de checklists de inspeção (v11)
+        db?.execSQL(createChecklistTableSql())
+        db?.execSQL("CREATE INDEX idx_chk_numero_rdo ON $TABLE_CHECKLIST($COL_CHK_NUMERO_RDO)")
     }
+
+    /** DDL da tabela de checklists de inspeção — reutilizada em onCreate e onUpgrade. */
+    private fun createChecklistTableSql(): String = """
+        CREATE TABLE IF NOT EXISTS $TABLE_CHECKLIST (
+            $COL_CHK_ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            $COL_CHK_NUMERO_RDO TEXT,
+            $COL_CHK_NUMERO_OS TEXT,
+            $COL_CHK_TIPO TEXT,
+            $COL_CHK_SITUACAO TEXT DEFAULT '',
+            $COL_CHK_NAO_CONFORMIDADES INTEGER DEFAULT 0,
+            $COL_CHK_CRITICOS INTEGER DEFAULT 0,
+            $COL_CHK_DADOS TEXT DEFAULT '{}',
+            $COL_CHK_DATA_CRIACAO TEXT DEFAULT ''
+        )
+    """.trimIndent()
 
     override fun onUpgrade(db: SQLiteDatabase?, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
@@ -169,6 +200,11 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
         if (oldVersion < 10) {
             db?.execSQL("ALTER TABLE $TABLE_RDO ADD COLUMN $COLUMN_CAUSA_NAO_SERVICO TEXT DEFAULT ''")
             Log.i(TAG, "Coluna causa_nao_servico adicionada com sucesso")
+        }
+        if (oldVersion < 11) {
+            db?.execSQL(createChecklistTableSql())
+            db?.execSQL("CREATE INDEX IF NOT EXISTS idx_chk_numero_rdo ON $TABLE_CHECKLIST($COL_CHK_NUMERO_RDO)")
+            Log.i(TAG, "Tabela checklist_inspecao criada com sucesso")
         }
     }
 
@@ -1095,6 +1131,103 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
             INSTANCE = null
         } catch (e: Exception) {
             e.printStackTrace()
+        }
+    }
+
+    // ===================================================================
+    // CHECKLISTS DE INSPEÇÃO (v11)
+    // ===================================================================
+
+    /**
+     * Salva (insere ou atualiza) o checklist de inspeção de um RDO.
+     * Há no máximo um checklist por (numeroRDO, tipo): se já existir, é
+     * substituído. Retorna o id da linha ou -1 em caso de erro.
+     */
+    @Synchronized
+    fun salvarChecklist(checklist: ChecklistPreenchido): Long {
+        val db = writableDatabase
+        val gson = Gson()
+        return try {
+            val dataCriacao = checklist.dataCriacao.ifBlank {
+                SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+            }
+            val values = ContentValues().apply {
+                put(COL_CHK_NUMERO_RDO, checklist.numeroRDO)
+                put(COL_CHK_NUMERO_OS, checklist.numeroOS)
+                put(COL_CHK_TIPO, checklist.tipo)
+                put(COL_CHK_SITUACAO, checklist.situacao)
+                put(COL_CHK_NAO_CONFORMIDADES, checklist.naoConformidades)
+                put(COL_CHK_CRITICOS, checklist.itensCriticosReprovados)
+                put(COL_CHK_DADOS, gson.toJson(checklist.copy(dataCriacao = dataCriacao)))
+                put(COL_CHK_DATA_CRIACAO, dataCriacao)
+            }
+
+            val rowsUpdated = db.update(
+                TABLE_CHECKLIST,
+                values,
+                "$COL_CHK_NUMERO_RDO = ? AND $COL_CHK_TIPO = ?",
+                arrayOf(checklist.numeroRDO, checklist.tipo)
+            )
+
+            if (rowsUpdated > 0) {
+                obterChecklistId(checklist.numeroRDO, checklist.tipo)
+            } else {
+                db.insert(TABLE_CHECKLIST, null, values)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Erro ao salvar checklist", e)
+            -1
+        }
+    }
+
+    private fun obterChecklistId(numeroRDO: String, tipo: String): Long {
+        readableDatabase.query(
+            TABLE_CHECKLIST,
+            arrayOf(COL_CHK_ID),
+            "$COL_CHK_NUMERO_RDO = ? AND $COL_CHK_TIPO = ?",
+            arrayOf(numeroRDO, tipo),
+            null, null, null, "1"
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) cursor.getLong(0) else -1
+        }
+    }
+
+    /**
+     * Retorna o checklist preenchido de um RDO/tipo, ou null se não houver.
+     */
+    fun obterChecklist(numeroRDO: String, tipo: String): ChecklistPreenchido? {
+        val db = readableDatabase
+        val gson = Gson()
+        db.query(
+            TABLE_CHECKLIST,
+            arrayOf(COL_CHK_DADOS),
+            "$COL_CHK_NUMERO_RDO = ? AND $COL_CHK_TIPO = ?",
+            arrayOf(numeroRDO, tipo),
+            null, null, null, "1"
+        ).use { cursor ->
+            return if (cursor.moveToFirst()) {
+                try {
+                    gson.fromJson(cursor.getString(0), ChecklistPreenchido::class.java)
+                } catch (e: Exception) {
+                    Log.e(TAG, "Erro ao desserializar checklist", e)
+                    null
+                }
+            } else {
+                null
+            }
+        }
+    }
+
+    /** true se já existe algum checklist salvo para o RDO. */
+    fun possuiChecklist(numeroRDO: String): Boolean {
+        readableDatabase.query(
+            TABLE_CHECKLIST,
+            arrayOf(COL_CHK_ID),
+            "$COL_CHK_NUMERO_RDO = ?",
+            arrayOf(numeroRDO),
+            null, null, null, "1"
+        ).use { cursor ->
+            return cursor.moveToFirst()
         }
     }
 }

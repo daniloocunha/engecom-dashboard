@@ -533,6 +533,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - Version 8: UNIQUE index em `numero_rdo` com retry automático
 - Version 9: Campos de auditoria de sync (`sync_status`, `mensagem_erro_sync`, `tentativas_sync`, `ultima_tentativa_sync`)
 - Version 10: Coluna `causa_nao_servico TEXT DEFAULT ''` (armazenada localmente, não sincronizada com Sheets)
+- Version 11: Tabela `checklist_inspecao` (autoinspeção de qualidade RUMO) — armazenada localmente, não sincronizada com Sheets
 
 ### ProGuard Configuration
 - **Habilitado** para release builds
@@ -659,12 +660,12 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - Orchestração: editar `GoogleSheetsService.kt` apenas se o fluxo principal mudar
 
 ## Version Information
-- **versionCode**: 24
-- **versionName**: "5.1.7"
+- **versionCode**: 25
+- **versionName**: "5.2.0"
 - **AGP Version**: 8.13.1
 - **Kotlin Version**: 2.0.21
 - **Gradle Version**: 8.13 (via wrapper)
-- **Database Version**: 10
+- **Database Version**: 11
 - **Sheets HEADERS_VERSION**: 6
 - **Dashboard Version**: 2.5.2
 
@@ -702,6 +703,48 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 > **Hash do APK**: enquanto houver aparelhos com versionCode ≤ 23 em campo, a chave `hash_md5` DEVE conter MD5 (32 caracteres) — versões antigas só calculam MD5 e rejeitariam um SHA-256. A partir do momento em que todos estiverem no versionCode 24+, pode-se usar SHA-256 (64 caracteres) na mesma chave.
 
 ## Version History
+
+### Version 5.2.0 (versionCode 25) - 2026-07-21
+**Checklist de Inspeção de Qualidade (autoinspeção RUMO) — Solda**
+
+Reproduz, dentro do app, o formulário de auditoria que os fiscais da RUMO usam
+para inspecionar as O.S ("FORMULÁRIO INSPEÇÃO TURMA | TURMA DE PRODUÇÃO"). O
+objetivo é a turma se autoinspecionar ao finalizar a O.S e corrigir não
+conformidades antes da vistoria do fiscal.
+
+- **Template-driven** (`res/raw/checklist_solda.json`): fonte única de verdade das
+  perguntas, espelhando o formulário de solda (formulário 25247). Novos tipos de
+  atividade (dormente, etc.) entram só criando um novo JSON e registrando-o em
+  `ChecklistManager.rawPorTipo()`
+- **Estrutura de solda**: seção geral (localização, PCM, reemprego) + seção
+  **repetível por solda** (14 itens técnicos: marcação no trilho, tolerâncias de
+  desnível 0,4 mm / desalinhamento 0,3 mm, desgaste vertical, furo/bisel, soldas
+  paralelas, dormentes de apoio/balanço, defeito aparente, acompanhamento,
+  calibração de equipamentos) + fechamento com **itens críticos** (boletim de
+  qualidade, medidas dentro do esperado)
+- **Veredito automático** (`ChecklistManager.avaliar()`): Reprovada se houver
+  qualquer não conformidade; itens críticos são sinalizados à parte. Cada item
+  define qual resposta caracteriza não conformidade (`naoConforme`), e
+  "Não Aplicável" nunca conta como não conformidade
+- **Tela dinâmica** (`ChecklistInspecaoActivity`): renderiza o template
+  programaticamente (Sim/Não/N.A. + observação por item), stepper para a
+  quantidade de soldas e banner de veredito ao vivo
+- **Gatilho**: ao salvar um RDO com serviço de solda, o `RDOFragment` oferece
+  abrir o checklist (botão "Checklist de Qualidade" no diálogo do relatório ou
+  diálogo de oferta no fluxo de compartilhamento)
+- **Persistência**: nova tabela `checklist_inspecao` (DB v11), 1 checklist por
+  (Número RDO, tipo), serializado via Gson. **Armazenado apenas localmente** —
+  sync com Sheets/dashboard e captura de fotos ficam para uma etapa futura
+
+**Arquivos novos:** `app/src/main/res/raw/checklist_solda.json`,
+`data/models/ChecklistInspecao.kt`, `domain/managers/ChecklistManager.kt`,
+`ui/activities/ChecklistInspecaoActivity.kt`,
+`res/layout/activity_checklist_inspecao.xml`
+**Arquivos alterados:** `data/database/DatabaseHelper.kt` (v11),
+`ui/fragments/RDOFragment.kt` (gatilho), `AndroidManifest.xml`,
+`app/build.gradle.kts`
+
+---
 
 ### Version 5.1.7 (versionCode 24) - 2026-06-09
 **Permissão de notificações + hash SHA-256**

@@ -47,6 +47,13 @@
             android:theme="@style/Theme.CalculadoraHH"
             android:exported="false"/>
 
+        <!-- Checklist de inspeção (autoinspeção RUMO) -->
+        <activity
+            android:name=".ui.activities.ChecklistInspecaoActivity"
+            android:label="Checklist de Inspeção"
+            android:theme="@style/Theme.CalculadoraHH"
+            android:exported="false"/>
+
         <!-- FileProvider para compartilhar arquivos -->
         <provider
             android:name="androidx.core.content.FileProvider"
