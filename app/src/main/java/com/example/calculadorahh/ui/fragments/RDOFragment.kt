@@ -479,10 +479,11 @@ class RDOFragment : Fragment() {
                                 compartilharRelatorio(relatorio)
                             }
                             builder.setNegativeButton("Fechar", null)
-                            // Oferece a autoinspeção de qualidade quando houve serviço de solda
-                            if (deveOferecerChecklist(dados)) {
+                            // Oferece a autoinspeção de qualidade quando houve serviço com checklist
+                            val tiposChecklist = tiposDetectados(dados)
+                            if (tiposChecklist.isNotEmpty()) {
                                 builder.setNeutralButton("Checklist de Qualidade") { _, _ ->
-                                    abrirChecklistInspecao(id)
+                                    escolherEAbrirChecklist(id, tiposChecklist)
                                 }
                             }
                             builder.show()
@@ -585,9 +586,10 @@ class RDOFragment : Fragment() {
                             val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados)
                             compartilharRelatorio(relatorio)
 
-                            // Oferece a autoinspeção de qualidade quando houve serviço de solda
-                            if (deveOferecerChecklist(dados)) {
-                                mostrarOfertaChecklist(idSalvo)
+                            // Oferece a autoinspeção de qualidade quando houve serviço com checklist
+                            val tiposChecklist = tiposDetectados(dados)
+                            if (tiposChecklist.isNotEmpty()) {
+                                mostrarOfertaChecklist(idSalvo, tiposChecklist)
                             }
                         } else {
                             Toast.makeText(requireContext(), "Erro ao salvar RDO", Toast.LENGTH_SHORT).show()
@@ -994,27 +996,47 @@ class RDOFragment : Fragment() {
         modeloLoader.carregarModelo(rdoModelo, views, servicosManager, materiaisManager, hiManager, transportesManager)
     }
 
-    /** true se o RDO teve serviço e ao menos um deles é de solda. */
-    private fun deveOferecerChecklist(dados: RDOData): Boolean {
-        if (!dados.houveServico) return false
-        return dados.servicos.any { ChecklistManager.ehServicoSolda(it.descricao) }
+    /** Tipos de checklist relevantes para os serviços do RDO (solda, dormente...). */
+    private fun tiposDetectados(dados: RDOData): List<ChecklistManager.TipoChecklist> {
+        if (!dados.houveServico) return emptyList()
+        return ChecklistManager.tiposParaServicos(dados.servicos.map { it.descricao })
     }
 
     /** Diálogo que convida o usuário a preencher o checklist de qualidade. */
-    private fun mostrarOfertaChecklist(rdoId: Long) {
+    private fun mostrarOfertaChecklist(rdoId: Long, tipos: List<ChecklistManager.TipoChecklist>) {
+        val descricao = tipos.joinToString(" e ") { it.nome.lowercase() }
         AlertDialog.Builder(requireContext())
-            .setTitle("Checklist de Qualidade — Solda")
+            .setTitle("Checklist de Qualidade")
             .setMessage(
-                "Este RDO tem serviço de solda. Deseja preencher agora a autoinspeção " +
+                "Este RDO tem serviço de $descricao. Deseja preencher agora a autoinspeção " +
                 "de qualidade (mesmo checklist usado pela fiscalização da RUMO)?"
             )
-            .setPositiveButton("Preencher") { _, _ -> abrirChecklistInspecao(rdoId) }
+            .setPositiveButton("Preencher") { _, _ -> escolherEAbrirChecklist(rdoId, tipos) }
             .setNegativeButton("Agora não", null)
             .show()
     }
 
+    /**
+     * Abre o checklist do único tipo detectado ou, se houver mais de um,
+     * pede para o usuário escolher qual atividade inspecionar.
+     */
+    private fun escolherEAbrirChecklist(rdoId: Long, tipos: List<ChecklistManager.TipoChecklist>) {
+        when {
+            tipos.isEmpty() -> return
+            tipos.size == 1 -> abrirChecklistInspecao(rdoId, tipos.first().id)
+            else -> {
+                val nomes = tipos.map { it.nome }.toTypedArray()
+                AlertDialog.Builder(requireContext())
+                    .setTitle("Qual atividade inspecionar?")
+                    .setItems(nomes) { _, which -> abrirChecklistInspecao(rdoId, tipos[which].id) }
+                    .setNegativeButton("Cancelar", null)
+                    .show()
+            }
+        }
+    }
+
     /** Abre a tela de checklist de inspeção, pré-preenchendo com os dados do RDO. */
-    private fun abrirChecklistInspecao(rdoId: Long) {
+    private fun abrirChecklistInspecao(rdoId: Long, tipo: String) {
         lifecycleScope.launch {
             val rdo = withContext(Dispatchers.IO) { databaseHelper.obterRDOPorId(rdoId) }
             if (rdo == null) {
@@ -1022,7 +1044,7 @@ class RDOFragment : Fragment() {
                 return@launch
             }
             val intent = Intent(requireContext(), ChecklistInspecaoActivity::class.java).apply {
-                putExtra(ChecklistInspecaoActivity.EXTRA_TIPO, "solda")
+                putExtra(ChecklistInspecaoActivity.EXTRA_TIPO, tipo)
                 putExtra(ChecklistInspecaoActivity.EXTRA_NUMERO_RDO, rdo.numeroRDO)
                 putExtra(ChecklistInspecaoActivity.EXTRA_NUMERO_OS, rdo.numeroOS)
                 putExtra(ChecklistInspecaoActivity.EXTRA_DATA, rdo.data)

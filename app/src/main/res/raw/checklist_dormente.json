@@ -1,0 +1,134 @@
+{
+  "id": "dormente",
+  "titulo": "Inspeção de Turma — Dormente",
+  "formulario": "TURMA DE PRODUÇÃO",
+  "descricao": "Autoinspeção de qualidade espelhando o formulário de auditoria da RUMO para substituição de dormente. Preencha ao finalizar a O.S para corrigir não conformidades antes da vistoria do fiscal.",
+  "secoes": [
+    {
+      "id": "geral",
+      "titulo": "Localização e Marcação",
+      "tipo": "geral",
+      "itens": [
+        {
+          "id": "turma_no_local",
+          "pergunta": "A turma ainda está trabalhando no local?",
+          "tipo": "sim_nao",
+          "observacao": true
+        },
+        {
+          "id": "ordem_marcada_pcm",
+          "pergunta": "Ordem marcada em campo pelo PCM?",
+          "tipo": "sim_nao",
+          "observacao": true
+        },
+        {
+          "id": "marcacao_premissas",
+          "pergunta": "A marcação segue as premissas e procedimentos?",
+          "tipo": "sim_nao",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "material_reemprego",
+          "pergunta": "Turma está usando ou foi usado material reemprego na O.S?",
+          "tipo": "sim_nao",
+          "observacao": true
+        }
+      ]
+    },
+    {
+      "id": "qualidade",
+      "titulo": "Qualidade do Serviço",
+      "tipo": "geral",
+      "itens": [
+        {
+          "id": "manuseio",
+          "pergunta": "O dormente é manuseado com ferramentas adequadas, sem danos ao material?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "socaria",
+          "pergunta": "A socaria é bem feita, mecanizada de forma adequada e em 'X'?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "fixacao",
+          "pergunta": "A fixação do dormente é feita no esquadro (critério 'V'), bem apertada e sem folgas, com grampos aplicados com aplicador e retirados com extrator?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "encaixe_pedra",
+          "pergunta": "O encaixe da pedra está correto? (meio e ombros)",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "bitola",
+          "pergunta": "Os dormentes estão sendo pregados na bitola em conformidade com o desgaste do trilho?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "quadramento",
+          "pergunta": "Os dormentes ficaram com o quadramento/respaçamento correto?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "descarte",
+          "pergunta": "Os dormentes são descartados organizadamente, em pilhas?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        }
+      ]
+    },
+    {
+      "id": "fechamento",
+      "titulo": "Boletim de Qualidade e Fechamento",
+      "tipo": "geral",
+      "itens": [
+        {
+          "id": "boletim_marcado",
+          "pergunta": "Boletim de qualidade marcado no campo?",
+          "tipo": "sim_nao",
+          "critico": true,
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "medidas_dentro_esperado",
+          "pergunta": "Todas as medidas de qualidade estavam dentro do valor esperado?",
+          "tipo": "sim_nao",
+          "critico": true,
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "medidas_corrigidas",
+          "pergunta": "Medidas fora da tolerância foram corrigidas?",
+          "tipo": "sim_nao_na",
+          "critico": true,
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "quantidade_inferior",
+          "pergunta": "Tivemos algum item com quantidade aprovada inferior ao informado?",
+          "tipo": "sim_nao",
+          "naoConforme": "Sim",
+          "observacao": true
+        }
+      ]
+    }
+  ]
+}

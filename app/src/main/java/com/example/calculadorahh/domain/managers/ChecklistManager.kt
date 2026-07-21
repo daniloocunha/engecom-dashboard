@@ -21,13 +21,27 @@ object ChecklistManager {
 
     private const val TAG = "ChecklistManager"
 
-    /** Palavras que identificam um serviço de solda no RDO. */
-    private val TERMOS_SOLDA = listOf("solda", "soldado", "aluminot")
+    /**
+     * Tipo de atividade que possui checklist, com o nome exibido e as palavras
+     * que o identificam na descrição de um serviço do RDO.
+     */
+    data class TipoChecklist(
+        val id: String,
+        val nome: String,
+        val termos: List<String>
+    )
+
+    /** Tipos de checklist disponíveis (novo tipo entra aqui + novo JSON em rawPorTipo). */
+    val TIPOS = listOf(
+        TipoChecklist("solda", "Solda", listOf("solda", "soldado", "aluminot")),
+        TipoChecklist("dormente", "Dormente", listOf("dormente"))
+    )
 
     private val cache = mutableMapOf<String, ChecklistTemplate>()
 
     private fun rawPorTipo(tipo: String): Int? = when (tipo) {
         "solda" -> R.raw.checklist_solda
+        "dormente" -> R.raw.checklist_dormente
         else -> null
     }
 
@@ -56,7 +70,18 @@ object ChecklistManager {
     /** true se a descrição do serviço indica um serviço de solda. */
     fun ehServicoSolda(descricao: String): Boolean {
         val d = descricao.lowercase()
-        return TERMOS_SOLDA.any { d.contains(it) }
+        return TIPOS.first { it.id == "solda" }.termos.any { d.contains(it) }
+    }
+
+    /**
+     * Tipos de checklist relevantes para uma lista de descrições de serviço.
+     * Ex.: um RDO com solda e substituição de dormente devolve [Solda, Dormente].
+     */
+    fun tiposParaServicos(descricoes: List<String>): List<TipoChecklist> {
+        val ds = descricoes.map { it.lowercase() }
+        return TIPOS.filter { tipo ->
+            tipo.termos.any { termo -> ds.any { it.contains(termo) } }
+        }
     }
 
     /**

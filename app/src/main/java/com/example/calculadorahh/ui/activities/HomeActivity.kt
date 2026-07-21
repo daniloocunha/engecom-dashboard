@@ -16,6 +16,7 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.calculadorahh.BuildConfig
 import com.example.calculadorahh.data.database.DatabaseHelper
+import com.example.calculadorahh.domain.managers.ChecklistManager
 import com.example.calculadorahh.data.models.RDODataCompleto
 import com.example.calculadorahh.data.models.SyncStatus
 import com.example.calculadorahh.data.models.UpdateConfig
@@ -154,14 +155,28 @@ class HomeActivity : AppCompatActivity() {
         }
 
         binding.cardChecklist.setOnClickListener {
-            startActivity(Intent(this, ChecklistInspecaoActivity::class.java).apply {
-                putExtra(ChecklistInspecaoActivity.EXTRA_TIPO, "solda")
-            })
+            mostrarSeletorAtividade()
         }
 
         binding.btnSyncAllRDOs.setOnClickListener {
             sincronizarTodosRDOs()
         }
+    }
+
+    /** Diálogo de seleção do tipo de atividade antes de abrir o checklist. */
+    private fun mostrarSeletorAtividade() {
+        val tipos = ChecklistManager.TIPOS
+        val nomes = tipos.map { it.nome }.toTypedArray()
+        AlertDialog.Builder(this)
+            .setTitle("Qual atividade inspecionar?")
+            .setItems(nomes) { _, which ->
+                val tipo = tipos[which]
+                startActivity(Intent(this, ChecklistInspecaoActivity::class.java).apply {
+                    putExtra(ChecklistInspecaoActivity.EXTRA_TIPO, tipo.id)
+                })
+            }
+            .setNegativeButton("Cancelar", null)
+            .show()
     }
 
     // ──────────────────────────────────────────────────────────────────────────

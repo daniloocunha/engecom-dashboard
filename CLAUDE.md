@@ -716,23 +716,29 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 ## Version History
 
 ### Version 5.2.0 (versionCode 25) - 2026-07-21
-**Checklist de Inspeção de Qualidade (autoinspeção RUMO) — Solda**
+**Checklist de Inspeção de Qualidade (autoinspeção RUMO) — Solda e Dormente**
 
 Reproduz, dentro do app, o formulário de auditoria que os fiscais da RUMO usam
 para inspecionar as O.S ("FORMULÁRIO INSPEÇÃO TURMA | TURMA DE PRODUÇÃO"). O
 objetivo é a turma se autoinspecionar ao finalizar a O.S e corrigir não
 conformidades antes da vistoria do fiscal.
 
-- **Template-driven** (`res/raw/checklist_solda.json`): fonte única de verdade das
-  perguntas, espelhando o formulário de solda (formulário 25247). Novos tipos de
-  atividade (dormente, etc.) entram só criando um novo JSON e registrando-o em
-  `ChecklistManager.rawPorTipo()`
+- **Template-driven** (`res/raw/checklist_solda.json`, `checklist_dormente.json`):
+  fonte única de verdade das perguntas, espelhando os formulários de solda
+  (25247) e dormente (24210). Novos tipos entram só criando um novo JSON e
+  registrando-o em `ChecklistManager.rawPorTipo()` + `ChecklistManager.TIPOS`
+- **Seleção de atividade**: ao abrir pela tela inicial, um diálogo pergunta qual
+  atividade inspecionar (Solda / Dormente). Pelo RDO, o tipo é detectado dos
+  serviços (`tiposParaServicos()`); com mais de um, pede a escolha
 - **Estrutura de solda**: seção geral (localização, PCM, reemprego) + seção
   **repetível por solda** (14 itens técnicos: marcação no trilho, tolerâncias de
   desnível 0,4 mm / desalinhamento 0,3 mm, desgaste vertical, furo/bisel, soldas
   paralelas, dormentes de apoio/balanço, defeito aparente, acompanhamento,
   calibração de equipamentos) + fechamento com **itens críticos** (boletim de
   qualidade, medidas dentro do esperado)
+- **Estrutura de dormente**: seções não repetíveis — localização/marcação PCM +
+  qualidade do serviço (manuseio, socaria, fixação 'V', encaixe da pedra, bitola,
+  quadramento, descarte) + fechamento com itens críticos
 - **Veredito automático** (`ChecklistManager.avaliar()`): Reprovada se houver
   qualquer não conformidade; itens críticos são sinalizados à parte. Cada item
   define qual resposta caracteriza não conformidade (`naoConforme`), e
@@ -751,6 +757,7 @@ conformidades antes da vistoria do fiscal.
   sync com Sheets/dashboard e captura de fotos ficam para uma etapa futura
 
 **Arquivos novos:** `app/src/main/res/raw/checklist_solda.json`,
+`app/src/main/res/raw/checklist_dormente.json`,
 `data/models/ChecklistInspecao.kt`, `domain/managers/ChecklistManager.kt`,
 `ui/activities/ChecklistInspecaoActivity.kt`,
 `res/layout/activity_checklist_inspecao.xml`
