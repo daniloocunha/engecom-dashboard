@@ -88,21 +88,69 @@ class ChecklistInspecaoActivity : AppCompatActivity() {
         binding.toolbar.title = template.titulo
         binding.toolbar.setNavigationOnClickListener { finish() }
 
-        binding.txtCabecalho.text = montarCabecalho()
+        // Quando há um RDO vinculado, mostra-o como contexto (não editável).
+        if (preenchido.numeroRDO.isNotBlank()) {
+            binding.txtCabecalho.text = "RDO ${preenchido.numeroRDO}"
+        } else {
+            binding.txtCabecalho.visibility = View.GONE
+        }
 
+        renderizarIdentificacao()
         renderizarSecoes()
         atualizarVeredito()
 
         binding.fabSalvar.setOnClickListener { salvar() }
     }
 
-    private fun montarCabecalho(): String {
-        val partes = mutableListOf<String>()
-        if (preenchido.numeroOS.isNotBlank()) partes.add("O.S ${preenchido.numeroOS}")
-        if (preenchido.data.isNotBlank()) partes.add(preenchido.data)
-        if (preenchido.encarregado.isNotBlank()) partes.add(preenchido.encarregado)
-        if (preenchido.local.isNotBlank()) partes.add(preenchido.local)
-        return partes.joinToString(" · ")
+    /**
+     * Seção de identificação editável (O.S, encarregado, data, local).
+     * Preenchida a partir do RDO quando aberto por ele; digitável quando
+     * aberto avulso pela tela inicial.
+     */
+    private fun renderizarIdentificacao() {
+        val card = novoCard()
+        val col = card.getChildAt(0) as LinearLayout
+        col.addView(tituloSecao("Identificação"))
+
+        col.addView(campoTexto("Número da O.S", preenchido.numeroOS) { texto ->
+            preenchido = preenchido.copy(numeroOS = texto)
+        })
+        col.addView(campoTexto("Encarregado", preenchido.encarregado) { texto ->
+            preenchido = preenchido.copy(encarregado = texto)
+        })
+        col.addView(campoTexto("Data (dd/MM/aaaa)", preenchido.data) { texto ->
+            preenchido = preenchido.copy(data = texto)
+        })
+        col.addView(campoTexto("Local", preenchido.local) { texto ->
+            preenchido = preenchido.copy(local = texto)
+        })
+
+        binding.containerSecoes.addView(card)
+    }
+
+    /** Campo de texto rotulado que devolve o valor digitado via [onChange]. */
+    private fun campoTexto(rotulo: String, valor: String, onChange: (String) -> Unit): View {
+        val til = TextInputLayout(this).apply {
+            hint = rotulo
+            boxBackgroundMode = TextInputLayout.BOX_BACKGROUND_OUTLINE
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            ).apply { topMargin = dp(8) }
+        }
+        val edit = TextInputEditText(til.context).apply {
+            setText(valor)
+            setSingleLine(true)
+            addTextChangedListener(object : TextWatcher {
+                override fun beforeTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun onTextChanged(s: CharSequence?, a: Int, b: Int, c: Int) {}
+                override fun afterTextChanged(s: Editable?) {
+                    onChange(s?.toString()?.trim() ?: "")
+                }
+            })
+        }
+        til.addView(edit)
+        return til
     }
 
     // ==================================================================
@@ -325,6 +373,11 @@ class ChecklistInspecaoActivity : AppCompatActivity() {
     }
 
     private fun salvar() {
+        // Sem RDO vinculado, a O.S é a chave do registro — obrigatória.
+        if (preenchido.numeroRDO.isBlank() && preenchido.numeroOS.isBlank()) {
+            Toast.makeText(this, "Informe o número da O.S", Toast.LENGTH_LONG).show()
+            return
+        }
         atualizarVeredito()
         val id = db.salvarChecklist(preenchido)
         if (id > 0) {

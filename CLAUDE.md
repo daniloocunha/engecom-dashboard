@@ -740,9 +740,12 @@ conformidades antes da vistoria do fiscal.
 - **Tela dinâmica** (`ChecklistInspecaoActivity`): renderiza o template
   programaticamente (Sim/Não/N.A. + observação por item), stepper para a
   quantidade de soldas e banner de veredito ao vivo
-- **Gatilho**: ao salvar um RDO com serviço de solda, o `RDOFragment` oferece
-  abrir o checklist (botão "Checklist de Qualidade" no diálogo do relatório ou
-  diálogo de oferta no fluxo de compartilhamento)
+- **Acesso**: card **"Checklist de Qualidade"** na tela inicial (`HomeActivity`),
+  independente de RDO — abre a tela com identificação editável (O.S,
+  encarregado, data, local). Também é oferecido ao salvar um RDO com serviço de
+  solda (`RDOFragment`), já pré-preenchido com os dados do RDO
+- **Chave do registro**: Número RDO quando vinculado; senão, o Número da O.S
+  (checklist avulso). Salvar exige a O.S quando não há RDO
 - **Persistência**: nova tabela `checklist_inspecao` (DB v11), 1 checklist por
   (Número RDO, tipo), serializado via Gson. **Armazenado apenas localmente** —
   sync com Sheets/dashboard e captura de fotos ficam para uma etapa futura

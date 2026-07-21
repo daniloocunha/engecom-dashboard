@@ -1143,16 +1143,25 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
      * Há no máximo um checklist por (numeroRDO, tipo): se já existir, é
      * substituído. Retorna o id da linha ou -1 em caso de erro.
      */
+    /**
+     * Chave de identificação do checklist: o Número RDO quando há um RDO
+     * vinculado; caso contrário (checklist avulso aberto pela tela inicial),
+     * o Número da O.S.
+     */
+    private fun chaveChecklist(checklist: ChecklistPreenchido): String =
+        checklist.numeroRDO.ifBlank { checklist.numeroOS }
+
     @Synchronized
     fun salvarChecklist(checklist: ChecklistPreenchido): Long {
         val db = writableDatabase
         val gson = Gson()
         return try {
+            val chave = chaveChecklist(checklist)
             val dataCriacao = checklist.dataCriacao.ifBlank {
                 SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
             }
             val values = ContentValues().apply {
-                put(COL_CHK_NUMERO_RDO, checklist.numeroRDO)
+                put(COL_CHK_NUMERO_RDO, chave)
                 put(COL_CHK_NUMERO_OS, checklist.numeroOS)
                 put(COL_CHK_TIPO, checklist.tipo)
                 put(COL_CHK_SITUACAO, checklist.situacao)
@@ -1166,11 +1175,11 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
                 TABLE_CHECKLIST,
                 values,
                 "$COL_CHK_NUMERO_RDO = ? AND $COL_CHK_TIPO = ?",
-                arrayOf(checklist.numeroRDO, checklist.tipo)
+                arrayOf(chave, checklist.tipo)
             )
 
             if (rowsUpdated > 0) {
-                obterChecklistId(checklist.numeroRDO, checklist.tipo)
+                obterChecklistId(chave, checklist.tipo)
             } else {
                 db.insert(TABLE_CHECKLIST, null, values)
             }

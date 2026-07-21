@@ -153,6 +153,12 @@ class HomeActivity : AppCompatActivity() {
             historicoLauncher.launch(Intent(this, HistoricoRDOActivity::class.java))
         }
 
+        binding.cardChecklist.setOnClickListener {
+            startActivity(Intent(this, ChecklistInspecaoActivity::class.java).apply {
+                putExtra(ChecklistInspecaoActivity.EXTRA_TIPO, "solda")
+            })
+        }
+
         binding.btnSyncAllRDOs.setOnClickListener {
             sincronizarTodosRDOs()
         }

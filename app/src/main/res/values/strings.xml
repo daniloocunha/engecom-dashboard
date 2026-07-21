@@ -22,6 +22,8 @@
     <string name="calculadora_hh_desc">Calcular o HH e HI do dia</string>
     <string name="historico">Histórico</string>
     <string name="historico_desc">Ver RDOs salvos</string>
+    <string name="checklist_qualidade">Checklist de Qualidade</string>
+    <string name="checklist_qualidade_desc">Autoinspeção de solda (RUMO)</string>
     <string name="sincronizar_todos">Sincronizar todos os RDOs</string>
     <string name="hor_rios">Horários</string>
     <string name="transporte_de_cabos">Transporte de cabos</string>
