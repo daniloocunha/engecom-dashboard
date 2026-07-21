@@ -5,6 +5,7 @@ import android.util.Log
 import com.example.calculadorahh.R
 import com.example.calculadorahh.data.models.ChecklistPreenchido
 import com.example.calculadorahh.data.models.ChecklistTemplate
+import com.example.calculadorahh.data.models.ItemTemplate
 import com.example.calculadorahh.data.models.RespostaItem
 import com.google.gson.Gson
 import java.io.InputStreamReader
@@ -67,12 +68,6 @@ object ChecklistManager {
         }
     }
 
-    /** true se a descrição do serviço indica um serviço de solda. */
-    fun ehServicoSolda(descricao: String): Boolean {
-        val d = descricao.lowercase()
-        return TIPOS.first { it.id == "solda" }.termos.any { d.contains(it) }
-    }
-
     /**
      * Tipos de checklist relevantes para uma lista de descrições de serviço.
      * Ex.: um RDO com solda e substituição de dormente devolve [Solda, Dormente].
@@ -130,6 +125,90 @@ object ChecklistManager {
             itensCriticosReprovados = criticosReprovados,
             situacao = situacao
         )
+    }
+
+    /** O que está faltando em uma [Pendencia]. */
+    enum class TipoPendencia { RESPOSTA, OBSERVACAO, FOTO }
+
+    /** Pendência de preenchimento apontada por [validar]. */
+    data class Pendencia(val chave: String, val tipo: TipoPendencia, val motivo: String)
+
+    /**
+     * Valida o preenchimento obrigatório do checklist:
+     * - toda pergunta deve ter resposta;
+     * - observação é obrigatória quando a resposta é não conforme ou quando o
+     *   template define [ItemTemplate.observacaoObrigatoriaQuando];
+     * - foto é obrigatória quando o template exige ([ItemTemplate.fotoObrigatoria])
+     *   ou quando o item aceita foto e a resposta é não conforme (evidência).
+     *
+     * Retorna a lista de pendências na ordem em que os itens aparecem na tela
+     * (vazia = pronto para salvar).
+     */
+    fun validar(
+        template: ChecklistTemplate,
+        preenchido: ChecklistPreenchido
+    ): List<Pendencia> {
+        val pendencias = mutableListOf<Pendencia>()
+
+        fun validarItem(item: ItemTemplate, chave: String) {
+            val resposta = preenchido.resposta(chave)
+            if (!item.isSomenteFoto && resposta.valor.isBlank()) {
+                pendencias += Pendencia(chave, TipoPendencia.RESPOSTA, "Responda esta pergunta")
+            }
+            val naoConforme = item.ehNaoConforme(resposta.valor)
+            val obsObrigatoria = item.observacao && (
+                naoConforme ||
+                    (item.observacaoObrigatoriaQuando.isNotBlank() &&
+                        resposta.valor.equals(item.observacaoObrigatoriaQuando, ignoreCase = true))
+                )
+            if (obsObrigatoria && resposta.observacao.isBlank()) {
+                pendencias += Pendencia(chave, TipoPendencia.OBSERVACAO, "Observação obrigatória para esta resposta")
+            }
+            val fotoObrigatoria = item.foto && (item.fotoObrigatoria || naoConforme)
+            if (fotoObrigatoria && resposta.fotos.isEmpty()) {
+                pendencias += Pendencia(chave, TipoPendencia.FOTO, "Anexe ao menos uma foto")
+            }
+        }
+
+        for (secao in template.secoes) {
+            if (secao.isRepeticao) {
+                for (index in 0 until preenchido.qtdSoldas) {
+                    for (item in secao.itens) {
+                        validarItem(item, ChecklistPreenchido.chaveResposta(secao.id, index, item.id))
+                    }
+                }
+            } else {
+                for (item in secao.itens) {
+                    validarItem(item, ChecklistPreenchido.chaveResposta(secao.id, item.id))
+                }
+            }
+        }
+        return pendencias
+    }
+
+    /**
+     * Remove respostas de índices de repetição além de [ChecklistPreenchido.qtdSoldas]
+     * (sobras de quando o usuário diminui a quantidade). Retorna os caminhos de
+     * fotos das respostas removidas, para o chamador apagar os arquivos.
+     */
+    fun podarRespostasExcedentes(
+        template: ChecklistTemplate,
+        preenchido: ChecklistPreenchido
+    ): Pair<ChecklistPreenchido, List<String>> {
+        val secoesRepeticao = template.secoes.filter { it.isRepeticao }
+        if (secoesRepeticao.isEmpty()) return preenchido to emptyList()
+
+        val fotosOrfas = mutableListOf<String>()
+        val novas = preenchido.respostas.filter { (chave, resposta) ->
+            val secao = secoesRepeticao.firstOrNull { chave.startsWith("${it.id}__") }
+                ?: return@filter true
+            val indice = chave.removePrefix("${secao.id}__")
+                .substringBefore("__").toIntOrNull() ?: return@filter true
+            val manter = indice < preenchido.qtdSoldas
+            if (!manter) fotosOrfas += resposta.fotos
+            manter
+        }
+        return preenchido.copy(respostas = novas) to fotosOrfas
     }
 
     /** Atalho para atualizar uma resposta imutavelmente dentro do mapa. */

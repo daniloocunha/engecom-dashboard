@@ -26,7 +26,8 @@
           "pergunta": "A marcação segue as premissas e procedimentos?",
           "tipo": "sim_nao",
           "naoConforme": "Não",
-          "observacao": true
+          "observacao": true,
+          "foto": true
         },
         {
           "id": "material_reemprego",
@@ -53,14 +54,16 @@
           "pergunta": "A socaria é bem feita, mecanizada de forma adequada e em 'X'?",
           "tipo": "sim_nao_na",
           "naoConforme": "Não",
-          "observacao": true
+          "observacao": true,
+          "foto": true
         },
         {
           "id": "fixacao",
           "pergunta": "A fixação do dormente é feita no esquadro (critério 'V'), bem apertada e sem folgas, com grampos aplicados com aplicador e retirados com extrator?",
           "tipo": "sim_nao_na",
           "naoConforme": "Não",
-          "observacao": true
+          "observacao": true,
+          "foto": true
         },
         {
           "id": "encaixe_pedra",
@@ -74,7 +77,8 @@
           "pergunta": "Os dormentes estão sendo pregados na bitola em conformidade com o desgaste do trilho?",
           "tipo": "sim_nao_na",
           "naoConforme": "Não",
-          "observacao": true
+          "observacao": true,
+          "foto": true
         },
         {
           "id": "quadramento",
@@ -122,11 +126,32 @@
           "observacao": true
         },
         {
+          "id": "fotos_medidas",
+          "pergunta": "Fotos das medidas de qualidade (boletim marcado no campo)",
+          "tipo": "foto",
+          "foto": true,
+          "fotoObrigatoria": true
+        },
+        {
           "id": "quantidade_inferior",
           "pergunta": "Tivemos algum item com quantidade aprovada inferior ao informado?",
           "tipo": "sim_nao",
           "naoConforme": "Sim",
           "observacao": true
+        },
+        {
+          "id": "ressalva",
+          "pergunta": "Teve alguma ressalva?",
+          "tipo": "sim_nao",
+          "observacao": true,
+          "observacaoObrigatoriaQuando": "Sim",
+          "foto": true
+        },
+        {
+          "id": "foto_auxiliar",
+          "pergunta": "Foto auxiliar da qualidade (opcional)",
+          "tipo": "foto",
+          "foto": true
         }
       ]
     }

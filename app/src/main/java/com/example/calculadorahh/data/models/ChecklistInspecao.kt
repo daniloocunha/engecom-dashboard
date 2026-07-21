@@ -39,11 +39,19 @@ data class SecaoTemplate(
 /**
  * Uma pergunta do checklist.
  *
- * @param tipo "sim_nao", "sim_nao_na" ou "opcoes".
+ * @param tipo "sim_nao", "sim_nao_na", "opcoes" ou "foto" (somente fotos, sem
+ *             opções de resposta — ex.: "Fotos das medidas de qualidade").
  * @param opcoes opções quando [tipo] = "opcoes".
  * @param critico item crítico — se não conforme, reprova automaticamente.
- * @param naoConforme resposta que caracteriza não conformidade (padrão "Não").
+ * @param naoConforme resposta que caracteriza não conformidade. Em branco,
+ *                    o item é apenas informativo e nunca reprova.
  * @param observacao se a pergunta aceita campo de observação.
+ * @param observacaoObrigatoriaQuando valor de resposta que torna a observação
+ *                                    obrigatória mesmo sem não conformidade
+ *                                    (ex.: ressalva = "Sim").
+ * @param foto se a pergunta aceita anexar fotos (espelha os campos "Fotos"
+ *             do formulário da RUMO).
+ * @param fotoObrigatoria se ao menos uma foto é exigida para salvar.
  */
 data class ItemTemplate(
     val id: String = "",
@@ -51,22 +59,30 @@ data class ItemTemplate(
     val tipo: String = "sim_nao",
     val opcoes: List<String> = emptyList(),
     val critico: Boolean = false,
-    val naoConforme: String = "Não",
-    val observacao: Boolean = false
+    val naoConforme: String = "",
+    val observacao: Boolean = false,
+    val observacaoObrigatoriaQuando: String = "",
+    val foto: Boolean = false,
+    val fotoObrigatoria: Boolean = false
 ) {
+    val isSomenteFoto: Boolean get() = tipo == "foto"
+
     /** Opções apresentadas ao usuário conforme o tipo. */
     fun opcoesEfetivas(): List<String> = when (tipo) {
         "sim_nao" -> listOf("Sim", "Não")
         "sim_nao_na" -> listOf("Sim", "Não", "Não Aplicável")
         "opcoes" -> opcoes
+        "foto" -> emptyList()
         else -> listOf("Sim", "Não")
     }
 
     /**
      * true se [valor] é uma não conformidade para este item.
-     * "Não Aplicável" e resposta em branco nunca contam como não conformidade.
+     * Itens sem [naoConforme] declarado são informativos; "Não Aplicável" e
+     * resposta em branco nunca contam como não conformidade.
      */
     fun ehNaoConforme(valor: String): Boolean {
+        if (naoConforme.isBlank()) return false
         if (valor.isBlank() || valor == "Não Aplicável") return false
         return valor.equals(naoConforme, ignoreCase = true)
     }
@@ -78,11 +94,14 @@ data class ItemTemplate(
 
 /**
  * Resposta de uma pergunta.
+ *
+ * @param fotos caminhos absolutos (storage interno do app) das fotos anexadas.
  */
 @Parcelize
 data class RespostaItem(
     val valor: String = "",
-    val observacao: String = ""
+    val observacao: String = "",
+    val fotos: List<String> = emptyList()
 ) : Parcelable
 
 /**
@@ -99,6 +118,9 @@ data class ChecklistPreenchido(
     val numeroOS: String = "",
     val data: String = "",
     val encarregado: String = "",
+    val encarregadoCodigo: String = "",
+    val lider: String = "",
+    val liderCodigo: String = "",
     val local: String = "",
     val qtdSoldas: Int = 1,
     val respostas: Map<String, RespostaItem> = emptyMap(),

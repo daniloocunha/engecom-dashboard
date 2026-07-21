@@ -753,14 +753,51 @@ conformidades antes da vistoria do fiscal.
 - **Chave do registro**: Número RDO quando vinculado; senão, o Número da O.S
   (checklist avulso). Salvar exige a O.S quando não há RDO
 - **Persistência**: nova tabela `checklist_inspecao` (DB v11), 1 checklist por
-  (Número RDO, tipo), serializado via Gson. **Armazenado apenas localmente** —
-  sync com Sheets/dashboard e captura de fotos ficam para uma etapa futura
+  (Número RDO, tipo), serializado via Gson (fotos ficam como caminhos dentro do
+  JSON — sem mudança de schema). **Armazenado apenas localmente** — sync com
+  Sheets/dashboard fica para uma etapa futura
+
+**Revisão contra os formulários reais da RUMO (2ª rodada):**
+- **Fotos por item** (`RespostaItem.fotos`): câmera (TakePicture + FileProvider)
+  ou galeria; miniaturas com ver/remover; arquivos em
+  `getExternalFilesDir(Pictures)/checklists/`. Itens com foto seguem os campos
+  "Fotos" do formulário RUMO (`"foto": true` no JSON); **"Fotos das medidas de
+  qualidade"** é item só-foto obrigatório (`"tipo": "foto"`,
+  `"fotoObrigatoria": true`); foto também é exigida como **evidência de não
+  conformidade** em itens fotografáveis
+- **Preenchimento obrigatório** (`ChecklistManager.validar()`): identificação
+  completa (O.S, encarregado + código, líder + código, data dd/MM/aaaa, local),
+  toda pergunta respondida, observação obrigatória quando a resposta é não
+  conforme (ou quando o template define `observacaoObrigatoriaQuando`, ex.:
+  ressalva = "Sim"). Pendências são marcadas em vermelho e a tela rola até a
+  primeira
+- **Itens novos**: "Teve alguma ressalva?" (obs. obrigatória se Sim + foto),
+  "Foto auxiliar da qualidade" (opcional) e campo "Observações Gerais" nos dois
+  checklists; identificação ganhou Encarregado (código) e Líder (nome + código),
+  espelhando o cabeçalho do formulário
+- **Semântica de `naoConforme`**: default mudou de `"Não"` para vazio =
+  **informativo** (nunca reprova). Corrige bug em que responder "Não" a
+  perguntas informativas (turma no local, ordem marcada pelo PCM, material
+  reemprego) reprovava o checklist indevidamente
+- **Bug fixes**: seção de Identificação era apagada por `removeAllViews()` logo
+  após criada (nunca aparecia); estado do formulário se perdia em rotação de
+  tela/câmera (agora restaurado via `onSaveInstanceState` — `ChecklistPreenchido`
+  é Parcelable); respostas órfãs de soldas removidas pelo stepper agora são
+  podadas ao salvar (e suas fotos apagadas); checklist avulso agora oferece
+  carregar preenchimento existente ao digitar uma O.S já usada
+- **Campos do fiscal fora do escopo** (por desenho): Fiscal, Situação/Motivos de
+  reprovação (calculados automaticamente pelo veredito), Assinatura do Fiscal e
+  Disponibilidade do Encarregado são preenchidos pela auditoria da RUMO, não
+  pela autoinspeção
+- **Testes**: `app/src/test/.../ChecklistManagerTest.kt` — 15 testes JVM da
+  lógica pura (não conformidade, veredito, validação, poda)
 
 **Arquivos novos:** `app/src/main/res/raw/checklist_solda.json`,
 `app/src/main/res/raw/checklist_dormente.json`,
 `data/models/ChecklistInspecao.kt`, `domain/managers/ChecklistManager.kt`,
 `ui/activities/ChecklistInspecaoActivity.kt`,
-`res/layout/activity_checklist_inspecao.xml`
+`res/layout/activity_checklist_inspecao.xml`,
+`app/src/test/.../ChecklistManagerTest.kt`
 **Arquivos alterados:** `data/database/DatabaseHelper.kt` (v11),
 `ui/fragments/RDOFragment.kt` (gatilho), `AndroidManifest.xml`,
 `app/build.gradle.kts`

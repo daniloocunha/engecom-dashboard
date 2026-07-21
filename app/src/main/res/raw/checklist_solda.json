@@ -40,35 +40,40 @@
           "pergunta": "Check List da solda foi entregue?",
           "tipo": "sim_nao",
           "naoConforme": "Não",
-          "observacao": true
+          "observacao": true,
+          "foto": true
         },
         {
           "id": "local_checklist",
           "pergunta": "Local de realização do Check List",
           "tipo": "opcoes",
           "opcoes": ["Papel", "App"],
-          "observacao": true
+          "observacao": true,
+          "foto": true
         },
         {
           "id": "marcacao_trilho",
           "pergunta": "Houve marcação no trilho (soldador/equipe, nº da solda, temperatura e data), por pintura no patim, lado interno, sentido crescente do KM?",
           "tipo": "sim_nao_na",
           "naoConforme": "Não",
-          "observacao": true
+          "observacao": true,
+          "foto": true
         },
         {
           "id": "tol_desnivel",
           "pergunta": "Tolerância máxima de desnível na superfície de rolamento para 1 metro respeitada (0,4 mm)?",
           "tipo": "sim_nao_na",
           "naoConforme": "Não",
-          "observacao": true
+          "observacao": true,
+          "foto": true
         },
         {
           "id": "tol_desalinhamento",
           "pergunta": "Tolerância máxima de desalinhamento lateral da solda respeitada (0,3 mm)?",
           "tipo": "sim_nao_na",
           "naoConforme": "Não",
-          "observacao": true
+          "observacao": true,
+          "foto": true
         },
         {
           "id": "desgaste_vertical",
@@ -117,13 +122,13 @@
           "pergunta": "Existe algum defeito aparente na solda?",
           "tipo": "sim_nao",
           "naoConforme": "Sim",
-          "observacao": true
+          "observacao": true,
+          "foto": true
         },
         {
           "id": "acompanhou_execucao",
           "pergunta": "Acompanhou a execução da solda?",
           "tipo": "sim_nao",
-          "naoConforme": "Não",
           "observacao": true
         },
         {
@@ -157,11 +162,32 @@
           "observacao": true
         },
         {
+          "id": "fotos_medidas",
+          "pergunta": "Fotos das medidas de qualidade (boletim marcado no campo)",
+          "tipo": "foto",
+          "foto": true,
+          "fotoObrigatoria": true
+        },
+        {
           "id": "quantidade_inferior",
           "pergunta": "Tivemos algum item com quantidade aprovada inferior ao informado?",
           "tipo": "sim_nao",
           "naoConforme": "Sim",
           "observacao": true
+        },
+        {
+          "id": "ressalva",
+          "pergunta": "Teve alguma ressalva?",
+          "tipo": "sim_nao",
+          "observacao": true,
+          "observacaoObrigatoriaQuando": "Sim",
+          "foto": true
+        },
+        {
+          "id": "foto_auxiliar",
+          "pergunta": "Foto auxiliar da qualidade (opcional)",
+          "tipo": "foto",
+          "foto": true
         }
       ]
     }

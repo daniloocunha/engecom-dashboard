@@ -1139,11 +1139,6 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
     // ===================================================================
 
     /**
-     * Salva (insere ou atualiza) o checklist de inspeção de um RDO.
-     * Há no máximo um checklist por (numeroRDO, tipo): se já existir, é
-     * substituído. Retorna o id da linha ou -1 em caso de erro.
-     */
-    /**
      * Chave de identificação do checklist: o Número RDO quando há um RDO
      * vinculado; caso contrário (checklist avulso aberto pela tela inicial),
      * o Número da O.S.
@@ -1151,6 +1146,11 @@ class DatabaseHelper private constructor(context: Context) : SQLiteOpenHelper(co
     private fun chaveChecklist(checklist: ChecklistPreenchido): String =
         checklist.numeroRDO.ifBlank { checklist.numeroOS }
 
+    /**
+     * Salva (insere ou atualiza) o checklist de inspeção de um RDO.
+     * Há no máximo um checklist por (numeroRDO, tipo): se já existir, é
+     * substituído. Retorna o id da linha ou -1 em caso de erro.
+     */
     @Synchronized
     fun salvarChecklist(checklist: ChecklistPreenchido): Long {
         val db = writableDatabase
