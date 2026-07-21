@@ -76,6 +76,17 @@ npm test
 npm run gen-config-example
 ```
 
+### Build headless / Claude Code na web
+- `scripts/setup-android-build.sh` — prepara um ambiente Linux headless para
+  compilar o app (instala Android SDK, cria `local.properties`, sobrescreve o
+  `org.gradle.java.home` do projeto que aponta p/ Windows, gera keystore de
+  debug descartável e semeia o cache do Gradle wrapper). Idempotente.
+- `.claude/hooks/session-start.sh` — hook SessionStart (registrado em
+  `.claude/settings.json`) que roda o script acima automaticamente em sessões
+  do Claude Code na web (`CLAUDE_CODE_REMOTE=true`), deixando `./gradlew
+  assembleDebug` pronto sem setup manual. Todos os arquivos gerados são
+  gitignored.
+
 ### Utility Scripts (scripts/)
 - `scripts/update_config_release.py` — Atualiza a aba Config no Sheets após um release do app
   (`python scripts/update_config_release.py` mostra os valores; `--apply --versao N --hash H --tamanho M --url U [--mensagem T]` atualiza)
