@@ -32,6 +32,25 @@ import java.util.*
  */
 class GoogleSheetsService(private val context: Context) {
 
+    companion object {
+        /** Credenciais da conta de serviço, empacotadas em assets/. */
+        const val ARQUIVO_CREDENCIAIS = "rdo-engecom-0cdcc15ed168.json"
+
+        /**
+         * true se o APK foi empacotado com as credenciais do Google.
+         *
+         * Builds de teste geradas fora do ambiente de release não incluem o
+         * arquivo (ele é gitignored), e sem ele toda sincronização falha.
+         */
+        fun credenciaisPresentes(context: android.content.Context): Boolean = try {
+            context.assets.open(ARQUIVO_CREDENCIAIS).close()
+            true
+        } catch (e: Exception) {
+            false
+        }
+    }
+
+
     private val tag = "GoogleSheetsService"
 
     private var sheetsService: Sheets? = null
@@ -51,7 +70,7 @@ class GoogleSheetsService(private val context: Context) {
             val httpTransport = GoogleNetHttpTransport.newTrustedTransport()
             val jsonFactory = GsonFactory.getDefaultInstance()
 
-            val credentials = context.assets.open("rdo-engecom-0cdcc15ed168.json").use { inputStream ->
+            val credentials = context.assets.open(ARQUIVO_CREDENCIAIS).use { inputStream ->
                 GoogleCredentials.fromStream(inputStream)
                     .createScoped(listOf(SheetsScopes.SPREADSHEETS))
             }
@@ -73,7 +92,11 @@ class GoogleSheetsService(private val context: Context) {
 
             true
         } catch (e: Exception) {
-            Log.e(tag, "Erro ao inicializar: ${e.message}", e)
+            if (!credenciaisPresentes(context)) {
+                Log.e(tag, "Credenciais ausentes: assets/$ARQUIVO_CREDENCIAIS não está no APK", e)
+            } else {
+                Log.e(tag, "Erro ao inicializar: ${e.message}", e)
+            }
             false
         }
     }
@@ -264,7 +287,7 @@ class GoogleSheetsService(private val context: Context) {
     private suspend fun inicializarLeve(): Sheets = withContext(Dispatchers.IO) {
         val httpTransport = GoogleNetHttpTransport.newTrustedTransport()
         val jsonFactory = GsonFactory.getDefaultInstance()
-        val credentials = context.assets.open("rdo-engecom-0cdcc15ed168.json").use { inputStream ->
+        val credentials = context.assets.open(ARQUIVO_CREDENCIAIS).use { inputStream ->
             GoogleCredentials.fromStream(inputStream)
                 .createScoped(listOf(SheetsScopes.SPREADSHEETS))
         }

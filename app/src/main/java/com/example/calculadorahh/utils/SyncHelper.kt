@@ -186,10 +186,24 @@ object SyncHelper {
                 // Inicializar serviço
                 val sheetsService = initializeService(context)
                 if (sheetsService == null) {
-                    Log.e(TAG, "❌ Falha ao inicializar serviço Google Sheets")
+                    // Sem as credenciais em assets/ nenhuma sincronização funciona.
+                    // Acontece em APKs de teste montados fora do fluxo de release,
+                    // e antes disso a falha aparecia como um erro genérico.
+                    val semCredenciais = !GoogleSheetsService.credenciaisPresentes(context)
+                    Log.e(
+                        TAG,
+                        if (semCredenciais) "❌ APK sem as credenciais do Google em assets/"
+                        else "❌ Falha ao inicializar serviço Google Sheets"
+                    )
                     if (showToast) {
                         withContext(Dispatchers.Main) {
-                            Toast.makeText(context, "Erro ao inicializar serviço de sincronização", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(
+                                context,
+                                if (semCredenciais)
+                                    "Esta versão do app foi instalada sem as credenciais do Google — a sincronização não funciona. Instale o APK oficial."
+                                else "Erro ao inicializar serviço de sincronização",
+                                Toast.LENGTH_LONG
+                            ).show()
                         }
                     }
                     return@withContext 0
