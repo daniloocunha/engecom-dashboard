@@ -846,7 +846,10 @@ Controlável / Não Controlável / **Neutro** e torna o lançamento muito mais r
 > **Treinamento**; ambos entraram como **Controlável**. Para mudar, basta
 > alterar `categoria` (e `considerarHI`/`considerarPerdaRumo`) no JSON.
 
-**Pendente — Dashboard (fase 2):** `_isNaoControlavel()` em `visao-geral.js`
+**Pendente — Dashboard (fase 2):** especificação completa e autocontida em
+**`FASE2_DASHBOARD_HI.md`** (raiz do repo), com arquivo e linha de cada regra a
+trocar — as regras de HI estão duplicadas em **6 arquivos** do dashboard.
+`_isNaoControlavel()` em `visao-geral.js`
 ainda classifica por substring ("trem"/"chuva") e almoço/DDS/trânsito ainda
 entram como perda controlável. A fase 2 deve sincronizar o catálogo para
 `dashboard/` (nos moldes do `npm run sync-servicos`) e passar a usar
