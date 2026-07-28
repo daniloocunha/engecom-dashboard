@@ -474,25 +474,18 @@ class GoogleSheetsAPI {
             // Calcular duração em horas (SEM multiplicar por operadores ainda)
             const duracaoHoras = this.calcularDuracaoHoras(horaInicio, horaFim);
 
-            // 🔴 REGRA: Trens com duração < 20 minutos = HH ZERO
-            const isTrem = tipo.toLowerCase().includes('trem');
-            const limiteMinutosTrem = (typeof METAS !== 'undefined' && METAS.MINUTOS_MINIMOS_TREM) ? METAS.MINUTOS_MINIMOS_TREM : 20;
-            const isTremCurto = isTrem && duracaoHoras < (limiteMinutosTrem / 60);
+            // Regras do catálogo (JustificativasHI): neutros = 0 HH, duração mínima
+            // (ex.: trem < 20 min) = 0 HH, Chuva ÷2, desconhecida = cálculo simples
+            const categoria = JustificativasHI.categoria(tipo);
+            const isTremCurto = duracaoHoras * 60 < JustificativasHI.minutosMinimos(tipo);
+            const hhImprodutivas = JustificativasHI.calcularHH(tipo, duracaoHoras * 60, operadores);
 
-            // Calcular HH (duração × operadores), mas zerar se for trem curto
-            let hhImprodutivas = duracaoHoras * operadores;
-
-            if (isTremCurto) {
-                hhImprodutivas = 0;
-                debugLog(`🔴 [HI] ${numeroRDO} [${tipo}]: TREM < ${limiteMinutosTrem} min (${(duracaoHoras * 60).toFixed(0)} min) - HH ZERADO`);
+            if (!JustificativasHI.considerarHI(tipo)) {
+                debugLog(`⚪ [HI] ${numeroRDO} [${tipo}]: Neutro (${categoria}) - HH ZERADO`);
+            } else if (isTremCurto) {
+                debugLog(`🔴 [HI] ${numeroRDO} [${tipo}]: abaixo da duração mínima (${(duracaoHoras * 60).toFixed(0)} min) - HH ZERADO`);
             } else {
-                // 🔴 REGRA: Chuva conta como metade das HH
-                if (tipo.toLowerCase().includes('chuva')) {
-                    hhImprodutivas = hhImprodutivas / METAS.DIVISOR_CHUVA;
-                    debugLog(`🌧️ [HI] ${numeroRDO} [${tipo}]: Chuva ÷2 → ${hhImprodutivas.toFixed(2)} HH`);
-                } else {
-                    debugLog(`[HI] ${numeroRDO} [${tipo}]: ${horaInicio}-${horaFim} × ${operadores} op = ${hhImprodutivas.toFixed(2)} HH`);
-                }
+                debugLog(`[HI] ${numeroRDO} [${tipo}]: ${horaInicio}-${horaFim} × ${operadores} op = ${hhImprodutivas.toFixed(2)} HH`);
             }
 
             return {
@@ -506,6 +499,7 @@ class GoogleSheetsAPI {
                 horaFim,
                 operadores,
                 duracaoHoras,
+                categoria,
                 isTremCurto,
                 hhImprodutivas,
                 'HH Improdutivas': hhImprodutivas

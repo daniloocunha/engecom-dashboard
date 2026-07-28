@@ -1339,9 +1339,9 @@ class GestaoOS {
                 });
                 if (sobreposicao <= 0) return;
                 const minutosRestantes = Math.max(0, duracao - sobreposicao);
-                const ops        = hi.operadores || 0;
-                const fatorChuva = (hi.tipo || '').toLowerCase().includes('chuva') ? 0.5 : 1.0;
-                resultado[i].hhAjustado         = (minutosRestantes / 60) * ops * fatorChuva;
+                const ops   = hi.operadores || 0;
+                const fator = JustificativasHI.fatorHH(hi.tipo);
+                resultado[i].hhAjustado         = (minutosRestantes / 60) * ops * fator;
                 resultado[i].ajustado           = true;
                 resultado[i].minutosDescontados = sobreposicao;
                 totalMinutosDescontados        += sobreposicao;

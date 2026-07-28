@@ -22,7 +22,7 @@ function criarSandbox() {
     sandbox.window = sandbox; // field-helper.js usa window para exports
     vm.createContext(sandbox);
 
-    for (const arquivo of ['config.example.js', 'field-helper.js', 'calculations.js', 'sheets-api.js']) {
+    for (const arquivo of ['config.example.js', 'field-helper.js', 'justificativas-hi-data.js', 'justificativas-hi.js', 'calculations.js', 'sheets-api.js']) {
         const code = fs.readFileSync(path.join(BASE, arquivo), 'utf8');
         vm.runInContext(code, sandbox, { filename: arquivo });
     }
@@ -91,8 +91,8 @@ test('_mergeHIIntervals: intervalo simples multiplica por operadores', () => {
 test('_mergeHIIntervals: sobreposições não contam em dobro', () => {
     const calc = novaCalc();
     const his = [
-        { 'Hora Início': '08:00', 'Hora Fim': '12:00', Tipo: 'Trem na via', Operadores: '12' },
-        { 'Hora Início': '09:00', 'Hora Fim': '09:30', Tipo: 'Trem na via', Operadores: '12' }
+        { 'Hora Início': '08:00', 'Hora Fim': '12:00', Tipo: 'Passagem de Trens', Operadores: '12' },
+        { 'Hora Início': '09:00', 'Hora Fim': '09:30', Tipo: 'Passagem de Trens', Operadores: '12' }
     ];
     // União = 08:00–12:00 = 4h × 12 = 48 HH (não 54)
     assert.equal(calc._mergeHIIntervals(his, 12), 48);
@@ -100,7 +100,7 @@ test('_mergeHIIntervals: sobreposições não contam em dobro', () => {
 
 test('_mergeHIIntervals: trem com menos de 20 min é descartado', () => {
     const calc = novaCalc();
-    const his = [{ 'Hora Início': '08:00', 'Hora Fim': '08:10', Tipo: 'Trem', Operadores: '12' }];
+    const his = [{ 'Hora Início': '08:00', 'Hora Fim': '08:10', Tipo: 'Passagem de Trens', Operadores: '12' }];
     assert.equal(calc._mergeHIIntervals(his, 12), 0);
 });
 
@@ -120,6 +120,74 @@ test('_mergeHIIntervals: usa operadoresDefault quando campo ausente', () => {
     const calc = novaCalc();
     const his = [{ 'Hora Início': '08:00', 'Hora Fim': '09:00', Tipo: 'RUMO' }];
     assert.equal(calc._mergeHIIntervals(his, 5), 5); // 1h × 5 (default TS)
+});
+
+test('_mergeHIIntervals: justificativa neutra (almoço) não conta como HI', () => {
+    const calc = novaCalc();
+    const his = [{ 'Hora Início': '12:00', 'Hora Fim': '13:00', Tipo: 'Almoço / Refeição', Operadores: '12' }];
+    assert.equal(calc._mergeHIIntervals(his, 12), 0);
+});
+
+test('_mergeHIIntervals: alias histórico de neutro (Almoço/Refeição) resolve e não conta', () => {
+    const calc = novaCalc();
+    const his = [{ 'Hora Início': '12:00', 'Hora Fim': '13:00', Tipo: 'Almoço/Refeição', Operadores: '12' }];
+    assert.equal(calc._mergeHIIntervals(his, 12), 0);
+});
+
+// ────────────────────────────────────────────────
+// JustificativasHI (justificativas-hi.js) — catálogo de HI (Fase 2 dashboard)
+// ────────────────────────────────────────────────
+test('JustificativasHI.resolver: id, nome exato e alias histórico', () => {
+    const JustificativasHI = get('JustificativasHI');
+    assert.equal(JustificativasHI.resolver('chuva').id, 'chuva');
+    assert.equal(JustificativasHI.resolver('Chuva').id, 'chuva');
+    assert.equal(JustificativasHI.resolver('Passagens de Trem').id, 'passagem_trens');
+    assert.equal(JustificativasHI.resolver('Almoço/Refeição').id, 'almoco');
+});
+
+test('JustificativasHI.resolver: nome desconhecido devolve null', () => {
+    const JustificativasHI = get('JustificativasHI');
+    assert.equal(JustificativasHI.resolver('Greve de marcianos'), null);
+});
+
+test('JustificativasHI.categoria: reconhece as 3 categorias do catálogo', () => {
+    const JustificativasHI = get('JustificativasHI');
+    assert.equal(JustificativasHI.categoria('Chuva'), 'NAO_CONTROLAVEL');
+    assert.equal(JustificativasHI.categoria('Interstício'), 'NAO_CONTROLAVEL');
+    assert.equal(JustificativasHI.categoria('Temperatura da Via'), 'NAO_CONTROLAVEL');
+    assert.equal(JustificativasHI.categoria('Aguardando Liberação'), 'NAO_CONTROLAVEL');
+    assert.equal(JustificativasHI.categoria('Falta de Material'), 'CONTROLAVEL');
+    assert.equal(JustificativasHI.categoria('DDS'), 'NEUTRO');
+    assert.equal(JustificativasHI.categoria('Nome fora do catálogo'), 'CONTROLAVEL'); // falha seguro
+});
+
+test('JustificativasHI.considerarHI: false só para neutros', () => {
+    const JustificativasHI = get('JustificativasHI');
+    assert.equal(JustificativasHI.considerarHI('Almoço / Refeição'), false);
+    assert.equal(JustificativasHI.considerarHI('Trânsito'), false);
+    assert.equal(JustificativasHI.considerarHI('Chuva'), true);
+    assert.equal(JustificativasHI.considerarHI('Nome fora do catálogo'), true); // falha seguro
+});
+
+test('JustificativasHI.calcularHH: chuva conta metade', () => {
+    const JustificativasHI = get('JustificativasHI');
+    assert.equal(JustificativasHI.calcularHH('Chuva', 60, 12), 6); // 1h × 12 ÷ 2
+});
+
+test('JustificativasHI.calcularHH: neutro não gera HH', () => {
+    const JustificativasHI = get('JustificativasHI');
+    assert.equal(JustificativasHI.calcularHH('DDS', 60, 12), 0);
+});
+
+test('JustificativasHI.calcularHH: trem abaixo do mínimo é descartado, no limite conta', () => {
+    const JustificativasHI = get('JustificativasHI');
+    assert.equal(JustificativasHI.calcularHH('Passagem de Trens', 19, 12), 0);
+    assert.equal(JustificativasHI.calcularHH('Passagem de Trens', 20, 12), 4); // 20min × 12 ÷ 60
+});
+
+test('JustificativasHI.calcularHH: nome fora do catálogo usa cálculo simples (fator 1)', () => {
+    const JustificativasHI = get('JustificativasHI');
+    assert.equal(JustificativasHI.calcularHH('Tipo Legado Qualquer', 60, 12), 12);
 });
 
 // ────────────────────────────────────────────────

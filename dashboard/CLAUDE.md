@@ -703,6 +703,54 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.6.0 (2026-07-28)** - Fase 2: dashboard passa a consumir o catálogo de justificativas de HI:
+
+Antes desta versão, a classificação de Horas Improdutivas (controlável/não controlável) era
+adivinhada por substring (`tipo.includes('trem')`/`includes('chuva')`), duplicada em 6 arquivos.
+A Fase 1 (app v5.3.0) já tinha criado `app/src/main/res/raw/justificativas_hi.json` como fonte
+única de verdade das 16 justificativas — esta versão sincroniza esse catálogo para o dashboard e
+troca as 6 cópias hardcoded pela leitura do catálogo.
+
+- **Sincronização** (`npm run sync-justificativas` / `scripts/sync-justificativas-hi.js`,
+  espelha `sync-servicos.js`): gera `dashboard/justificativas_hi.json` e
+  `dashboard/js/justificativas-hi-data.js` (`JUSTIFICATIVAS_HI_BASE`) a partir da fonte no app.
+  Ambos são **auto-gerados** — não editar à mão
+- **Novo módulo `justificativas-hi.js`** (classe `JustificativasHI`, síncrona — sem fetch, lê
+  `JUSTIFICATIVAS_HI_BASE`): `resolver()` (id/nome/alias/normalizado), `categoria()`,
+  `considerarHI()`, `fatorHH()`, `minutosMinimos()`, `calcularHH()`. Nome fora do catálogo cai no
+  cálculo simples (duração × operadores), igual ao app — falha para o lado seguro
+- **6 cópias trocadas pelo catálogo**: `calculations.js` (`_mergeHIIntervals`), `calendario-tp.js`
+  e `calendario-ts.js` (`_calcularHHMerged`), `sheets-api.js` (`calcularHHImprodutivas`),
+  `gestao-os.js` (fator de chuva no ajuste de sobreposição), `visao-geral.js`
+  (`_isNaoControlavel` → `_categoriaHI`, agora as 16 justificativas são reconhecidas em vez de só
+  "trem" e "chuva")
+- **Horas Neutras** (Almoço/Refeição, DDS, Trânsito): antes entravam como perda controlável,
+  inflando o indicador de todas as turmas. Agora ficam de fora de HI e de perdas —
+  `_calcularDados()` acumula `hhNeutras` por turma/total, exposto nos KPIs ("Total de Horas
+  Entregues") e como faixa própria no gráfico de Composição de Horas. Produtividade, meta e
+  ranking continuam calculados só sobre Produtivo + Improdutivo (Horas Neutras não reduzem
+  indicador nenhum)
+- **Textos fixos corrigidos**: os dois textos que diziam "Não Controláveis: passagem de trem e
+  chuva" agora listam as 6 justificativas não controláveis reais do catálogo (Parada de Trens,
+  Passagem de Trens, Chuva, Aguardando Liberação, Interstício, Temperatura da Via) — o texto
+  antigo também citava "aguardando liberação" como exemplo de Controlável, o que estava errado
+  (é Não Controlável no catálogo; o exemplo correto de Controlável é "aguardando faixa")
+- `ranking-engine.js` e `executive-summary.js` não tinham lógica própria de trem/chuva — herdam a
+  correção automaticamente por consumirem os totais de `calculations.js`/`visao-geral.js`
+- **Efeito esperado nos números**: perdas controláveis caem em todas as turmas (Almoço/DDS/
+  Trânsito saem do total); Interstício, Temperatura da Via e Aguardando Liberação migram de
+  Controlável para Não Controlável
+- **Testes**: `tests/calculations.test.js` ganhou casos de `JustificativasHI` (resolver por id/
+  nome/alias, as 3 categorias, `considerarHI`, `calcularHH` com chuva/neutro/trem/desconhecida) e
+  de `_mergeHIIntervals` com justificativa neutra
+
+**Arquivos novos:** `scripts/sync-justificativas-hi.js`, `dashboard/justificativas_hi.json`,
+`dashboard/js/justificativas-hi-data.js`, `dashboard/js/justificativas-hi.js`
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/{calculations,calendario-tp,
+calendario-ts,sheets-api,gestao-os,visao-geral}.js`, `package.json`, `tests/calculations.test.js`
+
+---
+
 **Version 2.5.2 (2026-07-08)** - Criar Novo RDO pelo Dashboard:
 
 > ⚠️ **Requer atualização manual do Apps Script** (Extensões → Apps Script → colar o conteúdo
@@ -965,7 +1013,7 @@ Após cada reimplantação, atualizar o dump `appscript_atual.md`.
 
 ## Version Information
 
-- **Current Version**: 2.5.2
+- **Current Version**: 2.6.0
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)
