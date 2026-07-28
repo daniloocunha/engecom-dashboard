@@ -730,7 +730,7 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 
 > **IMPORTANTE**: Após gerar o APK release, atualizar `hash_md5`, `tamanho_apk_mb`, `versao_recomendada` e `url_download` na aba Config — use `python scripts/update_config_release.py --apply ...`. O `versao_minima` usa `versionCode` (número inteiro), não `versionName`.
 >
-> **Hash do APK**: enquanto houver aparelhos com versionCode ≤ 23 em campo, a chave `hash_md5` DEVE conter MD5 (32 caracteres) — versões antigas só calculam MD5 e rejeitariam um SHA-256. A partir do momento em que todos estiverem no versionCode 24+, pode-se usar SHA-256 (64 caracteres) na mesma chave.
+> **Hash do APK**: a chave `hash_md5` aceita MD5 (32 caracteres) ou SHA-256 (64 caracteres) — o `UpdateDownloader` escolhe o algoritmo pelo comprimento da string. SHA-256 só é entendido por versionCode ≥ 24; versões anteriores rejeitariam o download. **Desde a v5.4.0 o campo está em SHA-256**, o que é seguro porque `versao_minima = 24` já bloqueia qualquer aparelho abaixo disso. Se algum dia `versao_minima` cair abaixo de 24, voltar para MD5.
 
 ## Version History
 
