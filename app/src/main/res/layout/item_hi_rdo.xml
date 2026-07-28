@@ -29,6 +29,15 @@
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/tvCategoriaHI"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Não Controlável"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
                 android:id="@+id/tvDescricaoHI"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -56,6 +65,16 @@
                 android:textColor="?attr/colorOnSurfaceVariant"
                 android:textSize="12sp" />
         </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/btnDuplicarHI"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_gravity="center_vertical"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Duplicar HI"
+            android:src="@drawable/ic_copy"
+            app:tint="?attr/colorPrimary" />
 
         <ImageButton
             android:id="@+id/btnEditarHI"

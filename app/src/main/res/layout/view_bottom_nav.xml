@@ -1,0 +1,196 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Navegação inferior do redesign.
+
+  Não usa BottomNavigationView porque o Material3 desenha o item ativo com uma
+  "pílula" atrás do ícone, e o design pede uma barra de 24×2dp no TOPO do item.
+  Como são só 4 destinos fixos, um LinearLayout sai mais simples e fiel.
+
+  Incluído por HomeActivity, MainActivity e HistoricoRDOActivity; o estado é
+  aplicado por BottomNavHelper.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/bottomNav"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/bg_nav"
+    android:orientation="horizontal">
+
+    <!-- Faixa superior de 1dp separando o conteúdo -->
+
+    <!-- INÍCIO -->
+    <FrameLayout
+        android:id="@+id/navInicio"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
+
+        <View
+            android:id="@+id/indInicio"
+            android:layout_width="24dp"
+            android:layout_height="2dp"
+            android:layout_gravity="top|center_horizontal"
+            android:background="@drawable/bg_nav_indicator"
+            android:visibility="invisible" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingTop="8dp"
+            android:paddingBottom="10dp">
+
+            <ImageView
+                android:id="@+id/iconInicio"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginBottom="3dp"
+                android:contentDescription="Início"
+                android:src="@drawable/ic_home" />
+
+            <TextView
+                android:id="@+id/labelInicio"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.05"
+                android:text="INÍCIO"
+                android:textSize="9sp" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- RDO -->
+    <FrameLayout
+        android:id="@+id/navRDO"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
+
+        <View
+            android:id="@+id/indRDO"
+            android:layout_width="24dp"
+            android:layout_height="2dp"
+            android:layout_gravity="top|center_horizontal"
+            android:background="@drawable/bg_nav_indicator"
+            android:visibility="invisible" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingTop="8dp"
+            android:paddingBottom="10dp">
+
+            <ImageView
+                android:id="@+id/iconRDO"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginBottom="3dp"
+                android:contentDescription="RDO"
+                android:src="@drawable/ic_assignment" />
+
+            <TextView
+                android:id="@+id/labelRDO"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.05"
+                android:text="RDO"
+                android:textSize="9sp" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- CALC HH -->
+    <FrameLayout
+        android:id="@+id/navCalc"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
+
+        <View
+            android:id="@+id/indCalc"
+            android:layout_width="24dp"
+            android:layout_height="2dp"
+            android:layout_gravity="top|center_horizontal"
+            android:background="@drawable/bg_nav_indicator"
+            android:visibility="invisible" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingTop="8dp"
+            android:paddingBottom="10dp">
+
+            <ImageView
+                android:id="@+id/iconCalc"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginBottom="3dp"
+                android:contentDescription="Calculadora HH"
+                android:src="@drawable/ic_bar_chart" />
+
+            <TextView
+                android:id="@+id/labelCalc"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.05"
+                android:text="CALC HH"
+                android:textSize="9sp" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- HISTÓRICO -->
+    <FrameLayout
+        android:id="@+id/navHistorico"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:clickable="true"
+        android:focusable="true">
+
+        <View
+            android:id="@+id/indHistorico"
+            android:layout_width="24dp"
+            android:layout_height="2dp"
+            android:layout_gravity="top|center_horizontal"
+            android:background="@drawable/bg_nav_indicator"
+            android:visibility="invisible" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingTop="8dp"
+            android:paddingBottom="10dp">
+
+            <ImageView
+                android:id="@+id/iconHistorico"
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:layout_marginBottom="3dp"
+                android:contentDescription="Histórico"
+                android:src="@drawable/ic_history" />
+
+            <TextView
+                android:id="@+id/labelHistorico"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:letterSpacing="0.05"
+                android:text="HISTÓRICO"
+                android:textSize="9sp" />
+        </LinearLayout>
+    </FrameLayout>
+</LinearLayout>

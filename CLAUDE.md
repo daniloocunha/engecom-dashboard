@@ -76,7 +76,23 @@ npm test
 npm run gen-config-example
 ```
 
+### Build headless / Claude Code na web
+- `scripts/setup-android-build.sh` — prepara um ambiente Linux headless para
+  compilar o app (instala Android SDK, cria `local.properties`, sobrescreve o
+  `org.gradle.java.home` do projeto que aponta p/ Windows, gera keystore de
+  debug descartável e semeia o cache do Gradle wrapper). Idempotente.
+- `.claude/hooks/session-start.sh` — hook SessionStart (registrado em
+  `.claude/settings.json`) que roda o script acima automaticamente em sessões
+  do Claude Code na web (`CLAUDE_CODE_REMOTE=true`), deixando `./gradlew
+  assembleDebug` pronto sem setup manual. Todos os arquivos gerados são
+  gitignored.
+
 ### Utility Scripts (scripts/)
+- `scripts/preparar-release.sh` — verifica toda a cadeia de atualização automática e gera o APK
+  de release (`bash scripts/preparar-release.sh`; `--skip-build` só verifica). Confere repo
+  alinhado, versionCode, credenciais em `assets/`, keystore de produção, assinatura do APK
+  e imprime MD5/tamanho + o comando pronto do `update_config_release.py`. Não executa ações
+  externas — não cria Release nem escreve no Sheets
 - `scripts/update_config_release.py` — Atualiza a aba Config no Sheets após um release do app
   (`python scripts/update_config_release.py` mostra os valores; `--apply --versao N --hash H --tamanho M --url U [--mensagem T]` atualiza)
 - `scripts/importar_rdos.py` — Importa RDOs de mensagens WhatsApp/TXT para Sheets
@@ -136,8 +152,9 @@ O deploy é **automático** para qualquer push em `master` que toque `dashboard/
      - app/build.gradle.kts → versionCode +1, versionName X.Y.Z+1
      - CLAUDE.md → Version Information + novo entry no Version History
 4. git add <arquivos> && git commit -m "feat/fix(app): descrição" && git push
-5. Gerar APK de release:
-     ./gradlew assembleRelease
+5. Preparar e verificar o release (recomendado — pega credencial ausente,
+   keystore errado e assinatura divergente antes de publicar):
+     bash scripts/preparar-release.sh
 6. Criar GitHub Release com o APK
 7. Atualizar aba Config no Google Sheets:
      versao_recomendada | <novo versionCode>
@@ -209,6 +226,19 @@ Para o deploy automático funcionar, o GitHub precisa de 3 secrets:
 Após isso, qualquer `git push` com mudanças no dashboard dispara o deploy automaticamente.
 
 ---
+
+### Skill de projeto: `sincronizar-release`
+
+`.claude/skills/sincronizar-release/SKILL.md` é carregada automaticamente quando
+o pedido envolve **sincronizar o repositório com o GitHub, atualizar o app,
+gerar/publicar uma versão ou mexer no hash da atualização automática**.
+
+Ela existe porque "sincronizar o GitHub com o local" neste projeto quase nunca é
+só um `git pull`: se o que mudou foi código do app, a versão em campo só recebe
+a atualização depois de percorrer a cadeia APK assinado → hash → tamanho → URL →
+aba Config do Sheets. A skill documenta essa cadeia, aponta para
+`scripts/preparar-release.sh` e marca as duas ações externas (criar o GitHub
+Release e escrever na aba Config) como dependentes de confirmação explícita.
 
 ## Architecture & Code Structure
 
@@ -533,6 +563,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - Version 8: UNIQUE index em `numero_rdo` com retry automático
 - Version 9: Campos de auditoria de sync (`sync_status`, `mensagem_erro_sync`, `tentativas_sync`, `ultima_tentativa_sync`)
 - Version 10: Coluna `causa_nao_servico TEXT DEFAULT ''` (armazenada localmente, não sincronizada com Sheets)
+- Version 11: Tabela `checklist_inspecao` (autoinspeção de qualidade RUMO) — armazenada localmente, não sincronizada com Sheets
 
 ### ProGuard Configuration
 - **Habilitado** para release builds
@@ -659,12 +690,12 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - Orchestração: editar `GoogleSheetsService.kt` apenas se o fluxo principal mudar
 
 ## Version Information
-- **versionCode**: 24
-- **versionName**: "5.1.7"
+- **versionCode**: 27
+- **versionName**: "5.4.0"
 - **AGP Version**: 8.13.1
 - **Kotlin Version**: 2.0.21
 - **Gradle Version**: 8.13 (via wrapper)
-- **Database Version**: 10
+- **Database Version**: 11
 - **Sheets HEADERS_VERSION**: 6
 - **Dashboard Version**: 2.5.2
 
@@ -702,6 +733,228 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 > **Hash do APK**: enquanto houver aparelhos com versionCode ≤ 23 em campo, a chave `hash_md5` DEVE conter MD5 (32 caracteres) — versões antigas só calculam MD5 e rejeitariam um SHA-256. A partir do momento em que todos estiverem no versionCode 24+, pode-se usar SHA-256 (64 caracteres) na mesma chave.
 
 ## Version History
+
+### Version 5.4.0 (versionCode 27) — Redesign visual completo (Claude Design)
+
+Implementa o redesign do app: tema escuro com identidade dourada Engecom,
+tipografia DM Sans e navegação por barra inferior.
+
+- **Design tokens** (`values/colors.xml` = claro, `values-night/colors.xml` =
+  escuro): backgrounds, texto, bordas, marca e alfas. Nenhum hex literal
+  sobrou nos layouts — tudo por token ou `?attr/`
+- **Tema único DayNight** (`Theme.Material3.DayNight.NoActionBar`). **Material
+  You removido**: `DynamicColors.applyToActivitiesIfAvailable()` fazia as cores
+  do papel de parede sobrescreverem o dourado no Android 12+
+- **Escuro por padrão**, claro disponível pelo alternador na tela inicial
+  (`CalculadoraHHApplication.definirTemaEscuro`, persistido)
+- **DM Sans** (OFL) empacotada em `res/font` — funciona offline, sem depender
+  do Play Services que os "downloadable fonts" exigiriam
+- **Barra inferior própria** (`view_bottom_nav.xml` + `BottomNavHelper`): a
+  `BottomNavigationView` do Material3 desenha pílula atrás do ícone, e o design
+  pede barra de 24×2dp no topo do item. Navegação com `REORDER_TO_FRONT` +
+  `SINGLE_TOP` para não reiniciar o estado das telas
+- **Tela inicial**: header, hero (data, saudação por horário, status real de
+  sync com dot pulsante), stats, grid de ações, card de sincronização e
+  **RDOs recentes** (novo)
+- **Histórico**: busca, chips de período, barra de estatísticas e cards
+  agrupados por dia; **o calendário foi mantido** como filtro recolhível
+- **Calculadora HH**: card de resultado em destaque no topo
+- **RDO**: as 11 seções viram accordion (`AccordionRDO`), uma aberta por vez,
+  com dot colorido, chevron e borda dourada na ativa. A conversão é feita em
+  runtime a partir do XML existente, sem trocar ids — o `RDOFragment` (1.400
+  linhas) segue intacto. Substitui o `configurarCardColapsavel` anterior, que
+  cobria só 6 seções
+
+**Divergências em relação ao protótipo (e por quê):**
+- O protótipo cobria 5 das 11 seções do RDO; **Materiais, Equipamentos, HI,
+  Transportes, Colaboradores e Observações** receberam o mesmo padrão visual
+- **Checklist de Qualidade** e **banner de atualização** não existiam no
+  protótipo e foram preservados na Home
+- **Efetivo**: o protótipo tinha 4 campos; mantidos os 6 reais (faltavam
+  Técnico de Segurança e Soldador)
+- **Calculadora**: mantidos observações, "serviço customizado", lista de HIs e
+  horas faltantes, todos ausentes do protótipo. A fórmula do protótipo
+  (`hh × qtd ÷ 100`) foi descartada — o app usa `quantidade × coeficiente`
+- **HI da calculadora**: o protótipo voltava a texto livre, o que desfaria as
+  justificativas padronizadas da v5.3.0
+- **Sino de notificações** virou o alternador de tema (não havia central de
+  notificações); **"Turma TU-001 · Campo Ativo"** virou o status real de sync
+- **Barra de progresso** do RDO passou a refletir seções preenchidas (no
+  protótipo era fixa em "1 de 5")
+- **Contraste**: subtítulos dos cards de ação vinham com 1,3:1 a 1,9:1
+  (ilegíveis a céu aberto); mantida a matiz, corrigida a luminância
+
+**Arquivos novos:** `res/font/dm_sans*`, `res/anim/{fade_in_up,pulse}.xml`,
+`res/layout/{view_bottom_nav,item_home_recente}.xml`, 23 ícones vetoriais,
+17 drawables de fundo, `ui/components/{BottomNavHelper,AccordionRDO}.kt`,
+`values-night/colors.xml`
+**Arquivos alterados:** `values/{colors,themes}.xml`, `values-night/themes.xml`,
+`CalculadoraHHApplication.kt`, `res/layout/{activity_home,activity_main,
+activity_historico_rdo,item_historico_rdo,fragment_calculadora_hh,fragment_rdo}.xml`,
+`ui/activities/{HomeActivity,MainActivity,HistoricoRDOActivity,
+ChecklistInspecaoActivity}.kt`, `ui/adapters/HistoricoRDOAdapter.kt`,
+`ui/fragments/RDOFragment.kt`
+
+---
+
+### Version 5.3.0 (versionCode 26) — Justificativas de HI padronizadas e classificadas
+
+Padroniza as justificativas de Horas Improdutivas, classifica cada uma em
+Controlável / Não Controlável / **Neutro** e torna o lançamento muito mais rápido.
+
+- **Catálogo template-driven** (`res/raw/justificativas_hi.json`): **fonte única
+  de verdade** das 16 justificativas. Cada uma define `categoria`,
+  `considerarHI`, `considerarPerdaRumo`, `fatorHH`, `minutosMinimos`, `cor`,
+  `icone` (lucide, p/ dashboard), `emoji` (Android), `ordem`, `ativa`,
+  `exigeDescricao` e `aliases`. Reclassificar = editar uma linha do JSON;
+  nenhuma regra de negócio no código muda
+- **Regras de negócio movidas para dados**: Chuva = `fatorHH 0.5` (antes
+  hardcoded no dashboard); trem = `minutosMinimos 20` (antes
+  `METAS.MINUTOS_MINIMOS_TREM`); neutros = `considerarHI false`
+- **Neutros** (Almoço/Refeição, DDS, Trânsito) são registrados para compor a
+  jornada e a rastreabilidade, mas **não contam como HI nem como perda da Rumo**
+- **`aliases`**: nomes históricos ("Passagens de Trem", "Almoço/Refeição",
+  "Deslocamento a Pé"…) resolvem para a justificativa nova, então RDOs antigos
+  continuam classificados corretamente sem migração de dados
+- **Lançamento em um clique** (`dialog_adicionar_hi_rdo.xml` + `HIManager`):
+  chips grandes com emoji agrupados por categoria (cores por categoria), busca
+  rápida que filtra por nome/alias sem acento, e **recentes** (5 últimas,
+  `SharedPreferences`) no topo. O spinner antigo (8 tipos) foi removido
+- **Descrição deixou de ser obrigatória** — só é exigida quando a justificativa
+  define `exigeDescricao` (hoje, "Outros"), que era o campo que mais travava o
+  lançamento
+- **Duplicar HI**: botão de cópia em cada card abre o diálogo já preenchido com
+  justificativa, descrição e operadores do lançamento escolhido, com os horários
+  em branco (é o que muda entre um registro e outro) e foco no horário de início
+- **Card do RDO** mostra badge da categoria ("Neutro · não conta como HI") e o
+  formulário ganhou linha de resumo: `Total: X HH improdutivas · Y HH neutras`
+- **Relatório do RDO** separa "⏸️ Horas Improdutivas" de "🕐 Jornada (não conta
+  como HI)"
+- **Refactor**: `HIManager` tinha ~100 linhas duplicadas entre os diálogos de
+  adicionar e editar — agora é um único `mostrarDialog(hiAtual, itemView)`.
+  `BaseItemManager` ganhou o hook `onListaAlterada()`
+- **Testes**: `JustificativasHIManagerTest` — 18 testes JVM (resolução por
+  id/nome/alias/normalização, agrupamento, filtro e `calcularHH` com as regras
+  de neutro, chuva e trem)
+
+> **Sem mudança de schema**: a aba `HorasImprodutivas` do Sheets continua com 10
+> colunas e `HEADERS_VERSION` continua 6. A coluna `Tipo` passa a receber os
+> nomes padronizados; a categoria é **derivada do catálogo** na leitura, o que
+> evita duas fontes de verdade e faz a reclassificação valer retroativamente.
+
+> **Classificações a confirmar**: o pedido não classificou **Deslocamento** e
+> **Treinamento**; ambos entraram como **Controlável**. Para mudar, basta
+> alterar `categoria` (e `considerarHI`/`considerarPerdaRumo`) no JSON.
+
+**Pendente — Dashboard (fase 2):** especificação completa e autocontida em
+**`FASE2_DASHBOARD_HI.md`** (raiz do repo), com arquivo e linha de cada regra a
+trocar — as regras de HI estão duplicadas em **6 arquivos** do dashboard.
+`_isNaoControlavel()` em `visao-geral.js`
+ainda classifica por substring ("trem"/"chuva") e almoço/DDS/trânsito ainda
+entram como perda controlável. A fase 2 deve sincronizar o catálogo para
+`dashboard/` (nos moldes do `npm run sync-servicos`) e passar a usar
+`considerarHI` / `categoria` / `fatorHH` / `minutosMinimos` em todos os KPIs,
+Pareto, rankings e filtros.
+
+**Arquivos novos:** `app/src/main/res/raw/justificativas_hi.json`,
+`data/models/JustificativaHI.kt`,
+`domain/managers/JustificativasHIManager.kt`,
+`app/src/test/.../JustificativasHIManagerTest.kt`
+**Arquivos alterados:** `domain/managers/{HIManager,BaseItemManager}.kt`,
+`utils/RDORelatorioUtil.kt`, `ui/fragments/RDOFragment.kt`,
+`ui/activities/{HistoricoRDOActivity,CalendarioRDOActivity}.kt`,
+`res/layout/{dialog_adicionar_hi_rdo,item_hi_rdo,fragment_rdo}.xml`
+
+---
+
+### Version 5.2.0 (versionCode 25) - 2026-07-21
+**Checklist de Inspeção de Qualidade (autoinspeção RUMO) — Solda e Dormente**
+
+Reproduz, dentro do app, o formulário de auditoria que os fiscais da RUMO usam
+para inspecionar as O.S ("FORMULÁRIO INSPEÇÃO TURMA | TURMA DE PRODUÇÃO"). O
+objetivo é a turma se autoinspecionar ao finalizar a O.S e corrigir não
+conformidades antes da vistoria do fiscal.
+
+- **Template-driven** (`res/raw/checklist_solda.json`, `checklist_dormente.json`):
+  fonte única de verdade das perguntas, espelhando os formulários de solda
+  (25247) e dormente (24210). Novos tipos entram só criando um novo JSON e
+  registrando-o em `ChecklistManager.rawPorTipo()` + `ChecklistManager.TIPOS`
+- **Seleção de atividade**: ao abrir pela tela inicial, um diálogo pergunta qual
+  atividade inspecionar (Solda / Dormente). Pelo RDO, o tipo é detectado dos
+  serviços (`tiposParaServicos()`); com mais de um, pede a escolha
+- **Estrutura de solda**: seção geral (localização, PCM, reemprego) + seção
+  **repetível por solda** (14 itens técnicos: marcação no trilho, tolerâncias de
+  desnível 0,4 mm / desalinhamento 0,3 mm, desgaste vertical, furo/bisel, soldas
+  paralelas, dormentes de apoio/balanço, defeito aparente, acompanhamento,
+  calibração de equipamentos) + fechamento com **itens críticos** (boletim de
+  qualidade, medidas dentro do esperado)
+- **Estrutura de dormente**: seções não repetíveis — localização/marcação PCM +
+  qualidade do serviço (manuseio, socaria, fixação 'V', encaixe da pedra, bitola,
+  quadramento, descarte) + fechamento com itens críticos
+- **Veredito automático** (`ChecklistManager.avaliar()`): Reprovada se houver
+  qualquer não conformidade; itens críticos são sinalizados à parte. Cada item
+  define qual resposta caracteriza não conformidade (`naoConforme`), e
+  "Não Aplicável" nunca conta como não conformidade
+- **Tela dinâmica** (`ChecklistInspecaoActivity`): renderiza o template
+  programaticamente (Sim/Não/N.A. + observação por item), stepper para a
+  quantidade de soldas e banner de veredito ao vivo
+- **Acesso**: card **"Checklist de Qualidade"** na tela inicial (`HomeActivity`),
+  independente de RDO — abre a tela com identificação editável (O.S,
+  encarregado, data, local). Também é oferecido ao salvar um RDO com serviço de
+  solda (`RDOFragment`), já pré-preenchido com os dados do RDO
+- **Chave do registro**: Número RDO quando vinculado; senão, o Número da O.S
+  (checklist avulso). Salvar exige a O.S quando não há RDO
+- **Persistência**: nova tabela `checklist_inspecao` (DB v11), 1 checklist por
+  (Número RDO, tipo), serializado via Gson (fotos ficam como caminhos dentro do
+  JSON — sem mudança de schema). **Armazenado apenas localmente** — sync com
+  Sheets/dashboard fica para uma etapa futura
+
+**Revisão contra os formulários reais da RUMO (2ª rodada):**
+- **Fotos por item** (`RespostaItem.fotos`): câmera (TakePicture + FileProvider)
+  ou galeria; miniaturas com ver/remover; arquivos em
+  `getExternalFilesDir(Pictures)/checklists/`. Itens com foto seguem os campos
+  "Fotos" do formulário RUMO (`"foto": true` no JSON); **"Fotos das medidas de
+  qualidade"** é item só-foto obrigatório (`"tipo": "foto"`,
+  `"fotoObrigatoria": true`); foto também é exigida como **evidência de não
+  conformidade** em itens fotografáveis
+- **Preenchimento obrigatório** (`ChecklistManager.validar()`): identificação
+  completa (O.S, encarregado + código, líder + código, data dd/MM/aaaa, local),
+  toda pergunta respondida, observação obrigatória quando a resposta é não
+  conforme (ou quando o template define `observacaoObrigatoriaQuando`, ex.:
+  ressalva = "Sim"). Pendências são marcadas em vermelho e a tela rola até a
+  primeira
+- **Itens novos**: "Teve alguma ressalva?" (obs. obrigatória se Sim + foto),
+  "Foto auxiliar da qualidade" (opcional) e campo "Observações Gerais" nos dois
+  checklists; identificação ganhou Encarregado (código) e Líder (nome + código),
+  espelhando o cabeçalho do formulário
+- **Semântica de `naoConforme`**: default mudou de `"Não"` para vazio =
+  **informativo** (nunca reprova). Corrige bug em que responder "Não" a
+  perguntas informativas (turma no local, ordem marcada pelo PCM, material
+  reemprego) reprovava o checklist indevidamente
+- **Bug fixes**: seção de Identificação era apagada por `removeAllViews()` logo
+  após criada (nunca aparecia); estado do formulário se perdia em rotação de
+  tela/câmera (agora restaurado via `onSaveInstanceState` — `ChecklistPreenchido`
+  é Parcelable); respostas órfãs de soldas removidas pelo stepper agora são
+  podadas ao salvar (e suas fotos apagadas); checklist avulso agora oferece
+  carregar preenchimento existente ao digitar uma O.S já usada
+- **Campos do fiscal fora do escopo** (por desenho): Fiscal, Situação/Motivos de
+  reprovação (calculados automaticamente pelo veredito), Assinatura do Fiscal e
+  Disponibilidade do Encarregado são preenchidos pela auditoria da RUMO, não
+  pela autoinspeção
+- **Testes**: `app/src/test/.../ChecklistManagerTest.kt` — 15 testes JVM da
+  lógica pura (não conformidade, veredito, validação, poda)
+
+**Arquivos novos:** `app/src/main/res/raw/checklist_solda.json`,
+`app/src/main/res/raw/checklist_dormente.json`,
+`data/models/ChecklistInspecao.kt`, `domain/managers/ChecklistManager.kt`,
+`ui/activities/ChecklistInspecaoActivity.kt`,
+`res/layout/activity_checklist_inspecao.xml`,
+`app/src/test/.../ChecklistManagerTest.kt`
+**Arquivos alterados:** `data/database/DatabaseHelper.kt` (v11),
+`ui/fragments/RDOFragment.kt` (gatilho), `AndroidManifest.xml`,
+`app/build.gradle.kts`
+
+---
 
 ### Version 5.1.7 (versionCode 24) - 2026-06-09
 **Permissão de notificações + hash SHA-256**

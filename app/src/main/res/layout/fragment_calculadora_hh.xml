@@ -1,73 +1,127 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:background="?attr/colorSurface"
     android:padding="16dp"
-    android:background="?attr/colorSurface">
+    android:scrollbars="none">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical">
 
-        <!-- Seção HH (Homem-Hora) -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Filled"
+        <!-- ══════════ Resultado em destaque (topo, como no design) ══════════ -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="?attr/colorSurfaceVariant">
+            android:layout_marginBottom="18dp"
+            android:background="@drawable/bg_hero_gradient_large"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:padding="26dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:letterSpacing="0.25"
+                android:text="TOTAL DE HORAS (HH)"
+                android:textColor="@color/gold_sub"
+                android:textSize="9sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvTotalHoras"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="6dp"
+                android:text="0.00 h"
+                android:textColor="@color/gold_text"
+                android:textSize="56sp"
+                android:textStyle="bold" />
+
+            <!--
+              O protótipo trocava esta linha por "X serviço(s) adicionado(s)".
+              Mantida a informação de horas faltantes para a meta do dia, que é
+              o dado que a turma usa em campo — a contagem de serviços já está
+              visível na lista logo abaixo.
+            -->
+            <TextView
+                android:id="@+id/tvFaltante"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                tools:text="Você precisa de 24 horas para completar o dia." />
+        </LinearLayout>
+
+        <!-- ══════════ Cálculo de HH ══════════ -->
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.CalculadoraHH.CardView"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="14dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="18dp">
 
-                <com.google.android.material.textview.MaterialTextView
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:text="Cálculo de HH (Homem-Hora)"
-                    android:textAppearance="?attr/textAppearanceTitleLarge"
-                    android:textColor="?attr/colorOnSurface" />
+                    android:layout_marginBottom="14dp"
+                    android:letterSpacing="0.15"
+                    android:text="CÁLCULO DE HH"
+                    android:textColor="@color/text_dim"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
 
-                <!-- Serviço (pesquisável) -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="5dp"
+                    android:text="SERVIÇO"
+                    android:textAppearance="@style/TextAppearance.CalculadoraHH.FieldLabel" />
+
                 <com.google.android.material.textfield.TextInputLayout
                     android:id="@+id/tilServico"
                     style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:hint="Buscar Serviço"
-                    app:boxCornerRadiusBottomEnd="12dp"
-                    app:boxCornerRadiusBottomStart="12dp"
-                    app:boxCornerRadiusTopEnd="12dp"
-                    app:boxCornerRadiusTopStart="12dp">
+                    android:layout_marginBottom="12dp"
+                    android:hint="Buscar serviço..."
+                    app:boxCornerRadiusBottomEnd="11dp"
+                    app:boxCornerRadiusBottomStart="11dp"
+                    app:boxCornerRadiusTopEnd="11dp"
+                    app:boxCornerRadiusTopStart="11dp">
 
                     <AutoCompleteTextView
                         android:id="@+id/actvServico"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:inputType="none"
-                        android:completionThreshold="1" />
-
+                        android:completionThreshold="1"
+                        android:inputType="none" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <!-- Quantidade -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="5dp"
+                    android:text="QUANTIDADE"
+                    android:textAppearance="@style/TextAppearance.CalculadoraHH.FieldLabel" />
+
                 <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    style="@style/Widget.CalculadoraHH.TextInputLayout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:hint="Quantidade"
-                    app:boxCornerRadiusBottomEnd="12dp"
-                    app:boxCornerRadiusBottomStart="12dp"
-                    app:boxCornerRadiusTopEnd="12dp"
-                    app:boxCornerRadiusTopStart="12dp">
+                    android:layout_marginBottom="12dp"
+                    android:hint="0">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etQuantidade"
@@ -76,18 +130,19 @@
                         android:inputType="numberDecimal" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <!-- Observações do Serviço -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="5dp"
+                    android:text="OBSERVAÇÕES (OPCIONAL)"
+                    android:textAppearance="@style/TextAppearance.CalculadoraHH.FieldLabel" />
+
                 <com.google.android.material.textfield.TextInputLayout
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+                    style="@style/Widget.CalculadoraHH.TextInputLayout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
-                    android:hint="Observações (opcional)"
-                    app:boxCornerRadiusBottomEnd="12dp"
-                    app:boxCornerRadiusBottomStart="12dp"
-                    app:boxCornerRadiusTopEnd="12dp"
-                    app:boxCornerRadiusTopStart="12dp"
-                    app:helperText="Ex: Observações sobre a execução do serviço">
+                    android:layout_marginBottom="12dp"
+                    android:hint="Ex: observações sobre a execução">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etObservacoesServico"
@@ -97,198 +152,168 @@
                         android:maxLines="3" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <!-- Checkbox para Serviço Customizado -->
                 <com.google.android.material.checkbox.MaterialCheckBox
                     android:id="@+id/cbServicoCustomizado"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:text="Serviço Customizado (sem coeficiente)"
-                    android:textColor="?attr/colorOnSurface" />
+                    android:layout_marginBottom="4dp"
+                    android:text="Serviço customizado (sem coeficiente)"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="12sp" />
 
-                <com.google.android.material.textview.MaterialTextView
+                <TextView
                     android:id="@+id/tvAvisoCustomizado"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="16dp"
+                    android:layout_marginBottom="12dp"
                     android:text="⚠️ Serviços customizados não calculam HH automaticamente. Adicione o coeficiente no dashboard depois."
-                    android:textAppearance="?attr/textAppearanceBodySmall"
-                    android:textColor="?attr/colorSecondary"
-                    android:visibility="gone" />
+                    android:textColor="@color/amber_pending"
+                    android:textSize="11sp"
+                    android:visibility="gone"
+                    tools:visibility="visible" />
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnAdicionar"
-                    style="@style/Widget.Material3.Button.TonalButton.Icon"
+                    style="@style/Widget.CalculadoraHH.Button"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="16dp"
-                    android:text="ADICIONAR SERVIÇO"
-                    app:icon="@android:drawable/ic_input_add" />
+                    android:text="+ ADICIONAR SERVIÇO" />
 
-                <com.google.android.material.textview.MaterialTextView
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:text="Serviços Adicionados:"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurface" />
+                    android:layout_marginBottom="10dp"
+                    android:text="SERVIÇOS ADICIONADOS"
+                    android:textAppearance="@style/TextAppearance.CalculadoraHH.FieldLabel" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/rvServicosAdicionados"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
+                    android:nestedScrollingEnabled="false"
                     android:orientation="vertical" />
-
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- Seção HI (Horas Improdutivas) -->
+        <!-- ══════════ Horas Improdutivas ══════════ -->
         <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Filled"
+            style="@style/Widget.CalculadoraHH.CardView"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginBottom="16dp"
-            app:cardCornerRadius="16dp"
-            app:cardElevation="0dp"
-            app:cardBackgroundColor="?attr/colorSurfaceVariant">
+            android:layout_marginBottom="24dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="vertical"
-                android:padding="20dp">
+                android:padding="18dp">
 
-                <com.google.android.material.textview.MaterialTextView
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Cálculo de Hora Improdutiva (HI)"
-                    android:textAppearance="?attr/textAppearanceTitleLarge"
-                    android:textColor="?attr/colorOnSurface"
-                    android:layout_marginBottom="16dp"/>
+                    android:layout_marginBottom="14dp"
+                    android:letterSpacing="0.15"
+                    android:text="HORAS IMPRODUTIVAS (HI)"
+                    android:textColor="@color/text_dim"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
 
-                <!-- Tipo do HI -->
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="5dp"
+                    android:text="TIPO DO HI"
+                    android:textAppearance="@style/TextAppearance.CalculadoraHH.FieldLabel" />
+
                 <com.google.android.material.textfield.TextInputLayout
+                    style="@style/Widget.CalculadoraHH.TextInputLayout"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:hint="Tipo do HI"
-                    android:layout_marginBottom="16dp"
-                    style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-                    app:boxCornerRadiusTopStart="12dp"
-                    app:boxCornerRadiusTopEnd="12dp"
-                    app:boxCornerRadiusBottomStart="12dp"
-                    app:boxCornerRadiusBottomEnd="12dp"
-                    app:helperText="Ex: Parada para manutenção">
+                    android:layout_marginBottom="12dp"
+                    android:hint="Ex: Chuva">
 
                     <com.google.android.material.textfield.TextInputEditText
                         android:id="@+id/etTipoHI"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:inputType="text"/>
+                        android:inputType="text" />
                 </com.google.android.material.textfield.TextInputLayout>
 
-                <com.google.android.material.textview.MaterialTextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Horário de Início:"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:layout_marginBottom="8dp"/>
-
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnHoraInicio"
-                    style="@style/Widget.Material3.Button.TonalButton"
+                <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="Selecionar Horário"
-                    android:layout_marginBottom="16dp"/>
+                    android:layout_marginBottom="14dp"
+                    android:baselineAligned="false"
+                    android:orientation="horizontal">
 
-                <com.google.android.material.textview.MaterialTextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Horário de Fim:"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:layout_marginBottom="8dp"/>
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="4dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
 
-                <com.google.android.material.button.MaterialButton
-                    android:id="@+id/btnHoraFim"
-                    style="@style/Widget.Material3.Button.TonalButton"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:text="Selecionar Horário"
-                    android:layout_marginBottom="16dp"/>
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="5dp"
+                            android:text="INÍCIO"
+                            android:textAppearance="@style/TextAppearance.CalculadoraHH.FieldLabel" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnHoraInicio"
+                            style="@style/Widget.CalculadoraHH.Button.Outlined"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Selecionar" />
+                    </LinearLayout>
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="4dp"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="5dp"
+                            android:text="FIM"
+                            android:textAppearance="@style/TextAppearance.CalculadoraHH.FieldLabel" />
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnHoraFim"
+                            style="@style/Widget.CalculadoraHH.Button.Outlined"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:text="Selecionar" />
+                    </LinearLayout>
+                </LinearLayout>
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnAdicionarHI"
-                    style="@style/Widget.Material3.Button.TonalButton.Icon"
+                    style="@style/Widget.CalculadoraHH.Button.Outlined"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="ADICIONAR HI"
-                    app:icon="@android:drawable/ic_input_add"
-                    android:layout_marginBottom="16dp"/>
+                    android:layout_marginBottom="16dp"
+                    android:text="+ ADICIONAR HI" />
 
-                <com.google.android.material.textview.MaterialTextView
+                <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="HIs Adicionados:"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurface"
-                    android:layout_marginBottom="8dp"/>
+                    android:layout_marginBottom="10dp"
+                    android:text="HIs ADICIONADOS"
+                    android:textAppearance="@style/TextAppearance.CalculadoraHH.FieldLabel" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/rvHIsAdicionados"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"/>
-
+                    android:nestedScrollingEnabled="false"
+                    android:orientation="vertical" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
-
-        <!-- Total -->
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Elevated"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardCornerRadius="20dp"
-            app:cardElevation="4dp"
-            app:cardBackgroundColor="?attr/colorPrimaryContainer">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:gravity="center"
-                android:orientation="vertical"
-                android:padding="24dp">
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/tvTotalHoras"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:text="0.00 h"
-                    android:textColor="?attr/colorOnPrimaryContainer"
-                    android:textAppearance="?attr/textAppearanceDisplayMedium"/>
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:text="TOTAL DE HORAS"
-                    android:textAppearance="?attr/textAppearanceTitleMedium"
-                    android:textColor="?attr/colorOnPrimaryContainer"/>
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/tvFaltante"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="Você precisa de 96 horas para completar o dia."
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnPrimaryContainer"
-                    android:gravity="center"
-                    android:visibility="visible"/>
-
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
     </LinearLayout>
 </ScrollView>

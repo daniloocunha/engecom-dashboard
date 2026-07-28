@@ -1,34 +1,90 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface">
+    android:background="?attr/colorSurface"
+    android:orientation="vertical">
 
     <ScrollView
+        android:id="@+id/scrollHome"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:fillViewport="true">
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="none">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center"
             android:orientation="vertical"
-            android:padding="24dp">
+            android:paddingHorizontal="16dp"
+            android:paddingTop="20dp"
+            android:paddingBottom="16dp">
 
-            <!-- Banner de Atualização (visível apenas quando há nova versão) -->
+            <!-- ══════════ Header ══════════ -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="22dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginBottom="2dp"
+                        android:text="ENGECOM ENGENHARIA"
+                        android:textAppearance="@style/TextAppearance.CalculadoraHH.LabelCaps" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="Controle de Campo"
+                        android:textColor="@color/text_primary"
+                        android:textSize="21sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <!--
+                  O protótipo trazia um sino de notificações sem funcionalidade
+                  por trás. Como o app precisa de um acesso ao tema claro/escuro
+                  (o redesign é escuro por padrão), este slot virou o alternador
+                  de tema — um affordance real em vez de decorativo.
+                -->
+                <ImageView
+                    android:id="@+id/btnAlternarTema"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/bg_circle_surface"
+                    android:clickable="true"
+                    android:contentDescription="Alternar tema claro e escuro"
+                    android:focusable="true"
+                    android:padding="11dp"
+                    android:src="@drawable/ic_light_mode"
+                    app:tint="@color/text_secondary" />
+            </LinearLayout>
+
+            <!-- ══════════ Banner de atualização ══════════ -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardUpdateBanner"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="14dp"
                 android:visibility="gone"
-                app:cardBackgroundColor="?attr/colorPrimaryContainer"
+                app:cardBackgroundColor="@color/blue_dim"
                 app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:strokeWidth="0dp">
+                app:cardElevation="0dp"
+                app:strokeColor="@color/blue_a18"
+                app:strokeWidth="1dp"
+                tools:visibility="visible">
 
                 <LinearLayout
                     android:layout_width="match_parent"
@@ -38,12 +94,12 @@
                     android:padding="16dp">
 
                     <ImageView
-                        android:layout_width="32dp"
-                        android:layout_height="32dp"
+                        android:layout_width="24dp"
+                        android:layout_height="24dp"
                         android:layout_marginEnd="12dp"
                         android:contentDescription="Atualização"
-                        android:src="@android:drawable/stat_sys_download"
-                        app:tint="?attr/colorOnPrimaryContainer" />
+                        android:src="@drawable/ic_sync"
+                        app:tint="@color/blue_accent" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -51,451 +107,510 @@
                         android:layout_weight="1"
                         android:orientation="vertical">
 
-                        <com.google.android.material.textview.MaterialTextView
+                        <TextView
                             android:id="@+id/tvUpdateTitle"
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="Atualização disponível"
-                            android:textAppearance="?attr/textAppearanceTitleSmall"
-                            android:textColor="?attr/colorOnPrimaryContainer"
-                            android:textStyle="bold" />
+                            android:textAppearance="@style/TextAppearance.CalculadoraHH.CardTitle"
+                            tools:text="Atualização disponível" />
 
-                        <com.google.android.material.textview.MaterialTextView
+                        <TextView
                             android:id="@+id/tvUpdateMessage"
-                            android:layout_width="wrap_content"
+                            android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="2dp"
-                            android:text="Nova versão disponível"
-                            android:textAppearance="?attr/textAppearanceBodySmall"
-                            android:textColor="?attr/colorOnPrimaryContainer" />
-
+                            android:textAppearance="@style/TextAppearance.CalculadoraHH.Detail"
+                            tools:text="Nova versão disponível" />
                     </LinearLayout>
 
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/btnAtualizar"
-                        style="@style/Widget.Material3.Button"
+                        style="@style/Widget.CalculadoraHH.Button"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
                         android:layout_marginStart="8dp"
+                        android:minWidth="0dp"
                         android:text="Atualizar" />
-
                 </LinearLayout>
-
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Logo ou Título do App -->
-
-            <!-- Card RDO -->
-
+            <!-- ══════════ Hero ══════════ -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="48dp"
-                android:gravity="center"
-                android:orientation="vertical">
+                android:layout_marginBottom="14dp"
+                android:background="@drawable/bg_hero_gradient"
+                android:orientation="vertical"
+                android:padding="20dp">
 
-                <ImageView
-                    android:layout_width="318dp"
-                    android:layout_height="79dp"
-                    android:layout_marginBottom="16dp"
-                    android:contentDescription="@string/logo"
-                    android:src="@drawable/logo" />
-
-                <com.google.android.material.textview.MaterialTextView
+                <TextView
+                    android:id="@+id/tvHeroData"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginBottom="8dp"
-                    android:text="@string/app_title"
-                    android:textAppearance="?attr/textAppearanceHeadlineMedium"
-                    android:textColor="?attr/colorPrimary"
-                    android:textStyle="bold" />
+                    android:layout_marginBottom="5dp"
+                    android:textColor="@color/text_on_hero"
+                    android:textSize="11sp"
+                    tools:text="Seg, 28 de Julho de 2026" />
 
-                <com.google.android.material.textview.MaterialTextView
+                <TextView
+                    android:id="@+id/tvHeroSaudacao"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="@string/company_name"
-                    android:textAppearance="?attr/textAppearanceBodyMedium"
-                    android:textColor="?attr/colorOnSurface"
-                    android:textStyle="bold" />
+                    android:layout_marginBottom="12dp"
+                    android:textColor="@color/gold_text"
+                    android:textSize="17sp"
+                    android:textStyle="bold"
+                    tools:text="Bom dia! 👋" />
 
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <View
+                        android:id="@+id/dotSyncStatus"
+                        android:layout_width="7dp"
+                        android:layout_height="7dp"
+                        android:layout_marginEnd="8dp"
+                        android:background="@drawable/bg_dot_status" />
+
+                    <!--
+                      O protótipo mostrava "Turma TU-001 · Campo Ativo", mas o
+                      app não tem conceito de turma ativa global. O espaço foi
+                      usado para o status real de sincronização.
+                    -->
+                    <TextView
+                        android:id="@+id/chipSyncStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        tools:text="✓ Tudo sincronizado" />
+                </LinearLayout>
             </LinearLayout>
 
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardRDO"
-                style="@style/Widget.Material3.CardView.Filled"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:clickable="true"
-                android:focusable="true"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="?attr/colorSurfaceVariant"
-                app:rippleColor="?attr/colorPrimary"
-                app:strokeWidth="0dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="20dp">
-
-                    <com.google.android.material.card.MaterialCardView
-                        style="@style/Widget.Material3.CardView.Elevated"
-                        android:layout_width="64dp"
-                        android:layout_height="64dp"
-                        android:layout_marginEnd="16dp"
-                        app:cardCornerRadius="16dp"
-                        app:cardElevation="2dp"
-                        app:cardBackgroundColor="?attr/colorPrimaryContainer">
-
-                        <ImageView
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:layout_gravity="center"
-                            android:contentDescription="RDO"
-                            android:src="@android:drawable/ic_menu_agenda"
-                            app:tint="?attr/colorOnPrimaryContainer" />
-
-                    </com.google.android.material.card.MaterialCardView>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <com.google.android.material.textview.MaterialTextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="4dp"
-                            android:text="@string/criar_rdo"
-                            android:textAppearance="?attr/textAppearanceTitleLarge"
-                            android:textColor="?attr/colorOnSurface" />
-
-                        <com.google.android.material.textview.MaterialTextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/criar_rdo_desc"
-                            android:textAppearance="?attr/textAppearanceBodyMedium"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-
-                    </LinearLayout>
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:contentDescription="Ir"
-                        android:src="@drawable/ic_arrow_forward"
-                        app:tint="?attr/colorOnSurfaceVariant" />
-
-                </LinearLayout>
-
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Card Calculadora HH -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardCalculadora"
-                style="@style/Widget.Material3.CardView.Filled"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:clickable="true"
-                android:focusable="true"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="?attr/colorSurfaceVariant"
-                app:rippleColor="?attr/colorPrimary"
-                app:strokeWidth="0dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="20dp">
-
-                    <com.google.android.material.card.MaterialCardView
-                        style="@style/Widget.Material3.CardView.Elevated"
-                        android:layout_width="64dp"
-                        android:layout_height="64dp"
-                        android:layout_marginEnd="16dp"
-                        app:cardCornerRadius="16dp"
-                        app:cardElevation="2dp"
-                        app:cardBackgroundColor="?attr/colorPrimaryContainer">
-
-                        <ImageView
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:layout_gravity="center"
-                            android:contentDescription="@string/calculadora"
-                            android:src="@android:drawable/ic_menu_edit"
-                            app:tint="?attr/colorOnPrimaryContainer" />
-
-                    </com.google.android.material.card.MaterialCardView>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <com.google.android.material.textview.MaterialTextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="4dp"
-                            android:text="@string/calculadora_hh"
-                            android:textAppearance="?attr/textAppearanceTitleLarge"
-                            android:textColor="?attr/colorOnSurface" />
-
-                        <com.google.android.material.textview.MaterialTextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/calculadora_hh_desc"
-                            android:textAppearance="?attr/textAppearanceBodyMedium"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-
-                    </LinearLayout>
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:contentDescription="Ir"
-                        android:src="@drawable/ic_arrow_forward"
-                        app:tint="?attr/colorOnSurfaceVariant" />
-
-                </LinearLayout>
-
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Card Histórico -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardHistorico"
-                style="@style/Widget.Material3.CardView.Filled"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="24dp"
-                android:clickable="true"
-                android:focusable="true"
-                app:cardCornerRadius="20dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="?attr/colorSurfaceVariant"
-                app:rippleColor="?attr/colorPrimary"
-                app:strokeWidth="0dp">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal"
-                    android:padding="20dp">
-
-                    <com.google.android.material.card.MaterialCardView
-                        style="@style/Widget.Material3.CardView.Elevated"
-                        android:layout_width="64dp"
-                        android:layout_height="64dp"
-                        android:layout_marginEnd="16dp"
-                        app:cardCornerRadius="16dp"
-                        app:cardElevation="2dp"
-                        app:cardBackgroundColor="?attr/colorPrimaryContainer">
-
-                        <ImageView
-                            android:layout_width="40dp"
-                            android:layout_height="40dp"
-                            android:layout_gravity="center"
-                            android:contentDescription="Histórico"
-                            android:src="@android:drawable/ic_menu_recent_history"
-                            app:tint="?attr/colorOnPrimaryContainer" />
-
-                    </com.google.android.material.card.MaterialCardView>
-
-                    <LinearLayout
-                        android:layout_width="0dp"
-                        android:layout_height="wrap_content"
-                        android:layout_weight="1"
-                        android:orientation="vertical">
-
-                        <com.google.android.material.textview.MaterialTextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:layout_marginBottom="4dp"
-                            android:text="@string/historico"
-                            android:textAppearance="?attr/textAppearanceTitleLarge"
-                            android:textColor="?attr/colorOnSurface" />
-
-                        <com.google.android.material.textview.MaterialTextView
-                            android:layout_width="wrap_content"
-                            android:layout_height="wrap_content"
-                            android:text="@string/historico_desc"
-                            android:textAppearance="?attr/textAppearanceBodyMedium"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-
-                    </LinearLayout>
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:contentDescription="@string/ir"
-                        android:src="@drawable/ic_arrow_forward"
-                        app:tint="?attr/colorOnSurfaceVariant" />
-
-                </LinearLayout>
-
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Cards de estatísticas rápidas -->
+            <!-- ══════════ Stats ══════════ -->
             <LinearLayout
-                android:id="@+id/llStatsCards"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
-                android:layout_marginBottom="16dp"
-                android:orientation="horizontal"
-                android:weightSum="3">
+                android:layout_marginBottom="20dp"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
 
-                <!-- RDOs hoje -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/cardStatHoje"
-                    style="@style/Widget.Material3.CardView.Filled"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginEnd="4dp"
                     android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
-                    app:cardCornerRadius="16dp"
+                    app:cardBackgroundColor="@color/bg_surface"
+                    app:cardCornerRadius="14dp"
                     app:cardElevation="0dp"
-                    app:cardBackgroundColor="?attr/colorSurfaceVariant">
+                    app:strokeColor="@color/border_default"
+                    app:strokeWidth="1dp">
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:gravity="center_horizontal"
                         android:orientation="vertical"
-                        android:padding="12dp"
-                        android:gravity="center">
-                        <com.google.android.material.textview.MaterialTextView
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="14dp">
+
+                        <TextView
                             android:id="@+id/tvStatHoje"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="—"
-                            android:textAppearance="?attr/textAppearanceTitleLarge"
-                            android:textColor="?attr/colorPrimary"
-                            android:textStyle="bold"/>
-                        <com.google.android.material.textview.MaterialTextView
+                            android:textAppearance="@style/TextAppearance.CalculadoraHH.StatNumber"
+                            android:textColor="@color/gold_text"
+                            tools:text="2" />
+
+                        <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Hoje"
-                            android:textAppearance="?attr/textAppearanceBodySmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"/>
+                            android:layout_marginTop="4dp"
+                            android:letterSpacing="0.05"
+                            android:text="HOJE"
+                            android:textColor="@color/text_dim"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Pendentes de sync -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/cardStatPendentes"
-                    style="@style/Widget.Material3.CardView.Filled"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginHorizontal="4dp"
                     android:layout_weight="1"
-                    android:layout_marginStart="3dp"
-                    android:layout_marginEnd="3dp"
-                    app:cardCornerRadius="16dp"
+                    app:cardBackgroundColor="@color/bg_surface"
+                    app:cardCornerRadius="14dp"
                     app:cardElevation="0dp"
-                    app:cardBackgroundColor="?attr/colorSurfaceVariant">
+                    app:strokeColor="@color/border_default"
+                    app:strokeWidth="1dp">
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
+                        android:gravity="center_horizontal"
                         android:orientation="vertical"
-                        android:padding="12dp"
-                        android:gravity="center">
-                        <com.google.android.material.textview.MaterialTextView
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="14dp">
+
+                        <TextView
                             android:id="@+id/tvStatPendentes"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="—"
-                            android:textAppearance="?attr/textAppearanceTitleLarge"
-                            android:textColor="?attr/colorPrimary"
-                            android:textStyle="bold"/>
-                        <com.google.android.material.textview.MaterialTextView
+                            android:textAppearance="@style/TextAppearance.CalculadoraHH.StatNumber"
+                            android:textColor="@color/amber_pending"
+                            tools:text="1" />
+
+                        <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Pendentes"
-                            android:textAppearance="?attr/textAppearanceBodySmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"/>
+                            android:layout_marginTop="4dp"
+                            android:letterSpacing="0.05"
+                            android:text="PENDENTE"
+                            android:textColor="@color/text_dim"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
-                <!-- Total do mês -->
                 <com.google.android.material.card.MaterialCardView
                     android:id="@+id/cardStatMes"
-                    style="@style/Widget.Material3.CardView.Filled"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
+                    android:layout_marginStart="4dp"
                     android:layout_weight="1"
-                    android:layout_marginStart="6dp"
-                    app:cardCornerRadius="16dp"
+                    app:cardBackgroundColor="@color/bg_surface"
+                    app:cardCornerRadius="14dp"
                     app:cardElevation="0dp"
-                    app:cardBackgroundColor="?attr/colorSurfaceVariant">
+                    app:strokeColor="@color/border_default"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:gravity="center_horizontal"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="8dp"
+                        android:paddingVertical="14dp">
+
+                        <TextView
+                            android:id="@+id/tvStatMes"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textAppearance="@style/TextAppearance.CalculadoraHH.StatNumber"
+                            android:textColor="@color/blue_accent"
+                            tools:text="18" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:letterSpacing="0.05"
+                            android:text="ESTE MÊS"
+                            android:textColor="@color/text_dim"
+                            android:textSize="10sp"
+                            android:textStyle="bold" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- ══════════ Ações rápidas ══════════ -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:text="Ações Rápidas"
+                android:textAppearance="@style/TextAppearance.CalculadoraHH.LabelCaps" />
+
+            <!-- Linha 1: Novo RDO + Calc HH -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:baselineAligned="false"
+                android:orientation="horizontal">
+
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardRDO"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="5dp"
+                    android:layout_marginBottom="10dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/gold_surface"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/gold_a18"
+                    app:strokeWidth="1dp">
+
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="12dp"
-                        android:gravity="center">
-                        <com.google.android.material.textview.MaterialTextView
-                            android:id="@+id/tvStatMes"
+                        android:paddingHorizontal="14dp"
+                        android:paddingVertical="18dp">
+
+                        <ImageView
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:layout_marginBottom="12dp"
+                            android:background="@drawable/bg_icon_gold"
+                            android:contentDescription="Novo RDO"
+                            android:padding="9dp"
+                            android:src="@drawable/ic_assignment"
+                            app:tint="@color/gold_text" />
+
+                        <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="—"
-                            android:textAppearance="?attr/textAppearanceTitleLarge"
-                            android:textColor="?attr/colorPrimary"
-                            android:textStyle="bold"/>
-                        <com.google.android.material.textview.MaterialTextView
+                            android:layout_marginBottom="2dp"
+                            android:text="Novo RDO"
+                            android:textAppearance="@style/TextAppearance.CalculadoraHH.CardTitle" />
+
+                        <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="Este mês"
-                            android:textAppearance="?attr/textAppearanceBodySmall"
-                            android:textColor="?attr/colorOnSurfaceVariant"/>
+                            android:text="Registro do dia"
+                            android:textColor="@color/gold_sub"
+                            android:textSize="10sp" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardCalculadora"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:layout_marginBottom="10dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/blue_dim"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/blue_a18"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="14dp"
+                        android:paddingVertical="18dp">
+
+                        <ImageView
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:layout_marginBottom="12dp"
+                            android:background="@drawable/bg_icon_blue"
+                            android:contentDescription="Calculadora HH"
+                            android:padding="9dp"
+                            android:src="@drawable/ic_bar_chart"
+                            app:tint="@color/blue_accent" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="2dp"
+                            android:text="Calc. HH"
+                            android:textAppearance="@style/TextAppearance.CalculadoraHH.CardTitle" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Homem-hora"
+                            android:textColor="@color/blue_sub"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
             </LinearLayout>
 
-            <!-- Chip de status de sincronização -->
-            <com.google.android.material.chip.Chip
-                android:id="@+id/chipSyncStatus"
-                style="@style/Widget.Material3.Chip.Assist"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="center"
-                android:layout_marginBottom="8dp"
-                android:text="Verificando sincronização..."
-                android:textAppearance="?attr/textAppearanceBodySmall"
-                app:chipIcon="@android:drawable/stat_sys_upload"
-                app:chipIconTint="?attr/colorOnSurfaceVariant"
-                app:chipBackgroundColor="?attr/colorSurfaceVariant"/>
-
-            <!-- Sync Button -->
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnSyncAllRDOs"
-                style="@style/Widget.Material3.Button.TonalButton"
+            <!-- Linha 2: Histórico + Checklist -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                android:text="@string/sincronizar_todos"
-                app:icon="@android:drawable/ic_popup_sync"
-                android:textAppearance="?attr/textAppearanceBodyLarge" />
+                android:baselineAligned="false"
+                android:orientation="horizontal">
 
-            <!-- Versão do App -->
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/tvAppVersion"
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardHistorico"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="5dp"
+                    android:layout_marginBottom="10dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/green_dim"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/green_a18"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="14dp"
+                        android:paddingVertical="18dp">
+
+                        <ImageView
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:layout_marginBottom="12dp"
+                            android:background="@drawable/bg_icon_green"
+                            android:contentDescription="Histórico"
+                            android:padding="9dp"
+                            android:src="@drawable/ic_history"
+                            app:tint="@color/green_sync" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="2dp"
+                            android:text="Histórico"
+                            android:textAppearance="@style/TextAppearance.CalculadoraHH.CardTitle" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="RDOs salvos"
+                            android:textColor="@color/green_sub"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+
+                <!--
+                  Checklist de Qualidade (v5.2.0) não existia no protótipo;
+                  entrou no grid seguindo a mesma linguagem visual.
+                -->
+                <com.google.android.material.card.MaterialCardView
+                    android:id="@+id/cardChecklist"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:layout_marginBottom="10dp"
+                    android:layout_weight="1"
+                    android:clickable="true"
+                    android:focusable="true"
+                    app:cardBackgroundColor="@color/purple_dim"
+                    app:cardCornerRadius="18dp"
+                    app:cardElevation="0dp"
+                    app:strokeColor="@color/purple_a18"
+                    app:strokeWidth="1dp">
+
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:paddingHorizontal="14dp"
+                        android:paddingVertical="18dp">
+
+                        <ImageView
+                            android:layout_width="38dp"
+                            android:layout_height="38dp"
+                            android:layout_marginBottom="12dp"
+                            android:background="@drawable/bg_icon_purple"
+                            android:contentDescription="Checklist de Qualidade"
+                            android:padding="9dp"
+                            android:src="@drawable/ic_checklist"
+                            app:tint="@color/purple_accent" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:layout_marginBottom="2dp"
+                            android:text="Checklist"
+                            android:textAppearance="@style/TextAppearance.CalculadoraHH.CardTitle" />
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="Autoinspeção"
+                            android:textColor="@color/purple_sub"
+                            android:textSize="10sp" />
+                    </LinearLayout>
+                </com.google.android.material.card.MaterialCardView>
+            </LinearLayout>
+
+            <!-- Sincronizar em largura total: precisa do botão que reporta estado -->
+            <com.google.android.material.card.MaterialCardView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="22dp"
+                app:cardBackgroundColor="@color/bg_surface"
+                app:cardCornerRadius="18dp"
+                app:cardElevation="0dp"
+                app:strokeColor="@color/border_default"
+                app:strokeWidth="1dp">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingHorizontal="14dp"
+                    android:paddingVertical="14dp">
+
+                    <ImageView
+                        android:layout_width="38dp"
+                        android:layout_height="38dp"
+                        android:layout_marginEnd="12dp"
+                        android:background="@drawable/bg_icon_purple"
+                        android:contentDescription="Sincronizar"
+                        android:padding="9dp"
+                        android:src="@drawable/ic_sync"
+                        app:tint="@color/purple_accent" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnSyncAllRDOs"
+                        style="@style/Widget.CalculadoraHH.Button"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="Sincronizar todos os RDOs" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- ══════════ Recentes ══════════ -->
+            <TextView
+                android:id="@+id/tvLabelRecentes"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:text="@string/app_version_placeholder"
-                android:textAppearance="?attr/textAppearanceLabelSmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
+                android:layout_marginBottom="10dp"
+                android:text="Recentes"
+                android:textAppearance="@style/TextAppearance.CalculadoraHH.LabelCaps"
+                android:visibility="gone"
+                tools:visibility="visible" />
 
+            <LinearLayout
+                android:id="@+id/containerRecentes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+
+            <TextView
+                android:id="@+id/tvAppVersion"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center"
+                android:textColor="@color/text_dim"
+                android:textSize="11sp"
+                tools:text="Versão 5.3.0 • Danilo Cunha" />
         </LinearLayout>
-
     </ScrollView>
 
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/border_default" />
+
+    <include layout="@layout/view_bottom_nav" />
+</LinearLayout>

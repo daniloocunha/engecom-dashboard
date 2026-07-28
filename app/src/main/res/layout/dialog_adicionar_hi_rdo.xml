@@ -1,132 +1,202 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="wrap_content"
-    android:orientation="vertical"
-    android:padding="16dp">
-
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="16dp"
-        android:text="Adicionar Hora Improdutiva"
-        android:textColor="?attr/colorOnSurface"
-        android:textSize="20sp"
-        android:textStyle="bold" />
-
-    <!-- Tipo de HI -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="4dp"
-        android:text="Tipo"
-        android:textColor="?attr/colorOnSurface"
-        android:textSize="14sp" />
-
-    <Spinner
-        android:id="@+id/spinnerTipoHI"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp"
-        android:minHeight="48dp" />
-
-    <!-- Descrição -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="4dp"
-        android:text="Descrição"
-        android:textColor="?attr/colorOnSurface"
-        android:textSize="14sp" />
-
-    <EditText
-        android:id="@+id/etDescricaoHI"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp"
-        android:autofillHints=""
-        android:hint="Ex: Deslocamento até o KM 123"
-        android:inputType="text"
-        android:minHeight="48dp" />
-
-    <!-- Horários (lado a lado) -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="4dp"
-        android:text="@string/hor_rios"
-        android:textColor="?attr/colorOnSurface"
-        android:textSize="14sp" />
+    android:layout_height="wrap_content">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="horizontal"
-        android:layout_marginBottom="12dp">
+        android:orientation="vertical"
+        android:padding="16dp">
 
-        <EditText
-            android:id="@+id/etHorarioInicioHI"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginEnd="8dp"
-            android:hint="Início (00:00)"
-            android:inputType="number"
-            android:maxLength="5"
-            android:minHeight="48dp" />
-
-        <EditText
-            android:id="@+id/etHorarioFimHI"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:hint="Fim (00:00)"
-            android:inputType="number"
-            android:maxLength="5"
-            android:minHeight="48dp" />
-    </LinearLayout>
-
-    <!-- Operadores envolvidos -->
-    <TextView
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="4dp"
-        android:text="Operadores envolvidos"
-        android:textColor="?attr/colorOnSurface"
-        android:textSize="14sp" />
-
-    <EditText
-        android:id="@+id/etOperadoresHI"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginBottom="12dp"
-        android:autofillHints=""
-        android:hint="Número de operadores (padrão: 12)"
-        android:inputType="number"
-        android:text="12"
-        android:minHeight="48dp" />
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:gravity="end"
-        android:orientation="horizontal">
-
-        <Button
-            android:id="@+id/btnCancelarHI"
+        <TextView
+            android:id="@+id/tvTituloHI"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="@string/cancelar"
-            android:backgroundTint="#757575"
-            android:layout_marginEnd="8dp"/>
+            android:layout_marginBottom="12dp"
+            android:text="Adicionar Hora Improdutiva"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="20sp"
+            android:textStyle="bold" />
 
-        <Button
-            android:id="@+id/btnConfirmarHI"
+        <!-- Busca rápida de justificativa -->
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/tilBuscaHI"
+            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Buscar justificativa..."
+            app:startIconDrawable="@android:drawable/ic_menu_search">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/etBuscaHI"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:imeOptions="actionSearch"
+                android:inputType="text"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <!-- Recentes -->
+        <TextView
+            android:id="@+id/tvLabelRecentesHI"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:backgroundTint="#4CAF50"
-            android:text="@string/adicionar" />
+            android:layout_marginTop="12dp"
+            android:text="Recentes"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:visibility="visible" />
 
+        <com.google.android.material.chip.ChipGroup
+            android:id="@+id/chipGroupRecentesHI"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:visibility="gone"
+            app:singleSelection="true"
+            tools:visibility="visible" />
+
+        <!-- Justificativas agrupadas por categoria (preenchido em runtime) -->
+        <LinearLayout
+            android:id="@+id/containerCategoriasHI"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical" />
+
+        <TextView
+            android:id="@+id/tvVazioHI"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="Nenhuma justificativa encontrada"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="14sp"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <!-- Aviso exibido quando a justificativa escolhida é neutra -->
+        <TextView
+            android:id="@+id/tvAvisoNeutraHI"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:padding="10dp"
+            android:text="Neutro: registrado apenas para compor a jornada — não conta como HI nem como perda."
+            android:textSize="12sp"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <View
+            android:layout_width="match_parent"
+            android:layout_height="1dp"
+            android:layout_marginTop="16dp"
+            android:background="?attr/colorOutlineVariant" />
+
+        <!-- Horários (lado a lado) -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:layout_marginBottom="4dp"
+            android:text="@string/hor_rios"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/etHorarioInicioHI"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:layout_weight="1"
+                android:autofillHints=""
+                android:hint="Início (00:00)"
+                android:inputType="number"
+                android:maxLength="5"
+                android:minHeight="48dp" />
+
+            <EditText
+                android:id="@+id/etHorarioFimHI"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:autofillHints=""
+                android:hint="Fim (00:00)"
+                android:inputType="number"
+                android:maxLength="5"
+                android:minHeight="48dp" />
+        </LinearLayout>
+
+        <!-- Operadores envolvidos -->
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Operadores envolvidos"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="14sp" />
+
+        <EditText
+            android:id="@+id/etOperadoresHI"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:autofillHints=""
+            android:hint="Número de operadores (padrão: 12)"
+            android:inputType="number"
+            android:minHeight="48dp"
+            android:text="12" />
+
+        <!-- Descrição — obrigatória apenas quando a justificativa exige (ex.: Outros) -->
+        <TextView
+            android:id="@+id/tvLabelDescricaoHI"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="4dp"
+            android:text="Descrição (opcional)"
+            android:textColor="?attr/colorOnSurface"
+            android:textSize="14sp" />
+
+        <EditText
+            android:id="@+id/etDescricaoHI"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="12dp"
+            android:autofillHints=""
+            android:hint="Detalhe o ocorrido, se necessário"
+            android:inputType="text"
+            android:minHeight="48dp" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="end"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnCancelarHI"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:backgroundTint="@color/text_muted"
+                android:text="@string/cancelar" />
+
+            <Button
+                android:id="@+id/btnConfirmarHI"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:backgroundTint="@color/gold_primary"
+                android:text="@string/adicionar" />
+        </LinearLayout>
     </LinearLayout>
-</LinearLayout>
+</androidx.core.widget.NestedScrollView>

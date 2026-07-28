@@ -1,153 +1,282 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.coordinatorlayout.widget.CoordinatorLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface">
+    android:background="?attr/colorSurface"
+    android:orientation="vertical">
 
-    <com.google.android.material.appbar.AppBarLayout
+    <com.google.android.material.appbar.MaterialToolbar
+        android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="?attr/actionBarSize"
         android:background="?attr/colorSurface"
-        app:elevation="0dp">
-
-        <!-- Toolbar -->
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            android:background="?attr/colorSurface"
-            app:navigationIcon="@android:drawable/ic_menu_revert"
-            app:navigationIconTint="?attr/colorPrimary"
-            app:title="Histórico de RDOs"
-            app:titleTextColor="?attr/colorOnSurface"
-            app:titleTextAppearance="?attr/textAppearanceTitleLarge"/>
-
-    </com.google.android.material.appbar.AppBarLayout>
+        app:navigationIcon="@android:drawable/ic_menu_revert"
+        app:navigationIconTint="@color/text_secondary"
+        app:title="Histórico"
+        app:titleTextAppearance="?attr/textAppearanceTitleLarge"
+        app:titleTextColor="@color/text_primary" />
 
     <androidx.core.widget.NestedScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true"
+        android:scrollbars="none">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
-            android:padding="16dp">
+            android:paddingHorizontal="16dp"
+            android:paddingBottom="16dp">
 
-            <!-- Info Card -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Filled"
+            <!-- ══════════ Busca ══════════ -->
+            <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="?attr/colorPrimaryContainer">
+                android:layout_marginBottom="14dp"
+                android:background="@drawable/bg_input_field"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="14dp">
 
-                <LinearLayout
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginEnd="9dp"
+                    android:contentDescription="Buscar"
+                    android:src="@drawable/ic_search"
+                    app:tint="@color/text_dim" />
+
+                <EditText
+                    android:id="@+id/etBusca"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
+                    android:autofillHints=""
+                    android:background="@null"
+                    android:hint="Buscar RDO, O.S, local ou encarregado..."
+                    android:imeOptions="actionSearch"
+                    android:inputType="text"
+                    android:maxLines="1"
+                    android:minHeight="44dp"
+                    android:textColor="@color/text_primary"
+                    android:textColorHint="@color/text_dim"
+                    android:textSize="13sp" />
+            </LinearLayout>
 
-                    <com.google.android.material.textview.MaterialTextView
-                        android:id="@+id/tvDataSelecionada"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Data: --/--/----"
-                        android:textAppearance="?attr/textAppearanceTitleMedium"
-                        android:textColor="?attr/colorOnPrimaryContainer"
-                        android:paddingBottom="4dp"/>
-
-                    <com.google.android.material.textview.MaterialTextView
-                        android:id="@+id/tvTotalRDOs"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:text="Total de RDOs: 0"
-                        android:textAppearance="?attr/textAppearanceBodyMedium"
-                        android:textColor="?attr/colorOnPrimaryContainer"/>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Calendário Card -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Elevated"
+            <!-- ══════════ Filtros ══════════ -->
+            <HorizontalScrollView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="16dp"
-                app:cardElevation="2dp"
-                app:cardBackgroundColor="?attr/colorSurfaceVariant">
+                android:layout_marginBottom="18dp"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:id="@+id/chipTodos"
+                        style="@style/Widget.CalculadoraHH.FilterChip"
+                        android:text="Todos" />
+
+                    <TextView
+                        android:id="@+id/chipHoje"
+                        style="@style/Widget.CalculadoraHH.FilterChip"
+                        android:layout_marginStart="7dp"
+                        android:text="Hoje" />
+
+                    <TextView
+                        android:id="@+id/chipSemana"
+                        style="@style/Widget.CalculadoraHH.FilterChip"
+                        android:layout_marginStart="7dp"
+                        android:text="Esta semana" />
+
+                    <TextView
+                        android:id="@+id/chipMes"
+                        style="@style/Widget.CalculadoraHH.FilterChip"
+                        android:layout_marginStart="7dp"
+                        android:text="Este mês" />
+
+                    <!--
+                      O calendário era a única navegação do Histórico; o design
+                      o substituía por chips. Mantido como um filtro a mais,
+                      recolhível, para não perder a forma de uso atual.
+                    -->
+                    <TextView
+                        android:id="@+id/chipCalendario"
+                        style="@style/Widget.CalculadoraHH.FilterChip"
+                        android:layout_marginStart="7dp"
+                        android:text="📅 Calendário" />
+                </LinearLayout>
+            </HorizontalScrollView>
+
+            <LinearLayout
+                android:id="@+id/containerCalendario"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp"
+                android:background="@drawable/bg_input_field"
+                android:orientation="vertical"
+                android:padding="8dp"
+                android:visibility="gone"
+                tools:visibility="visible">
 
                 <CalendarView
                     android:id="@+id/calendarView"
                     android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:background="@android:color/transparent"
-                    android:dateTextAppearance="?attr/textAppearanceBodyMedium"/>
+                    android:layout_height="wrap_content" />
 
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Dica -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/Widget.Material3.CardView.Filled"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardCornerRadius="12dp"
-                app:cardElevation="0dp"
-                app:cardBackgroundColor="?attr/colorSurfaceVariant">
-
-                <LinearLayout
+                <TextView
+                    android:id="@+id/tvDataSelecionada"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="12dp">
+                    android:layout_marginTop="4dp"
+                    android:gravity="center"
+                    android:textAppearance="@style/TextAppearance.CalculadoraHH.Detail"
+                    tools:text="Data: 28/07/2026" />
+            </LinearLayout>
 
-                    <com.google.android.material.textview.MaterialTextView
+            <!-- ══════════ Barra de estatísticas ══════════ -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="18dp"
+                android:background="@drawable/bg_stats_gradient"
+                android:baselineAligned="false"
+                android:gravity="center_vertical"
+                android:orientation="horizontal"
+                android:paddingHorizontal="18dp"
+                android:paddingVertical="14dp">
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvStatTotal"
                         android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="💡 Dica"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
-                        android:textColor="?attr/colorOnSurfaceVariant"
-                        android:paddingBottom="4dp"/>
+                        android:textColor="@color/gold_text"
+                        android:textSize="22sp"
+                        android:textStyle="bold"
+                        tools:text="18" />
 
-                    <com.google.android.material.textview.MaterialTextView
-                        android:layout_width="match_parent"
+                    <TextView
+                        android:layout_width="wrap_content"
                         android:layout_height="wrap_content"
-                        android:text="Selecione uma data no calendário para ver os RDOs cadastrados naquele dia"
-                        android:textAppearance="?attr/textAppearanceBodySmall"
-                        android:textColor="?attr/colorOnSurfaceVariant"/>
+                        android:layout_marginTop="3dp"
+                        android:letterSpacing="0.05"
+                        android:text="TOTAL"
+                        android:textColor="@color/text_dim"
+                        android:textSize="9sp"
+                        android:textStyle="bold" />
                 </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
-            <!-- Divider -->
-            <com.google.android.material.divider.MaterialDivider
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="30dp"
+                    android:background="@color/border_input" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvStatSync"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/green_sync"
+                        android:textSize="22sp"
+                        android:textStyle="bold"
+                        tools:text="17" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:letterSpacing="0.05"
+                        android:text="SYNC"
+                        android:textColor="@color/text_dim"
+                        android:textSize="9sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="1dp"
+                    android:layout_height="30dp"
+                    android:background="@color/border_input" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:gravity="center_horizontal"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/tvStatPendente"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/amber_pending"
+                        android:textSize="22sp"
+                        android:textStyle="bold"
+                        tools:text="1" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:letterSpacing="0.05"
+                        android:text="PENDENTE"
+                        android:textColor="@color/text_dim"
+                        android:textSize="9sp"
+                        android:textStyle="bold" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/tvTotalRDOs"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:dividerColor="?attr/colorOutlineVariant"/>
-
-            <!-- Seção de RDOs do dia -->
-            <com.google.android.material.textview.MaterialTextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="RDOs do dia selecionado:"
-                android:textAppearance="?attr/textAppearanceTitleMedium"
-                android:textColor="?attr/colorOnSurface"
-                android:paddingBottom="12dp"/>
+                android:layout_marginBottom="6dp"
+                android:textAppearance="@style/TextAppearance.CalculadoraHH.Detail"
+                tools:text="Total de RDOs: 18" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvHistoricoRDO"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:clipToPadding="false"
                 android:nestedScrollingEnabled="false"
-                android:paddingBottom="8dp"/>
+                tools:itemCount="2"
+                tools:listitem="@layout/item_historico_rdo" />
 
+            <TextView
+                android:id="@+id/tvVazio"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="32dp"
+                android:gravity="center"
+                android:text="Nenhum RDO encontrado para este filtro"
+                android:textAppearance="@style/TextAppearance.CalculadoraHH.Detail"
+                android:visibility="gone"
+                tools:visibility="visible" />
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
 
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/border_default" />
+
+    <include layout="@layout/view_bottom_nav" />
+</LinearLayout>

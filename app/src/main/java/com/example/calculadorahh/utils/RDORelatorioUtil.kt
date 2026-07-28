@@ -2,10 +2,50 @@ package com.example.calculadorahh.utils
 
 import android.annotation.SuppressLint
 import com.example.calculadorahh.data.models.*
+import com.example.calculadorahh.domain.managers.JustificativasHIManager
 
 object RDORelatorioUtil {
 
-    fun gerarRelatorioTexto(rdo: RDODataCompleto): String {
+    /**
+     * Monta o bloco de Horas Improdutivas separando as justificativas neutras
+     * (almoço, DDS, trânsito) — elas compõem a jornada mas não são perda.
+     *
+     * Com [catalogo] nulo, cai no agrupamento simples por tipo (comportamento
+     * anterior), o que mantém o util utilizável sem `Context`.
+     */
+    private fun appendHorasImprodutivas(
+        sb: StringBuilder,
+        itens: List<HIItem>,
+        catalogo: CatalogoJustificativasHI?
+    ) {
+        if (itens.isEmpty()) return
+
+        val neutras = if (catalogo == null) emptyList()
+        else itens.filter { JustificativasHIManager.resolver(catalogo, it.tipo)?.ehNeutra == true }
+        val improdutivas = itens - neutras.toSet()
+
+        fun bloco(titulo: String, lista: List<HIItem>) {
+            if (lista.isEmpty()) return
+            sb.appendLine(titulo)
+            sb.appendLine()
+            lista.groupBy { it.tipo }.forEach { (tipo, doTipo) ->
+                sb.appendLine("  *${tipo}:*")
+                doTipo.forEachIndexed { index, hi ->
+                    val descricao = if (hi.descricao.isBlank()) "" else "${hi.descricao} "
+                    sb.appendLine("    ${index + 1}. $descricao*Horário:* ${hi.horaInicio} → ${hi.horaFim}")
+                }
+                sb.appendLine()
+            }
+        }
+
+        bloco("*⏸️ Horas Improdutivas*", improdutivas)
+        bloco("*🕐 Jornada (não conta como HI)*", neutras)
+    }
+
+    fun gerarRelatorioTexto(
+        rdo: RDODataCompleto,
+        catalogo: CatalogoJustificativasHI? = null
+    ): String {
         val sb = StringBuilder()
 
         sb.appendLine("*RDO - Registro Diário de Obra*\n\n")
@@ -83,19 +123,7 @@ object RDORelatorioUtil {
 
         if (rdo.horasImprodutivas.isNotEmpty()) {
             sb.appendLine()
-            sb.appendLine("*⏸\uFE0F Horas Improdutivas*")
-            sb.appendLine()
-
-            // Agrupar HI por categoria
-            val hiAgrupadas = rdo.horasImprodutivas.groupBy { it.tipo }
-
-            hiAgrupadas.forEach { (categoria, itens) ->
-                sb.appendLine("  *${categoria}:*")
-                itens.forEachIndexed { index, hi ->
-                    sb.appendLine("    ${index + 1}. ${hi.descricao} *Horário:* ${hi.horaInicio} → ${hi.horaFim}")
-                }
-                sb.appendLine()
-            }
+            appendHorasImprodutivas(sb, rdo.horasImprodutivas, catalogo)
         }
 
 
@@ -156,7 +184,10 @@ object RDORelatorioUtil {
     }
 
     @SuppressLint("DefaultLocale")
-    fun gerarRelatorioTextoSimples(rdoData: RDOData): String {
+    fun gerarRelatorioTextoSimples(
+        rdoData: RDOData,
+        catalogo: CatalogoJustificativasHI? = null
+    ): String {
         val sb = StringBuilder()
 
         sb.appendLine("*RDO - Registro Diário de Obra*\n")
@@ -230,19 +261,7 @@ object RDORelatorioUtil {
         }
 
         if (rdoData.hiItens.isNotEmpty()) {
-            sb.appendLine("*⏸\uFE0F Horas Improdutivas*")
-            sb.appendLine()
-
-            // Agrupar HI por categoria
-            val hiAgrupadas = rdoData.hiItens.groupBy { it.tipo }
-
-            hiAgrupadas.forEach { (categoria, itens) ->
-                sb.appendLine("  *${categoria}:*")
-                itens.forEachIndexed { index, hi ->
-                    sb.appendLine("    ${index + 1}. ${hi.descricao} *Horário:* ${hi.horaInicio} *→* ${hi.horaFim}")
-                }
-                sb.appendLine()
-            }
+            appendHorasImprodutivas(sb, rdoData.hiItens, catalogo)
         }
 
         sb.appendLine("*\uD83D\uDDD1\uFE0FManejo de Materiais e Sucatas*")

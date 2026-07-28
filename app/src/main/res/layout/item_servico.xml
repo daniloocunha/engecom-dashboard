@@ -41,7 +41,7 @@
                 android:layout_height="wrap_content"
                 android:text="CUSTOMIZADO"
                 android:textSize="10sp"
-                android:textColor="#FF6F00"
+                android:textColor="@color/amber_pending"
                 android:textStyle="bold"
                 android:layout_marginTop="4dp"
                 android:visibility="gone"/>

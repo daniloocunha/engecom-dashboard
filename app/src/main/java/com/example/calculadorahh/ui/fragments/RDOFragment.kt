@@ -6,6 +6,8 @@ import com.example.calculadorahh.domain.managers.*
 import com.example.calculadorahh.data.database.DatabaseHelper
 import com.example.calculadorahh.utils.*
 import com.example.calculadorahh.ui.activities.HistoricoRDOActivity
+import com.example.calculadorahh.ui.activities.ChecklistInspecaoActivity
+import com.example.calculadorahh.ui.components.AccordionRDO
 
 import android.annotation.SuppressLint
 import android.app.AlertDialog
@@ -122,6 +124,9 @@ class RDOFragment : Fragment() {
 
     // Containers para controle de visibilidade
     private lateinit var sectionClimaSeguranca: View
+    /** Accordion das seções (redesign); usado para abrir a seção de um erro. */
+    private var accordion: AccordionRDO? = null
+
     private lateinit var sectionServicos: View
     private lateinit var sectionMateriais: View
     private lateinit var containerEquipamentos: View
@@ -209,7 +214,10 @@ class RDOFragment : Fragment() {
         // Inicializar managers
         servicosManager = ServicosManager(requireContext(), layoutInflater, llServicosRDO)
         materiaisManager = MateriaisManager(requireContext(), layoutInflater, llMateriaisRDO)
-        hiManager = HIManager(requireContext(), layoutInflater, llHIRDO)
+        hiManager = HIManager(
+            requireContext(), layoutInflater, llHIRDO,
+            view.findViewById(R.id.tvResumoHI)
+        )
         transportesManager = TransportesManager(requireContext(), layoutInflater, llTransportesRDO)
         modeloLoader = ModeloLoader(requireContext())
 
@@ -430,7 +438,7 @@ class RDOFragment : Fragment() {
                             )
 
                             // Gerar relatório atualizado
-                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados)
+                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados, JustificativasHIManager.carregar(requireContext()))
                             val builder = AlertDialog.Builder(requireContext())
                             builder.setTitle("Visualizar Relatório Atualizado")
                             builder.setMessage(relatorio)
@@ -470,7 +478,7 @@ class RDOFragment : Fragment() {
                             )
 
                             // ✅ GERAR RELATÓRIO PADRONIZADO
-                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados)
+                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados, JustificativasHIManager.carregar(requireContext()))
                             val builder = AlertDialog.Builder(requireContext())
                             builder.setTitle("Visualizar Relatório")
                             builder.setMessage(relatorio)
@@ -478,6 +486,13 @@ class RDOFragment : Fragment() {
                                 compartilharRelatorio(relatorio)
                             }
                             builder.setNegativeButton("Fechar", null)
+                            // Oferece a autoinspeção de qualidade quando houve serviço com checklist
+                            val tiposChecklist = tiposDetectados(dados)
+                            if (tiposChecklist.isNotEmpty()) {
+                                builder.setNeutralButton("Checklist de Qualidade") { _, _ ->
+                                    escolherEAbrirChecklist(id, tiposChecklist)
+                                }
+                            }
                             builder.show()
                         } else {
                             Toast.makeText(requireContext(), "Erro ao salvar RDO no banco de dados", Toast.LENGTH_LONG).show()
@@ -543,7 +558,7 @@ class RDOFragment : Fragment() {
                             )
 
                             // Gerar relatório e compartilhar imediatamente
-                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados)
+                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados, JustificativasHIManager.carregar(requireContext()))
                             compartilharRelatorio(relatorio)
 
                             // Voltar para histórico após compartilhar
@@ -575,8 +590,14 @@ class RDOFragment : Fragment() {
                             )
 
                             // Gerar relatório e compartilhar imediatamente
-                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados)
+                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados, JustificativasHIManager.carregar(requireContext()))
                             compartilharRelatorio(relatorio)
+
+                            // Oferece a autoinspeção de qualidade quando houve serviço com checklist
+                            val tiposChecklist = tiposDetectados(dados)
+                            if (tiposChecklist.isNotEmpty()) {
+                                mostrarOfertaChecklist(idSalvo, tiposChecklist)
+                            }
                         } else {
                             Toast.makeText(requireContext(), "Erro ao salvar RDO", Toast.LENGTH_SHORT).show()
                         }
@@ -606,63 +627,35 @@ class RDOFragment : Fragment() {
     }
 
     /**
-     * Configura as seções do formulário como colapsáveis.
-     * Serviços e Efetivo ficam expandidos por padrão (campos importantes).
-     * Materiais, HI, Equipamentos e Transportes ficam colapsados.
+     * Converte as 11 seções do formulário no accordion do redesign: uma seção
+     * aberta por vez, dot colorido no cabeçalho, chevron e borda dourada na
+     * ativa. A barra de progresso reflete quantas seções já têm conteúdo.
      */
     private fun configurarSecoesColapsaveis() {
-        configurarCardColapsavel(sectionServicos as ViewGroup,       "servicos",      expandido = true)
-        configurarCardColapsavel(sectionMateriais as ViewGroup,      "materiais",     expandido = false)
-        configurarCardColapsavel(containerEfetivo as ViewGroup,      "efetivo",       expandido = true)
-        configurarCardColapsavel(containerEquipamentos as ViewGroup, "equipamentos",  expandido = false)
-        configurarCardColapsavel(containerHI as ViewGroup,           "hi",            expandido = false)
-        configurarCardColapsavel(containerTransportes as ViewGroup,  "transportes",   expandido = false)
+        val raiz = (requireView() as ViewGroup).getChildAt(0) as? LinearLayout ?: return
+        val accordion = AccordionRDO(requireContext())
+        accordion.onProgressoAlterado = { atualizarProgresso(accordion) }
+        accordion.aplicar(raiz, indiceInicialAberto = 0)
+        this.accordion = accordion
     }
 
-    /**
-     * Transforma um card em seção colapsável.
-     * Usa a estrutura: MaterialCardView → LinearLayout → [TitleView, ...content]
-     * O clique no TitleView alterna a visibilidade do restante do conteúdo.
-     */
-    private fun configurarCardColapsavel(card: ViewGroup, chave: String, expandido: Boolean) {
-        val innerLayout = card.getChildAt(0) as? ViewGroup ?: return
-        val titleView   = innerLayout.getChildAt(0) ?: return
+    /** Atualiza texto e largura da barra de progresso do formulário. */
+    @SuppressLint("SetTextI18n")
+    private fun atualizarProgresso(accordion: AccordionRDO) {
+        val (preenchidas, total) = accordion.progresso()
+        val view = view ?: return
+        view.findViewById<android.widget.TextView>(R.id.tvProgressoRDO)?.text =
+            "$preenchidas de $total seções"
 
-        // Aplicar estado inicial (sem animação)
-        for (i in 1 until innerLayout.childCount) {
-            innerLayout.getChildAt(i).visibility = if (expandido) View.VISIBLE else View.GONE
-        }
-        atualizarChevron(titleView, expandido)
-
-        // Tornar título clicável para colapsar/expandir
-        titleView.isClickable = true
-        titleView.isFocusable = true
-        titleView.setPadding(
-            titleView.paddingLeft,
-            titleView.paddingTop,
-            8.dpToPx(),
-            titleView.paddingBottom
-        )
-
-        var estaExpandido = expandido
-        titleView.setOnClickListener {
-            estaExpandido = !estaExpandido
-            androidx.transition.TransitionManager.beginDelayedTransition(card, androidx.transition.AutoTransition().apply { duration = 220 })
-            for (i in 1 until innerLayout.childCount) {
-                innerLayout.getChildAt(i).visibility = if (estaExpandido) View.VISIBLE else View.GONE
+        val barra = view.findViewById<View>(R.id.viewProgressoRDO) ?: return
+        val trilho = barra.parent as? View ?: return
+        trilho.post {
+            val fracao = if (total == 0) 0f else preenchidas.toFloat() / total
+            barra.layoutParams = barra.layoutParams.apply {
+                width = (trilho.width * fracao).toInt()
             }
-            atualizarChevron(titleView, estaExpandido)
+            barra.requestLayout()
         }
-    }
-
-    private fun atualizarChevron(view: View, expandido: Boolean) {
-        if (view !is android.widget.TextView) return
-        if (expandido) {
-            view.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0)
-        } else {
-            view.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.ic_chevron_down, 0)
-        }
-        view.compoundDrawablePadding = 0
     }
 
     private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density).toInt()
@@ -980,6 +973,65 @@ class RDOFragment : Fragment() {
         )
 
         modeloLoader.carregarModelo(rdoModelo, views, servicosManager, materiaisManager, hiManager, transportesManager)
+    }
+
+    /** Tipos de checklist relevantes para os serviços do RDO (solda, dormente...). */
+    private fun tiposDetectados(dados: RDOData): List<ChecklistManager.TipoChecklist> {
+        if (!dados.houveServico) return emptyList()
+        return ChecklistManager.tiposParaServicos(dados.servicos.map { it.descricao })
+    }
+
+    /** Diálogo que convida o usuário a preencher o checklist de qualidade. */
+    private fun mostrarOfertaChecklist(rdoId: Long, tipos: List<ChecklistManager.TipoChecklist>) {
+        val descricao = tipos.joinToString(" e ") { it.nome.lowercase() }
+        AlertDialog.Builder(requireContext())
+            .setTitle("Checklist de Qualidade")
+            .setMessage(
+                "Este RDO tem serviço de $descricao. Deseja preencher agora a autoinspeção " +
+                "de qualidade (mesmo checklist usado pela fiscalização da RUMO)?"
+            )
+            .setPositiveButton("Preencher") { _, _ -> escolherEAbrirChecklist(rdoId, tipos) }
+            .setNegativeButton("Agora não", null)
+            .show()
+    }
+
+    /**
+     * Abre o checklist do único tipo detectado ou, se houver mais de um,
+     * pede para o usuário escolher qual atividade inspecionar.
+     */
+    private fun escolherEAbrirChecklist(rdoId: Long, tipos: List<ChecklistManager.TipoChecklist>) {
+        when {
+            tipos.isEmpty() -> return
+            tipos.size == 1 -> abrirChecklistInspecao(rdoId, tipos.first().id)
+            else -> {
+                val nomes = tipos.map { it.nome }.toTypedArray()
+                AlertDialog.Builder(requireContext())
+                    .setTitle("Qual atividade inspecionar?")
+                    .setItems(nomes) { _, which -> abrirChecklistInspecao(rdoId, tipos[which].id) }
+                    .setNegativeButton("Cancelar", null)
+                    .show()
+            }
+        }
+    }
+
+    /** Abre a tela de checklist de inspeção, pré-preenchendo com os dados do RDO. */
+    private fun abrirChecklistInspecao(rdoId: Long, tipo: String) {
+        lifecycleScope.launch {
+            val rdo = withContext(Dispatchers.IO) { databaseHelper.obterRDOPorId(rdoId) }
+            if (rdo == null) {
+                Toast.makeText(requireContext(), "RDO não encontrado", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+            val intent = Intent(requireContext(), ChecklistInspecaoActivity::class.java).apply {
+                putExtra(ChecklistInspecaoActivity.EXTRA_TIPO, tipo)
+                putExtra(ChecklistInspecaoActivity.EXTRA_NUMERO_RDO, rdo.numeroRDO)
+                putExtra(ChecklistInspecaoActivity.EXTRA_NUMERO_OS, rdo.numeroOS)
+                putExtra(ChecklistInspecaoActivity.EXTRA_DATA, rdo.data)
+                putExtra(ChecklistInspecaoActivity.EXTRA_ENCARREGADO, rdo.encarregado)
+                putExtra(ChecklistInspecaoActivity.EXTRA_LOCAL, rdo.local)
+            }
+            startActivity(intent)
+        }
     }
 
     private fun coletarDadosFormulario(): RDOData {

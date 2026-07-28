@@ -1,0 +1,195 @@
+{
+  "id": "solda",
+  "titulo": "Inspeção de Turma — Solda",
+  "formulario": "TURMA DE PRODUÇÃO",
+  "descricao": "Autoinspeção de qualidade espelhando o formulário de auditoria da RUMO para serviços de solda. Preencha ao finalizar a O.S para corrigir não conformidades antes da vistoria do fiscal.",
+  "secoes": [
+    {
+      "id": "geral",
+      "titulo": "Localização e Atividade",
+      "tipo": "geral",
+      "itens": [
+        {
+          "id": "turma_no_local",
+          "pergunta": "A turma ainda está trabalhando no local?",
+          "tipo": "sim_nao",
+          "observacao": true
+        },
+        {
+          "id": "ordem_marcada_pcm",
+          "pergunta": "Ordem marcada em campo pelo PCM?",
+          "tipo": "sim_nao",
+          "observacao": true
+        },
+        {
+          "id": "material_reemprego",
+          "pergunta": "Turma está usando ou foi usado material reemprego na O.S?",
+          "tipo": "sim_nao",
+          "observacao": true
+        }
+      ]
+    },
+    {
+      "id": "por_solda",
+      "titulo": "Inspeção por Solda",
+      "tipo": "repeticao",
+      "rotuloItem": "Solda",
+      "itens": [
+        {
+          "id": "checklist_entregue",
+          "pergunta": "Check List da solda foi entregue?",
+          "tipo": "sim_nao",
+          "naoConforme": "Não",
+          "observacao": true,
+          "foto": true
+        },
+        {
+          "id": "local_checklist",
+          "pergunta": "Local de realização do Check List",
+          "tipo": "opcoes",
+          "opcoes": ["Papel", "App"],
+          "observacao": true,
+          "foto": true
+        },
+        {
+          "id": "marcacao_trilho",
+          "pergunta": "Houve marcação no trilho (soldador/equipe, nº da solda, temperatura e data), por pintura no patim, lado interno, sentido crescente do KM?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true,
+          "foto": true
+        },
+        {
+          "id": "tol_desnivel",
+          "pergunta": "Tolerância máxima de desnível na superfície de rolamento para 1 metro respeitada (0,4 mm)?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true,
+          "foto": true
+        },
+        {
+          "id": "tol_desalinhamento",
+          "pergunta": "Tolerância máxima de desalinhamento lateral da solda respeitada (0,3 mm)?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true,
+          "foto": true
+        },
+        {
+          "id": "desgaste_vertical",
+          "pergunta": "Trilhos com diferença de desgaste vertical dentro do limite?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "distancia_furo",
+          "pergunta": "Distância do furo mais próximo respeitada (60 mm para métrica) e furo biselado?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "soldas_paralelas",
+          "pergunta": "Soldas paralelas e distância entre soldas aluminotérmica/elétrica na mesma perna respeitadas?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "dormentes_apoio",
+          "pergunta": "Os dormentes da solda estão bons? (Apoio)",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "dormentes_balanco",
+          "pergunta": "Os dormentes da solda estão em balanço?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Sim",
+          "observacao": true
+        },
+        {
+          "id": "furos_biselados",
+          "pergunta": "Os furos estão biselados?",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "defeito_aparente",
+          "pergunta": "Existe algum defeito aparente na solda?",
+          "tipo": "sim_nao",
+          "naoConforme": "Sim",
+          "observacao": true,
+          "foto": true
+        },
+        {
+          "id": "acompanhou_execucao",
+          "pergunta": "Acompanhou a execução da solda?",
+          "tipo": "sim_nao",
+          "observacao": true
+        },
+        {
+          "id": "equipamentos_calibrados",
+          "pergunta": "Equipamentos calibrados e dentro do prazo, com certificado? (Termômetro 180 d; Paquímetro 180 d; Cronômetro 1 ano; Régua de Solda 180 d; Cunha Graduada 180 d; Manômetro 120 d)",
+          "tipo": "sim_nao_na",
+          "naoConforme": "Não",
+          "observacao": true
+        }
+      ]
+    },
+    {
+      "id": "fechamento",
+      "titulo": "Boletim de Qualidade e Fechamento",
+      "tipo": "geral",
+      "itens": [
+        {
+          "id": "boletim_marcado",
+          "pergunta": "Boletim de qualidade marcado no campo?",
+          "tipo": "sim_nao",
+          "critico": true,
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "medidas_dentro_esperado",
+          "pergunta": "Todas as medidas de qualidade estavam dentro do valor esperado?",
+          "tipo": "sim_nao",
+          "critico": true,
+          "naoConforme": "Não",
+          "observacao": true
+        },
+        {
+          "id": "fotos_medidas",
+          "pergunta": "Fotos das medidas de qualidade (boletim marcado no campo)",
+          "tipo": "foto",
+          "foto": true,
+          "fotoObrigatoria": true
+        },
+        {
+          "id": "quantidade_inferior",
+          "pergunta": "Tivemos algum item com quantidade aprovada inferior ao informado?",
+          "tipo": "sim_nao",
+          "naoConforme": "Sim",
+          "observacao": true
+        },
+        {
+          "id": "ressalva",
+          "pergunta": "Teve alguma ressalva?",
+          "tipo": "sim_nao",
+          "observacao": true,
+          "observacaoObrigatoriaQuando": "Sim",
+          "foto": true
+        },
+        {
+          "id": "foto_auxiliar",
+          "pergunta": "Foto auxiliar da qualidade (opcional)",
+          "tipo": "foto",
+          "foto": true
+        }
+      ]
+    }
+  ]
+}
