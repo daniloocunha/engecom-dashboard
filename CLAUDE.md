@@ -671,8 +671,8 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - Orchestração: editar `GoogleSheetsService.kt` apenas se o fluxo principal mudar
 
 ## Version Information
-- **versionCode**: 26
-- **versionName**: "5.3.0"
+- **versionCode**: 27
+- **versionName**: "5.4.0"
 - **AGP Version**: 8.13.1
 - **Kotlin Version**: 2.0.21
 - **Gradle Version**: 8.13 (via wrapper)
@@ -714,6 +714,69 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 > **Hash do APK**: enquanto houver aparelhos com versionCode ≤ 23 em campo, a chave `hash_md5` DEVE conter MD5 (32 caracteres) — versões antigas só calculam MD5 e rejeitariam um SHA-256. A partir do momento em que todos estiverem no versionCode 24+, pode-se usar SHA-256 (64 caracteres) na mesma chave.
 
 ## Version History
+
+### Version 5.4.0 (versionCode 27) — Redesign visual completo (Claude Design)
+
+Implementa o redesign do app: tema escuro com identidade dourada Engecom,
+tipografia DM Sans e navegação por barra inferior.
+
+- **Design tokens** (`values/colors.xml` = claro, `values-night/colors.xml` =
+  escuro): backgrounds, texto, bordas, marca e alfas. Nenhum hex literal
+  sobrou nos layouts — tudo por token ou `?attr/`
+- **Tema único DayNight** (`Theme.Material3.DayNight.NoActionBar`). **Material
+  You removido**: `DynamicColors.applyToActivitiesIfAvailable()` fazia as cores
+  do papel de parede sobrescreverem o dourado no Android 12+
+- **Escuro por padrão**, claro disponível pelo alternador na tela inicial
+  (`CalculadoraHHApplication.definirTemaEscuro`, persistido)
+- **DM Sans** (OFL) empacotada em `res/font` — funciona offline, sem depender
+  do Play Services que os "downloadable fonts" exigiriam
+- **Barra inferior própria** (`view_bottom_nav.xml` + `BottomNavHelper`): a
+  `BottomNavigationView` do Material3 desenha pílula atrás do ícone, e o design
+  pede barra de 24×2dp no topo do item. Navegação com `REORDER_TO_FRONT` +
+  `SINGLE_TOP` para não reiniciar o estado das telas
+- **Tela inicial**: header, hero (data, saudação por horário, status real de
+  sync com dot pulsante), stats, grid de ações, card de sincronização e
+  **RDOs recentes** (novo)
+- **Histórico**: busca, chips de período, barra de estatísticas e cards
+  agrupados por dia; **o calendário foi mantido** como filtro recolhível
+- **Calculadora HH**: card de resultado em destaque no topo
+- **RDO**: as 11 seções viram accordion (`AccordionRDO`), uma aberta por vez,
+  com dot colorido, chevron e borda dourada na ativa. A conversão é feita em
+  runtime a partir do XML existente, sem trocar ids — o `RDOFragment` (1.400
+  linhas) segue intacto. Substitui o `configurarCardColapsavel` anterior, que
+  cobria só 6 seções
+
+**Divergências em relação ao protótipo (e por quê):**
+- O protótipo cobria 5 das 11 seções do RDO; **Materiais, Equipamentos, HI,
+  Transportes, Colaboradores e Observações** receberam o mesmo padrão visual
+- **Checklist de Qualidade** e **banner de atualização** não existiam no
+  protótipo e foram preservados na Home
+- **Efetivo**: o protótipo tinha 4 campos; mantidos os 6 reais (faltavam
+  Técnico de Segurança e Soldador)
+- **Calculadora**: mantidos observações, "serviço customizado", lista de HIs e
+  horas faltantes, todos ausentes do protótipo. A fórmula do protótipo
+  (`hh × qtd ÷ 100`) foi descartada — o app usa `quantidade × coeficiente`
+- **HI da calculadora**: o protótipo voltava a texto livre, o que desfaria as
+  justificativas padronizadas da v5.3.0
+- **Sino de notificações** virou o alternador de tema (não havia central de
+  notificações); **"Turma TU-001 · Campo Ativo"** virou o status real de sync
+- **Barra de progresso** do RDO passou a refletir seções preenchidas (no
+  protótipo era fixa em "1 de 5")
+- **Contraste**: subtítulos dos cards de ação vinham com 1,3:1 a 1,9:1
+  (ilegíveis a céu aberto); mantida a matiz, corrigida a luminância
+
+**Arquivos novos:** `res/font/dm_sans*`, `res/anim/{fade_in_up,pulse}.xml`,
+`res/layout/{view_bottom_nav,item_home_recente}.xml`, 23 ícones vetoriais,
+17 drawables de fundo, `ui/components/{BottomNavHelper,AccordionRDO}.kt`,
+`values-night/colors.xml`
+**Arquivos alterados:** `values/{colors,themes}.xml`, `values-night/themes.xml`,
+`CalculadoraHHApplication.kt`, `res/layout/{activity_home,activity_main,
+activity_historico_rdo,item_historico_rdo,fragment_calculadora_hh,fragment_rdo}.xml`,
+`ui/activities/{HomeActivity,MainActivity,HistoricoRDOActivity,
+ChecklistInspecaoActivity}.kt`, `ui/adapters/HistoricoRDOAdapter.kt`,
+`ui/fragments/RDOFragment.kt`
+
+---
 
 ### Version 5.3.0 (versionCode 26) — Justificativas de HI padronizadas e classificadas
 

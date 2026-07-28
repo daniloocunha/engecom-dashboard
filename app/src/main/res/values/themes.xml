@@ -191,6 +191,19 @@
         <item name="android:textColor">@color/text_muted</item>
     </style>
 
+    <!-- Chip de filtro (Histórico). O estado ativo/inativo é trocado em runtime. -->
+    <style name="Widget.CalculadoraHH.FilterChip" parent="">
+        <item name="android:layout_width">wrap_content</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:background">@drawable/bg_chip_inativo</item>
+        <item name="android:clickable">true</item>
+        <item name="android:focusable">true</item>
+        <item name="android:paddingHorizontal">14dp</item>
+        <item name="android:paddingVertical">7dp</item>
+        <item name="android:textColor">@color/text_muted</item>
+        <item name="android:textSize">11sp</item>
+    </style>
+
     <!-- Número grande de estatística -->
     <style name="TextAppearance.CalculadoraHH.StatNumber" parent="TextAppearance.Material3.HeadlineSmall">
         <item name="android:textSize">28sp</item>

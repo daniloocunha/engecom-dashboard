@@ -61,7 +61,7 @@ class ChecklistInspecaoActivity : AppCompatActivity() {
         private const val ESTADO_FOTO_CHAVE = "estado_foto_chave"
         private const val ESTADO_FOTO_ARQUIVO = "estado_foto_arquivo"
 
-        private const val COR_ERRO = 0xFFC62828.toInt()
+        // Cor de erro resolvida do tema — ver corDoTema()
         private val REGEX_DATA = Regex("""\d{2}/\d{2}/\d{4}""")
     }
 
@@ -522,7 +522,7 @@ class ChecklistInspecaoActivity : AppCompatActivity() {
 
             val erroFoto = TextView(this).apply {
                 text = "Anexe ao menos uma foto"
-                setTextColor(COR_ERRO)
+                setTextColor(corDoTema(com.example.calculadorahh.R.color.red_delete))
                 textSize = 12f
                 visibility = View.GONE
             }
@@ -679,13 +679,15 @@ class ChecklistInspecaoActivity : AppCompatActivity() {
         preenchido = ChecklistManager.avaliar(template, preenchido)
         val aprovada = preenchido.situacao == ChecklistPreenchido.SITUACAO_APROVADA
 
-        val corBg: Int
-        val corTxt: Int
-        if (aprovada) {
-            corBg = 0xFFE6F4EA.toInt(); corTxt = 0xFF1E7E34.toInt()
-        } else {
-            corBg = 0xFFFDECEA.toInt(); corTxt = 0xFFC62828.toInt()
-        }
+        // Cores do tema (design tokens) para funcionar em claro e escuro.
+        val corTxt = corDoTema(
+            if (aprovada) com.example.calculadorahh.R.color.green_sync
+            else com.example.calculadorahh.R.color.red_delete
+        )
+        val corBg = corDoTema(
+            if (aprovada) com.example.calculadorahh.R.color.green_a10
+            else com.example.calculadorahh.R.color.red_a10
+        )
         binding.cardVeredito.setCardBackgroundColor(corBg)
         binding.txtVeredito.setTextColor(corTxt)
         binding.txtVeredito.text = if (aprovada) "✅ Aprovada" else "❌ Reprovada"
@@ -756,7 +758,7 @@ class ChecklistInspecaoActivity : AppCompatActivity() {
             val ui = itemUis[p.chave] ?: continue
             when (p.tipo) {
                 ChecklistManager.TipoPendencia.RESPOSTA ->
-                    ui.enunciado.setTextColor(COR_ERRO)
+                    ui.enunciado.setTextColor(corDoTema(com.example.calculadorahh.R.color.red_delete))
                 ChecklistManager.TipoPendencia.OBSERVACAO ->
                     ui.tilObservacao?.error = p.motivo
                 ChecklistManager.TipoPendencia.FOTO ->
@@ -852,7 +854,7 @@ class ChecklistInspecaoActivity : AppCompatActivity() {
         text = texto
         textSize = 22f
         gravity = Gravity.CENTER
-        setTextColor(0xFF2196F3.toInt())
+        setTextColor(corDoTema(com.example.calculadorahh.R.color.gold_primary))
         layoutParams = LinearLayout.LayoutParams(dp(40), dp(40))
         isClickable = true
         isFocusable = true
@@ -860,4 +862,8 @@ class ChecklistInspecaoActivity : AppCompatActivity() {
 
     private fun dp(value: Int): Int =
         (value * resources.displayMetrics.density).toInt()
+
+    /** Resolve uma cor dos design tokens (respeita tema claro/escuro). */
+    private fun corDoTema(res: Int): Int =
+        androidx.core.content.ContextCompat.getColor(this, res)
 }

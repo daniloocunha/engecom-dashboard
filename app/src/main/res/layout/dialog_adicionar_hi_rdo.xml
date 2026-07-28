@@ -188,14 +188,14 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginEnd="8dp"
-                android:backgroundTint="#757575"
+                android:backgroundTint="@color/text_muted"
                 android:text="@string/cancelar" />
 
             <Button
                 android:id="@+id/btnConfirmarHI"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:backgroundTint="#4CAF50"
+                android:backgroundTint="@color/gold_primary"
                 android:text="@string/adicionar" />
         </LinearLayout>
     </LinearLayout>

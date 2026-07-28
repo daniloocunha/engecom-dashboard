@@ -66,7 +66,7 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Editar Transporte"
             android:src="@android:drawable/ic_menu_edit"
-            app:tint="#FFA000" />
+            app:tint="@color/amber_pending" />
 
         <ImageButton
             android:id="@+id/btnRemoverTransporte"
@@ -76,6 +76,6 @@
             android:background="?attr/selectableItemBackgroundBorderless"
             android:contentDescription="Remover Transporte"
             android:src="@android:drawable/ic_menu_delete"
-            app:tint="#D32F2F" />
+            app:tint="@color/red_delete" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

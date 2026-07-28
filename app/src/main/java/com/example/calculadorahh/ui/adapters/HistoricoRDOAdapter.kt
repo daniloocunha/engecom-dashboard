@@ -33,11 +33,12 @@ class HistoricoRDOAdapter(
     }
 
     class RDOViewHolder(itemView: View) : RecyclerView.ViewHolder(itemView) {
-        val cardView: MaterialCardView = itemView as MaterialCardView
+        val cardView: MaterialCardView = itemView.findViewById(R.id.cardRDO)
+        val tvDayHeader: TextView = itemView.findViewById(R.id.tvDayHeader)
+        val badgeStatus: View = itemView.findViewById(R.id.badgeStatus)
         val tvNumeroRDO: TextView = itemView.findViewById(R.id.tvNumeroRDO)
         val ivSyncStatus: ImageView = itemView.findViewById(R.id.ivSyncStatus)
         val tvSyncStatus: TextView = itemView.findViewById(R.id.tvSyncStatus)
-        val tvData: TextView = itemView.findViewById(R.id.tvData)
         val tvLocal: TextView = itemView.findViewById(R.id.tvLocal)
         val tvEncarregado: TextView = itemView.findViewById(R.id.tvEncarregado)
         val tvNumeroOS: TextView = itemView.findViewById(R.id.tvNumeroOS)
@@ -59,12 +60,20 @@ class HistoricoRDOAdapter(
     override fun onBindViewHolder(holder: RDOViewHolder, position: Int) {
         val rdo = rdoList[position]
 
-        holder.tvNumeroRDO.text = "RDO: ${rdo.numeroRDO}"
-        holder.tvData.text = "Data: ${rdo.data}"
-        holder.tvLocal.text = "Local: ${rdo.local}"
-        holder.tvEncarregado.text = "Encarregado: ${rdo.encarregado}"
+        holder.tvNumeroRDO.text = rdo.numeroRDO
+        holder.tvLocal.text = "📍 ${rdo.local}"
+        holder.tvEncarregado.text = "👤 ${rdo.encarregado}"
         holder.tvNumeroOS.text = "OS: ${rdo.numeroOS}"
-        holder.tvStatusOS.text = "Status: ${rdo.statusOS}"
+        holder.tvStatusOS.text = if (rdo.statusOS.isBlank()) "" else "· ${rdo.statusOS}"
+
+        // Cabeçalho de dia: só no primeiro RDO de cada data (agrupamento do design)
+        val dataAnterior = if (position > 0) rdoList[position - 1].data else null
+        if (rdo.data != dataAnterior) {
+            holder.tvDayHeader.visibility = View.VISIBLE
+            holder.tvDayHeader.text = formatarCabecalhoDia(rdo.data)
+        } else {
+            holder.tvDayHeader.visibility = View.GONE
+        }
 
         // 🔥 CONFIGURAR INDICADORES DE SINCRONIZAÇÃO
         val syncStatus = SyncStatus.fromString(rdo.syncStatus)
@@ -106,61 +115,47 @@ class HistoricoRDOAdapter(
      */
     @SuppressLint("SetTextI18n")
     private fun configurarStatusSincronizacao(holder: RDOViewHolder, rdo: RDODataCompleto, status: SyncStatus) {
-        when (status) {
-            SyncStatus.SYNCED -> {
-                // ✅ SINCRONIZADO
-                holder.ivSyncStatus.setImageResource(android.R.drawable.ic_menu_upload_you_tube)
-                holder.ivSyncStatus.setColorFilter(ContextCompat.getColor(context, android.R.color.holo_green_dark))
-                holder.tvSyncStatus.text = "✓ Sincronizado"
-                holder.tvSyncStatus.setTextColor(ContextCompat.getColor(context, android.R.color.holo_green_dark))
-                holder.cardView.setCardBackgroundColor(ContextCompat.getColor(context, android.R.color.white))
-                holder.btnSyncIndividual.visibility = View.GONE
-            }
+        // Cor e rótulo do badge por status. As cores vêm dos tokens do tema
+        // para funcionar em claro e escuro (antes eram hex claros fixos).
+        val (corRes, rotulo, icone) = when (status) {
+            SyncStatus.SYNCED -> Triple(R.color.green_sync, "SYNC", R.drawable.ic_check)
+            SyncStatus.PENDING -> Triple(R.color.amber_pending, "PENDENTE", R.drawable.ic_sync)
+            SyncStatus.SYNCING -> Triple(R.color.blue_accent, "SINCRONIZANDO", R.drawable.ic_sync)
+            SyncStatus.RETRY -> Triple(
+                R.color.amber_pending, "RETRY ${rdo.tentativasSync}/3", R.drawable.ic_sync
+            )
+            SyncStatus.ERROR -> Triple(R.color.red_delete, "ERRO", R.drawable.ic_close)
+        }
 
-            SyncStatus.PENDING -> {
-                // ⏳ PENDENTE
-                holder.ivSyncStatus.setImageResource(android.R.drawable.ic_popup_sync)
-                holder.ivSyncStatus.setColorFilter(ContextCompat.getColor(context, android.R.color.holo_orange_light))
-                holder.tvSyncStatus.text = "⏳ Aguardando sincronização"
-                holder.tvSyncStatus.setTextColor(ContextCompat.getColor(context, android.R.color.holo_orange_light))
-                holder.cardView.setCardBackgroundColor("#FFF9E6".toColorInt()) // Amarelo muito claro
-                holder.btnSyncIndividual.visibility = View.VISIBLE
-            }
+        val cor = ContextCompat.getColor(context, corRes)
+        holder.ivSyncStatus.setImageResource(icone)
+        holder.ivSyncStatus.setColorFilter(cor)
+        holder.tvSyncStatus.text = rotulo
+        holder.tvSyncStatus.setTextColor(cor)
+        holder.badgeStatus.setBackgroundResource(
+            if (status == SyncStatus.SYNCED) R.drawable.bg_badge_sync
+            else R.drawable.bg_badge_pendente
+        )
 
-            SyncStatus.SYNCING -> {
-                // 🔄 SINCRONIZANDO
-                holder.ivSyncStatus.setImageResource(android.R.drawable.ic_popup_sync)
-                holder.ivSyncStatus.setColorFilter(ContextCompat.getColor(context, android.R.color.holo_blue_light))
-                holder.tvSyncStatus.text = "🔄 Sincronizando..."
-                holder.tvSyncStatus.setTextColor(ContextCompat.getColor(context, android.R.color.holo_blue_light))
-                holder.cardView.setCardBackgroundColor("#E3F2FD".toColorInt()) // Azul muito claro
-                holder.btnSyncIndividual.visibility = View.GONE
-            }
+        // Erro mostra a causa; o card ganha borda de alerta.
+        holder.cardView.strokeColor = if (status == SyncStatus.ERROR) cor
+        else ContextCompat.getColor(context, R.color.border_default)
 
-            SyncStatus.RETRY -> {
-                // 🔁 TENTARÁ NOVAMENTE
-                holder.ivSyncStatus.setImageResource(android.R.drawable.ic_popup_sync)
-                holder.ivSyncStatus.setColorFilter(ContextCompat.getColor(context, android.R.color.holo_orange_dark))
-                holder.tvSyncStatus.text = "🔁 Tentando novamente... (${rdo.tentativasSync}/3)"
-                holder.tvSyncStatus.setTextColor(ContextCompat.getColor(context, android.R.color.holo_orange_dark))
-                holder.cardView.setCardBackgroundColor("#FFE0B2".toColorInt()) // Laranja claro
-                holder.btnSyncIndividual.visibility = View.VISIBLE
-            }
+        // Só faz sentido sincronizar manualmente o que não está sincronizado.
+        holder.btnSyncIndividual.visibility =
+            if (status == SyncStatus.SYNCED || status == SyncStatus.SYNCING) View.GONE
+            else View.VISIBLE
+    }
 
-            SyncStatus.ERROR -> {
-                // ❌ ERRO
-                holder.ivSyncStatus.setImageResource(android.R.drawable.ic_dialog_alert)
-                holder.ivSyncStatus.setColorFilter(ContextCompat.getColor(context, android.R.color.holo_red_dark))
-                val mensagem = if (rdo.mensagemErroSync.isNotEmpty()) {
-                    "❌ Erro: ${rdo.mensagemErroSync.take(30)}..."
-                } else {
-                    "❌ Erro na sincronização"
-                }
-                holder.tvSyncStatus.text = "$mensagem\n⚠️ Toque em sincronizar para tentar novamente"
-                holder.tvSyncStatus.setTextColor(ContextCompat.getColor(context, android.R.color.holo_red_dark))
-                holder.cardView.setCardBackgroundColor("#FFEBEE".toColorInt()) // Vermelho muito claro
-                holder.btnSyncIndividual.visibility = View.VISIBLE
-            }
+    /** "28/07/2026" -> "Seg, 28 de Julho" (cabeçalho de grupo do dia). */
+    private fun formatarCabecalhoDia(data: String): String {
+        val entrada = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.getDefault())
+        val saida = java.text.SimpleDateFormat("EEE, dd 'de' MMMM", java.util.Locale("pt", "BR"))
+        return try {
+            entrada.parse(data)?.let { saida.format(it).replaceFirstChar { c -> c.uppercase() } }
+                ?: data
+        } catch (e: Exception) {
+            data
         }
     }
 

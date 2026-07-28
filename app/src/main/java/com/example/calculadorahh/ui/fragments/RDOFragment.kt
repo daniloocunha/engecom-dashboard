@@ -7,6 +7,7 @@ import com.example.calculadorahh.data.database.DatabaseHelper
 import com.example.calculadorahh.utils.*
 import com.example.calculadorahh.ui.activities.HistoricoRDOActivity
 import com.example.calculadorahh.ui.activities.ChecklistInspecaoActivity
+import com.example.calculadorahh.ui.components.AccordionRDO
 
 import android.annotation.SuppressLint
 import android.app.AlertDialog
@@ -123,6 +124,9 @@ class RDOFragment : Fragment() {
 
     // Containers para controle de visibilidade
     private lateinit var sectionClimaSeguranca: View
+    /** Accordion das seções (redesign); usado para abrir a seção de um erro. */
+    private var accordion: AccordionRDO? = null
+
     private lateinit var sectionServicos: View
     private lateinit var sectionMateriais: View
     private lateinit var containerEquipamentos: View
@@ -623,63 +627,35 @@ class RDOFragment : Fragment() {
     }
 
     /**
-     * Configura as seções do formulário como colapsáveis.
-     * Serviços e Efetivo ficam expandidos por padrão (campos importantes).
-     * Materiais, HI, Equipamentos e Transportes ficam colapsados.
+     * Converte as 11 seções do formulário no accordion do redesign: uma seção
+     * aberta por vez, dot colorido no cabeçalho, chevron e borda dourada na
+     * ativa. A barra de progresso reflete quantas seções já têm conteúdo.
      */
     private fun configurarSecoesColapsaveis() {
-        configurarCardColapsavel(sectionServicos as ViewGroup,       "servicos",      expandido = true)
-        configurarCardColapsavel(sectionMateriais as ViewGroup,      "materiais",     expandido = false)
-        configurarCardColapsavel(containerEfetivo as ViewGroup,      "efetivo",       expandido = true)
-        configurarCardColapsavel(containerEquipamentos as ViewGroup, "equipamentos",  expandido = false)
-        configurarCardColapsavel(containerHI as ViewGroup,           "hi",            expandido = false)
-        configurarCardColapsavel(containerTransportes as ViewGroup,  "transportes",   expandido = false)
+        val raiz = (requireView() as ViewGroup).getChildAt(0) as? LinearLayout ?: return
+        val accordion = AccordionRDO(requireContext())
+        accordion.onProgressoAlterado = { atualizarProgresso(accordion) }
+        accordion.aplicar(raiz, indiceInicialAberto = 0)
+        this.accordion = accordion
     }
 
-    /**
-     * Transforma um card em seção colapsável.
-     * Usa a estrutura: MaterialCardView → LinearLayout → [TitleView, ...content]
-     * O clique no TitleView alterna a visibilidade do restante do conteúdo.
-     */
-    private fun configurarCardColapsavel(card: ViewGroup, chave: String, expandido: Boolean) {
-        val innerLayout = card.getChildAt(0) as? ViewGroup ?: return
-        val titleView   = innerLayout.getChildAt(0) ?: return
+    /** Atualiza texto e largura da barra de progresso do formulário. */
+    @SuppressLint("SetTextI18n")
+    private fun atualizarProgresso(accordion: AccordionRDO) {
+        val (preenchidas, total) = accordion.progresso()
+        val view = view ?: return
+        view.findViewById<android.widget.TextView>(R.id.tvProgressoRDO)?.text =
+            "$preenchidas de $total seções"
 
-        // Aplicar estado inicial (sem animação)
-        for (i in 1 until innerLayout.childCount) {
-            innerLayout.getChildAt(i).visibility = if (expandido) View.VISIBLE else View.GONE
-        }
-        atualizarChevron(titleView, expandido)
-
-        // Tornar título clicável para colapsar/expandir
-        titleView.isClickable = true
-        titleView.isFocusable = true
-        titleView.setPadding(
-            titleView.paddingLeft,
-            titleView.paddingTop,
-            8.dpToPx(),
-            titleView.paddingBottom
-        )
-
-        var estaExpandido = expandido
-        titleView.setOnClickListener {
-            estaExpandido = !estaExpandido
-            androidx.transition.TransitionManager.beginDelayedTransition(card, androidx.transition.AutoTransition().apply { duration = 220 })
-            for (i in 1 until innerLayout.childCount) {
-                innerLayout.getChildAt(i).visibility = if (estaExpandido) View.VISIBLE else View.GONE
+        val barra = view.findViewById<View>(R.id.viewProgressoRDO) ?: return
+        val trilho = barra.parent as? View ?: return
+        trilho.post {
+            val fracao = if (total == 0) 0f else preenchidas.toFloat() / total
+            barra.layoutParams = barra.layoutParams.apply {
+                width = (trilho.width * fracao).toInt()
             }
-            atualizarChevron(titleView, estaExpandido)
+            barra.requestLayout()
         }
-    }
-
-    private fun atualizarChevron(view: View, expandido: Boolean) {
-        if (view !is android.widget.TextView) return
-        if (expandido) {
-            view.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, 0, 0)
-        } else {
-            view.setCompoundDrawablesRelativeWithIntrinsicBounds(0, 0, R.drawable.ic_chevron_down, 0)
-        }
-        view.compoundDrawablePadding = 0
     }
 
     private fun Int.dpToPx(): Int = (this * resources.displayMetrics.density).toInt()
