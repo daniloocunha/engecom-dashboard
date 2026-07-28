@@ -741,6 +741,9 @@ Controlável / Não Controlável / **Neutro** e torna o lançamento muito mais r
 - **Descrição deixou de ser obrigatória** — só é exigida quando a justificativa
   define `exigeDescricao` (hoje, "Outros"), que era o campo que mais travava o
   lançamento
+- **Duplicar HI**: botão de cópia em cada card abre o diálogo já preenchido com
+  justificativa, descrição e operadores do lançamento escolhido, com os horários
+  em branco (é o que muda entre um registro e outro) e foco no horário de início
 - **Card do RDO** mostra badge da categoria ("Neutro · não conta como HI") e o
   formulário ganhou linha de resumo: `Total: X HH improdutivas · Y HH neutras`
 - **Relatório do RDO** separa "⏸️ Horas Improdutivas" de "🕐 Jornada (não conta

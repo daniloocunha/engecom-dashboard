@@ -91,19 +91,32 @@ class HIManager(
     private fun formatarHH(valor: Double): String =
         String.format(java.util.Locale.getDefault(), "%.1f", valor)
 
-    override fun mostrarDialogAdicionar() = mostrarDialog(null, null)
+    /** Como o diálogo de HI foi aberto. */
+    private enum class ModoDialog { ADICIONAR, EDITAR, DUPLICAR }
+
+    override fun mostrarDialogAdicionar() = mostrarDialog(null, null, ModoDialog.ADICIONAR)
 
     override fun mostrarDialogEditar(hiAtual: HIItem, itemViewAtual: View) =
-        mostrarDialog(hiAtual, itemViewAtual)
+        mostrarDialog(hiAtual, itemViewAtual, ModoDialog.EDITAR)
 
     /**
-     * Dialog único de lançamento/edição de HI.
+     * Abre o diálogo já preenchido com [modelo], para lançar uma HI parecida.
+     * Copia justificativa, descrição e operadores; os horários ficam em branco,
+     * que é justamente o que muda entre um lançamento e outro.
+     */
+    private fun mostrarDialogDuplicar(modelo: HIItem) =
+        mostrarDialog(modelo, null, ModoDialog.DUPLICAR)
+
+    /**
+     * Dialog único de lançamento, edição e duplicação de HI.
      *
-     * @param hiAtual null para adicionar; preenchido para editar.
+     * @param hiAtual null ao adicionar; a HI de origem ao editar ou duplicar.
+     * @param itemViewAtual view da HI sendo editada (somente em [ModoDialog.EDITAR]).
      */
     @SuppressLint("SetTextI18n")
-    private fun mostrarDialog(hiAtual: HIItem?, itemViewAtual: View?) {
-        val editando = hiAtual != null
+    private fun mostrarDialog(hiAtual: HIItem?, itemViewAtual: View?, modo: ModoDialog) {
+        val editando = modo == ModoDialog.EDITAR
+        val duplicando = modo == ModoDialog.DUPLICAR
         val dialogView = layoutInflater.inflate(R.layout.dialog_adicionar_hi_rdo, null)
         val dialog = AlertDialog.Builder(context)
             .setView(dialogView)
@@ -127,8 +140,13 @@ class HIManager(
         TimeInputMask.apply(etHorarioInicio)
         TimeInputMask.apply(etHorarioFim)
 
-        tvTitulo.text = if (editando) "Editar Hora Improdutiva" else "Adicionar Hora Improdutiva"
-        btnConfirmar.text = if (editando) "Salvar" else context.getString(R.string.adicionar)
+        tvTitulo.text = when (modo) {
+            ModoDialog.EDITAR -> "Editar Hora Improdutiva"
+            ModoDialog.DUPLICAR -> "Duplicar Hora Improdutiva"
+            ModoDialog.ADICIONAR -> "Adicionar Hora Improdutiva"
+        }
+        btnConfirmar.text =
+            if (editando) "Salvar" else context.getString(R.string.adicionar)
 
         // Justificativa selecionada. Ao editar, resolve pelo nome gravado no RDO
         // (tolera nomes antigos via aliases do catálogo).
@@ -211,9 +229,9 @@ class HIManager(
             tvVazio.visibility = if (exibidas == 0) View.VISIBLE else View.GONE
         }
 
-        // Recentes (só ao adicionar — ao editar, a escolha já está feita)
-        val recentes = if (editando) emptyList()
-        else JustificativasHIManager.recentes(context, catalogo)
+        // Recentes só ao adicionar — ao editar ou duplicar a escolha já vem feita.
+        val recentes = if (modo == ModoDialog.ADICIONAR)
+            JustificativasHIManager.recentes(context, catalogo) else emptyList()
         if (recentes.isNotEmpty()) {
             tvLabelRecentes.visibility = View.VISIBLE
             chipGroupRecentes.visibility = View.VISIBLE
@@ -232,14 +250,21 @@ class HIManager(
             }
         })
 
-        // ── Pré-preenchimento ao editar ──────────────────────────────────────
+        // ── Pré-preenchimento (editar ou duplicar) ───────────────────────────
         if (hiAtual != null) {
             etDescricao.setText(hiAtual.descricao)
-            etHorarioInicio.setText(hiAtual.horaInicio)
-            etHorarioFim.setText(hiAtual.horaFim)
             val operadoresAtual =
                 if (hiAtual.colaboradores > 0) hiAtual.colaboradores else OPERADORES_PADRAO
             etOperadores.setText(operadoresAtual.toString())
+
+            if (duplicando) {
+                // Horários em branco: é o que muda entre um lançamento e outro.
+                etHorarioInicio.requestFocus()
+            } else {
+                etHorarioInicio.setText(hiAtual.horaInicio)
+                etHorarioFim.setText(hiAtual.horaFim)
+            }
+
             if (tipoOriginalDesconhecido != null) {
                 tvVazio.visibility = View.VISIBLE
                 tvVazio.text = "Justificativa atual (\"$tipoOriginalDesconhecido\") não está no " +
@@ -286,11 +311,12 @@ class HIManager(
             )
             JustificativasHIManager.registrarUso(context, justificativa.id)
 
-            if (hiAtual != null && itemViewAtual != null) {
+            if (editando && hiAtual != null && itemViewAtual != null) {
                 atualizarItem(hiAtual, hiNovo, itemViewAtual)
             } else {
                 adicionarItem(hiNovo)
-                Toast.makeText(context, getMensagemAdicao(), Toast.LENGTH_SHORT).show()
+                val mensagem = if (duplicando) "HI duplicada" else getMensagemAdicao()
+                Toast.makeText(context, mensagem, Toast.LENGTH_SHORT).show()
             }
             dialog.dismiss()
         }
@@ -307,6 +333,7 @@ class HIManager(
         val tvDescricao = itemView.findViewById<TextView>(R.id.tvDescricaoHI)
         val tvHorario = itemView.findViewById<TextView>(R.id.tvHorarioHI)
         val tvOperadores = itemView.findViewById<TextView>(R.id.tvOperadoresHI)
+        val btnDuplicar = itemView.findViewById<ImageButton>(R.id.btnDuplicarHI)
         val btnEditar = itemView.findViewById<ImageButton>(R.id.btnEditarHI)
         val btnRemover = itemView.findViewById<ImageButton>(R.id.btnRemoverHI)
 
@@ -333,6 +360,7 @@ class HIManager(
         tvHorario.text = "${hi.horaInicio} - ${hi.horaFim}"
         tvOperadores.text = "$operadoresEfetivos operadores"
 
+        btnDuplicar.setOnClickListener { mostrarDialogDuplicar(hi) }
         btnEditar.setOnClickListener { mostrarDialogEditar(hi, itemView) }
         btnRemover.setOnClickListener { removerItem(hi, itemView) }
 
