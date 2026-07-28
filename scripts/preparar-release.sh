@@ -66,8 +66,8 @@ fi
 # ─────────────────────────────────────────────────────────────────────────
 titulo "2. Versão"
 
-VERSION_CODE="$(grep -oP 'versionCode\s*=\s*\K[0-9]+' app/build.gradle.kts | head -1)"
-VERSION_NAME="$(grep -oP 'versionName\s*=\s*"\K[^"]+' app/build.gradle.kts | head -1)"
+VERSION_CODE="$(sed -n 's/.*versionCode[[:space:]]*=[[:space:]]*\([0-9]\{1,\}\).*/\1/p' app/build.gradle.kts | head -1)"
+VERSION_NAME="$(sed -n 's/.*versionName[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' app/build.gradle.kts | head -1)"
 
 if [ -z "$VERSION_CODE" ] || [ -z "$VERSION_NAME" ]; then
   erro "não consegui ler versionCode/versionName de app/build.gradle.kts"
@@ -98,7 +98,7 @@ titulo "4. Assinatura"
 if [ ! -f keystore.properties ]; then
   erro "keystore.properties não encontrado"
 else
-  STORE="$(grep -oP '^storeFile=\K.*' keystore.properties | tr -d '\r')"
+  STORE="$(sed -n 's/^storeFile=//p' keystore.properties | tr -d '\r' | head -1)"
   if [ -f "$STORE" ]; then
     ok "keystore configurado: $STORE"
     case "$STORE" in
@@ -134,7 +134,11 @@ fi
 # ─────────────────────────────────────────────────────────────────────────
 titulo "6. Verificação do APK"
 
-APKSIGNER="$(command -v apksigner || find "${ANDROID_HOME:-$HOME/android-sdk}" -name apksigner 2>/dev/null | head -1)"
+# No Windows o SDK traz 'apksigner.bat'; procura a build-tools mais recente.
+SDK_DIR="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-${LOCALAPPDATA:-$HOME}/Android/Sdk}}"
+APKSIGNER="$(command -v apksigner \
+             || find "$SDK_DIR/build-tools" \( -name apksigner -o -name apksigner.bat \) 2>/dev/null | sort | tail -1 \
+             || find "$HOME/android-sdk" \( -name apksigner -o -name apksigner.bat \) 2>/dev/null | head -1)"
 if [ -n "$APKSIGNER" ]; then
   CERT="$("$APKSIGNER" verify --print-certs "$APK" 2>/dev/null \
           | grep -i 'SHA-256 digest' | head -1 | awk '{print $NF}')"
@@ -149,15 +153,20 @@ else
   aviso "apksigner não encontrado — assinatura não verificada"
 fi
 
-if unzip -l "$APK" 2>/dev/null | grep -q 'assets/rdo-engecom'; then
+# Sem 'grep -q' aqui: ele fecha o pipe cedo, o unzip morre com SIGPIPE e o
+# 'pipefail' faria o teste falhar mesmo com a credencial presente.
+CRED_NO_APK="$(unzip -l "$APK" 2>/dev/null | grep -c 'assets/rdo-engecom')"
+if [ "${CRED_NO_APK:-0}" -gt 0 ]; then
   ok "credenciais empacotadas no APK"
 else
   erro "APK SEM as credenciais — a sincronização falhará em todos os aparelhos"
 fi
 
 MD5="$(md5sum "$APK" | awk '{print $1}')"
+SHA256="$(sha256sum "$APK" | awk '{print $1}')"
 TAMANHO="$(awk -v b="$(stat -c%s "$APK")" 'BEGIN{printf "%.2f", b/1048576}')"
-ok "MD5: $MD5"
+ok "MD5:     $MD5"
+ok "SHA-256: $SHA256"
 ok "Tamanho: $TAMANHO MB"
 
 # ─────────────────────────────────────────────────────────────────────────
@@ -181,13 +190,15 @@ Próximos passos (ações externas — confirme antes de executar):
 
      python scripts/update_config_release.py --apply \\
          --versao $VERSION_CODE \\
-         --hash $MD5 \\
+         --hash $SHA256 \\
          --tamanho $TAMANHO \\
          --url https://github.com/daniloocunha/engecom-dashboard/releases/download/$TAG/app-release.apk \\
          --mensagem "Nova versão $VERSION_NAME"
 
   Lembretes:
-    - hash em MD5 (32 caracteres) enquanto houver aparelhos com versionCode <= 23
+    - hash: SHA-256 (64 chars) só é aceito por versionCode >= 24. Se a aba Config
+      tiver 'versao_minima' >= 24, todo aparelho ativo entende SHA-256.
+      Caso contrário use o MD5 acima ($MD5).
     - 'versao_minima' não é alterada pelo script: bloquear versões antigas é decisão manual
     - atualizar Version Information e Version History no CLAUDE.md
 FIM
