@@ -8,13 +8,19 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
+import android.view.LayoutInflater
 import android.view.View
+import android.view.animation.AnimationUtils
+import android.widget.LinearLayout
+import android.widget.TextView
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.example.calculadorahh.BuildConfig
+import com.example.calculadorahh.CalculadoraHHApplication
+import com.example.calculadorahh.R
 import com.example.calculadorahh.data.database.DatabaseHelper
 import com.example.calculadorahh.domain.managers.ChecklistManager
 import com.example.calculadorahh.data.models.RDODataCompleto
@@ -23,6 +29,7 @@ import com.example.calculadorahh.data.models.UpdateConfig
 import com.example.calculadorahh.data.models.UpdateStatus
 import com.example.calculadorahh.databinding.ActivityHomeBinding
 import com.example.calculadorahh.services.GoogleSheetsService
+import com.example.calculadorahh.ui.components.BottomNavHelper
 import com.example.calculadorahh.utils.SyncHelper
 import com.example.calculadorahh.utils.UpdateChecker
 import com.example.calculadorahh.utils.UpdateDownloader
@@ -30,9 +37,16 @@ import com.example.calculadorahh.utils.getParcelableCompat
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Locale
 
 class HomeActivity : AppCompatActivity() {
+
+    companion object {
+        /** Quantos RDOs recentes aparecem na tela inicial. */
+        private const val MAX_RECENTES = 3
+    }
 
     private lateinit var binding: ActivityHomeBinding
 
@@ -83,6 +97,9 @@ class HomeActivity : AppCompatActivity() {
 
         binding.tvAppVersion.text = "Versão ${BuildConfig.VERSION_NAME} • Danilo Cunha"
 
+        BottomNavHelper.configurar(this, BottomNavHelper.Aba.INICIO)
+        configurarHero()
+        configurarBotaoTema()
         configurarListeners()
         verificarStatusUpdate()
         solicitarPermissaoNotificacao()
@@ -112,6 +129,7 @@ class HomeActivity : AppCompatActivity() {
             iniciarDownload(config)
         }
         carregarEstatisticas()
+        carregarRecentes()
         verificarUpdateEmBackground()
     }
 
@@ -177,6 +195,105 @@ class HomeActivity : AppCompatActivity() {
             }
             .setNegativeButton("Cancelar", null)
             .show()
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // Hero e tema
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /** Data por extenso, saudação conforme a hora e pulsar do dot de status. */
+    @SuppressLint("SetTextI18n")
+    private fun configurarHero() {
+        val agora = Calendar.getInstance()
+        val formato = SimpleDateFormat("EEE, dd 'de' MMMM 'de' yyyy", Locale("pt", "BR"))
+        binding.tvHeroData.text = formato.format(agora.time)
+            .replaceFirstChar { it.uppercase() }
+
+        val hora = agora.get(Calendar.HOUR_OF_DAY)
+        binding.tvHeroSaudacao.text = when {
+            hora < 12 -> "Bom dia! 👋"
+            hora < 18 -> "Boa tarde! 👋"
+            else -> "Boa noite! 👋"
+        }
+
+        binding.dotSyncStatus.startAnimation(
+            AnimationUtils.loadAnimation(this, R.anim.pulse)
+        )
+    }
+
+    /**
+     * Alterna entre tema escuro (padrão do redesign) e claro. O ícone mostra
+     * para qual tema o toque leva.
+     */
+    private fun configurarBotaoTema() {
+        atualizarIconeTema()
+        binding.btnAlternarTema.setOnClickListener {
+            val escuroAgora = CalculadoraHHApplication.temaEscuro(this)
+            CalculadoraHHApplication.definirTemaEscuro(this, !escuroAgora)
+            recreate()
+        }
+    }
+
+    private fun atualizarIconeTema() {
+        val escuro = CalculadoraHHApplication.temaEscuro(this)
+        binding.btnAlternarTema.setImageResource(
+            if (escuro) R.drawable.ic_light_mode else R.drawable.ic_dark_mode
+        )
+        binding.btnAlternarTema.contentDescription =
+            if (escuro) "Mudar para tema claro" else "Mudar para tema escuro"
+    }
+
+    // ──────────────────────────────────────────────────────────────────────────
+    // RDOs recentes
+    // ──────────────────────────────────────────────────────────────────────────
+
+    /** Lista os RDOs mais recentes na tela inicial (atalho para o Histórico). */
+    @SuppressLint("SetTextI18n")
+    private fun carregarRecentes() {
+        lifecycleScope.launch {
+            val recentes = withContext(Dispatchers.IO) {
+                DatabaseHelper.getInstance(this@HomeActivity)
+                    .obterTodosRDOs()
+                    .take(MAX_RECENTES)
+            }
+
+            binding.containerRecentes.removeAllViews()
+            binding.tvLabelRecentes.visibility =
+                if (recentes.isEmpty()) View.GONE else View.VISIBLE
+
+            val inflater = LayoutInflater.from(this@HomeActivity)
+            for (rdo in recentes) {
+                val item = inflater.inflate(
+                    R.layout.item_home_recente, binding.containerRecentes, false
+                )
+                item.findViewById<TextView>(R.id.tvRecenteNumero).text = rdo.numeroRDO
+
+                val detalhes = listOf(rdo.local, "OS ${rdo.numeroOS}", rdo.encarregado)
+                    .filter { it.isNotBlank() && it != "OS " }
+                item.findViewById<TextView>(R.id.tvRecenteDetalhe).text =
+                    detalhes.joinToString(" · ")
+
+                val sincronizado = SyncStatus.fromString(rdo.syncStatus) == SyncStatus.SYNCED
+                item.findViewById<TextView>(R.id.tvRecenteStatus).apply {
+                    text = if (sincronizado) "✓ SYNC" else "⏳ PENDENTE"
+                    setBackgroundResource(
+                        if (sincronizado) R.drawable.bg_badge_sync
+                        else R.drawable.bg_badge_pendente
+                    )
+                    setTextColor(
+                        ContextCompat.getColor(
+                            this@HomeActivity,
+                            if (sincronizado) R.color.green_sync else R.color.amber_pending
+                        )
+                    )
+                }
+
+                item.setOnClickListener {
+                    historicoLauncher.launch(Intent(this@HomeActivity, HistoricoRDOActivity::class.java))
+                }
+                (binding.containerRecentes as LinearLayout).addView(item)
+            }
+        }
     }
 
     // ──────────────────────────────────────────────────────────────────────────

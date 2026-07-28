@@ -1,11 +1,11 @@
 package com.example.calculadorahh
 
 import android.app.Application
-import android.os.Build
+import android.content.Context
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.work.*
 import com.example.calculadorahh.workers.DataCleanupWorker
 import com.example.calculadorahh.workers.RDOSyncWorker
-import com.google.android.material.color.DynamicColors
 import java.util.concurrent.TimeUnit
 
 /**
@@ -13,13 +13,39 @@ import java.util.concurrent.TimeUnit
  */
 class CalculadoraHHApplication : Application() {
 
+    companion object {
+        private const val PREFS_TEMA = "tema_app"
+        private const val KEY_MODO_ESCURO = "modo_escuro"
+
+        /** true se o app deve abrir no tema escuro (padrão do design). */
+        fun temaEscuro(context: Context): Boolean =
+            context.getSharedPreferences(PREFS_TEMA, Context.MODE_PRIVATE)
+                .getBoolean(KEY_MODO_ESCURO, true)
+
+        /** Persiste e aplica a escolha de tema imediatamente. */
+        fun definirTemaEscuro(context: Context, escuro: Boolean) {
+            context.getSharedPreferences(PREFS_TEMA, Context.MODE_PRIVATE)
+                .edit().putBoolean(KEY_MODO_ESCURO, escuro).apply()
+            aplicarTema(escuro)
+        }
+
+        private fun aplicarTema(escuro: Boolean) {
+            AppCompatDelegate.setDefaultNightMode(
+                if (escuro) AppCompatDelegate.MODE_NIGHT_YES
+                else AppCompatDelegate.MODE_NIGHT_NO
+            )
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
 
-        // Habilitar cores dinâmicas do Material You (Android 12+)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            DynamicColors.applyToActivitiesIfAvailable(this)
-        }
+        // Tema escuro por padrão (identidade visual do redesign). O claro
+        // continua disponível pelo botão de tema na tela inicial.
+        //
+        // Material You (DynamicColors) foi removido de propósito: as cores do
+        // papel de parede sobrescreveriam o dourado da Engecom no Android 12+.
+        aplicarTema(temaEscuro(this))
 
         // Configurar sincronização periódica de RDOs
         setupPeriodicSync()

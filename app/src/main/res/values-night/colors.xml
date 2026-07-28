@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Tema ESCURO — é o padrão do app e o especificado pelo design.
+      Os valores aqui são exatamente os design tokens do handoff.
+      Só sobrescreve o que muda entre claro e escuro; a marca
+      (gold_primary, blue_accent, ...) e os alfas vêm de values/colors.xml.
+    -->
+
+    <!-- ══════════ Backgrounds ══════════ -->
+    <color name="bg_primary">#0D0D0D</color>
+    <color name="bg_surface">#181818</color>
+    <color name="bg_card">#1E1E1E</color>
+    <color name="bg_input">#0D0D0D</color>
+    <color name="bg_nav">#111111</color>
+
+    <!-- ══════════ Texto ══════════ -->
+    <color name="text_primary">#F3F4F6</color>
+    <color name="text_secondary">#9CA3AF</color>
+    <color name="text_muted">#6B7280</color>
+    <color name="text_dim">#5A5A5A</color>
+    <color name="text_on_hero">#7A7A5A</color>
+
+    <!-- ══════════ Bordas ══════════ -->
+    <color name="border_default">#222222</color>
+    <color name="border_input">#2A2A2A</color>
+
+    <!-- No escuro o dourado da marca já tem contraste como texto -->
+    <color name="gold_text">#E8C300</color>
+
+    <!-- ══════════ Superfícies tonais dos cards de ação ══════════ -->
+    <color name="gold_dim">#1C1800</color>
+    <color name="gold_dim_end">#110E00</color>
+    <color name="gold_surface">#19160A</color>
+    <color name="blue_dim">#001526</color>
+    <color name="green_dim">#001500</color>
+    <color name="purple_dim">#140018</color>
+
+    <!--
+      Subtítulos dos cards de ação.
+
+      O protótipo usava #6B6B4A / #1E4070 / #0A3A0A / #3A0050 sobre os fundos
+      escuros tonais — contraste de 1,3:1 a 1,9:1, ou seja, praticamente
+      ilegível (o app é usado a céu aberto). Mantida a matiz de cada card,
+      mas com luminosidade suficiente para leitura.
+    -->
+    <color name="gold_sub">#9C8A4A</color>
+    <color name="blue_sub">#5B84C4</color>
+    <color name="green_sub">#4E9160</color>
+    <color name="purple_sub">#9270B5</color>
+</resources>

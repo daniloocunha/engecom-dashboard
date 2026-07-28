@@ -1,92 +1,76 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Material Design 3 Light Theme -->
-    <style name="Theme.CalculadoraHH" parent="Theme.Material3.Light.NoActionBar">
-        <!-- Primary Colors -->
-        <item name="colorPrimary">@color/md_theme_light_primary</item>
-        <item name="colorOnPrimary">@color/md_theme_light_onPrimary</item>
-        <item name="colorPrimaryContainer">@color/md_theme_light_primaryContainer</item>
-        <item name="colorOnPrimaryContainer">@color/md_theme_light_onPrimaryContainer</item>
+    <!--
+      Tema único DayNight: as cores vêm dos design tokens
+      (values/colors.xml = claro, values-night/colors.xml = escuro).
+      O app abre em escuro por padrão (ver CalculadoraHHApplication);
+      o claro continua disponível pelo botão de tema na tela inicial.
+    -->
+    <style name="Theme.CalculadoraHH" parent="Theme.Material3.DayNight.NoActionBar">
+        <!-- Primary — dourado da marca -->
+        <item name="colorPrimary">@color/gold_primary</item>
+        <item name="colorOnPrimary">@color/on_gold</item>
+        <item name="colorPrimaryContainer">@color/gold_surface</item>
+        <item name="colorOnPrimaryContainer">@color/gold_text</item>
 
-        <!-- Secondary Colors -->
-        <item name="colorSecondary">@color/md_theme_light_secondary</item>
-        <item name="colorOnSecondary">@color/md_theme_light_onSecondary</item>
-        <item name="colorSecondaryContainer">@color/md_theme_light_secondaryContainer</item>
-        <item name="colorOnSecondaryContainer">@color/md_theme_light_onSecondaryContainer</item>
+        <!-- Secondary — azul de apoio -->
+        <item name="colorSecondary">@color/blue_accent</item>
+        <item name="colorOnSecondary">#FFFFFF</item>
+        <item name="colorSecondaryContainer">@color/blue_dim</item>
+        <item name="colorOnSecondaryContainer">@color/blue_accent</item>
 
-        <!-- Tertiary Colors -->
-        <item name="colorTertiary">@color/md_theme_light_tertiary</item>
-        <item name="colorOnTertiary">@color/md_theme_light_onTertiary</item>
-        <item name="colorTertiaryContainer">@color/md_theme_light_tertiaryContainer</item>
-        <item name="colorOnTertiaryContainer">@color/md_theme_light_onTertiaryContainer</item>
+        <!-- Tertiary — verde de sincronização -->
+        <item name="colorTertiary">@color/green_sync</item>
+        <item name="colorOnTertiary">#FFFFFF</item>
+        <item name="colorTertiaryContainer">@color/green_dim</item>
+        <item name="colorOnTertiaryContainer">@color/green_sync</item>
 
-        <!-- Error Colors -->
-        <item name="colorError">@color/md_theme_light_error</item>
-        <item name="colorOnError">@color/md_theme_light_onError</item>
-        <item name="colorErrorContainer">@color/md_theme_light_errorContainer</item>
-        <item name="colorOnErrorContainer">@color/md_theme_light_onErrorContainer</item>
+        <!-- Error -->
+        <item name="colorError">@color/red_delete</item>
+        <item name="colorOnError">#FFFFFF</item>
+        <item name="colorErrorContainer">@color/red_a10</item>
+        <item name="colorOnErrorContainer">@color/red_delete</item>
 
-        <!-- Background Colors -->
-        <item name="android:colorBackground">@color/md_theme_light_background</item>
-        <item name="colorOnBackground">@color/md_theme_light_onBackground</item>
+        <!-- Background / Surface -->
+        <item name="android:colorBackground">@color/bg_primary</item>
+        <item name="colorOnBackground">@color/text_primary</item>
+        <item name="colorSurface">@color/bg_primary</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorSurfaceVariant">@color/bg_surface</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
 
-        <!-- Surface Colors -->
-        <item name="colorSurface">@color/md_theme_light_surface</item>
-        <item name="colorOnSurface">@color/md_theme_light_onSurface</item>
-        <item name="colorSurfaceVariant">@color/md_theme_light_surfaceVariant</item>
-        <item name="colorOnSurfaceVariant">@color/md_theme_light_onSurfaceVariant</item>
+        <!-- Outline -->
+        <item name="colorOutline">@color/border_input</item>
+        <item name="colorOutlineVariant">@color/border_default</item>
 
-        <!-- Outline Colors -->
-        <item name="colorOutline">@color/md_theme_light_outline</item>
-        <item name="colorOutlineVariant">@color/md_theme_light_outlineVariant</item>
+        <!-- Inverse -->
+        <item name="colorSurfaceInverse">@color/md_theme_dark_inverseSurface</item>
+        <item name="colorOnSurfaceInverse">@color/md_theme_dark_inverseOnSurface</item>
+        <item name="colorPrimaryInverse">@color/gold_primary</item>
 
-        <!-- Surface Inverse Colors -->
-        <item name="colorSurfaceInverse">@color/md_theme_light_inverseSurface</item>
-        <item name="colorOnSurfaceInverse">@color/md_theme_light_inverseOnSurface</item>
-        <item name="colorPrimaryInverse">@color/md_theme_light_inversePrimary</item>
-
-        <!-- Status Bar -->
-        <item name="android:statusBarColor">@color/md_theme_light_primary</item>
-        <item name="android:windowLightStatusBar">false</item>
-
-        <!-- Navigation Bar -->
-        <item name="android:navigationBarColor">@color/md_theme_light_surface</item>
+        <!-- System bars -->
+        <item name="android:statusBarColor">@color/bg_primary</item>
+        <item name="android:windowLightStatusBar">true</item>
+        <item name="android:navigationBarColor">@color/bg_nav</item>
         <item name="android:windowLightNavigationBar" tools:targetApi="27">true</item>
 
-        <!-- Material3 Shape System -->
+        <!-- Tipografia da marca -->
+        <item name="fontFamily">@font/dm_sans</item>
+        <item name="android:fontFamily">@font/dm_sans</item>
+
+        <!-- Shape -->
         <item name="shapeAppearanceSmallComponent">@style/ShapeAppearance.CalculadoraHH.SmallComponent</item>
         <item name="shapeAppearanceMediumComponent">@style/ShapeAppearance.CalculadoraHH.MediumComponent</item>
         <item name="shapeAppearanceLargeComponent">@style/ShapeAppearance.CalculadoraHH.LargeComponent</item>
 
-        <!-- Material3 Typography -->
-        <item name="textAppearanceDisplayLarge">@style/TextAppearance.Material3.DisplayLarge</item>
-        <item name="textAppearanceDisplayMedium">@style/TextAppearance.Material3.DisplayMedium</item>
-        <item name="textAppearanceDisplaySmall">@style/TextAppearance.Material3.DisplaySmall</item>
-        <item name="textAppearanceHeadlineLarge">@style/TextAppearance.Material3.HeadlineLarge</item>
-        <item name="textAppearanceHeadlineMedium">@style/TextAppearance.Material3.HeadlineMedium</item>
-        <item name="textAppearanceHeadlineSmall">@style/TextAppearance.Material3.HeadlineSmall</item>
-        <item name="textAppearanceTitleLarge">@style/TextAppearance.Material3.TitleLarge</item>
-        <item name="textAppearanceTitleMedium">@style/TextAppearance.Material3.TitleMedium</item>
-        <item name="textAppearanceTitleSmall">@style/TextAppearance.Material3.TitleSmall</item>
-        <item name="textAppearanceBodyLarge">@style/TextAppearance.Material3.BodyLarge</item>
-        <item name="textAppearanceBodyMedium">@style/TextAppearance.Material3.BodyMedium</item>
-        <item name="textAppearanceBodySmall">@style/TextAppearance.Material3.BodySmall</item>
-        <item name="textAppearanceLabelLarge">@style/TextAppearance.Material3.LabelLarge</item>
-        <item name="textAppearanceLabelMedium">@style/TextAppearance.Material3.LabelMedium</item>
-        <item name="textAppearanceLabelSmall">@style/TextAppearance.Material3.LabelSmall</item>
-
-        <!-- Transitions & Animations -->
+        <!-- Transitions -->
         <item name="android:windowActivityTransitions">true</item>
-        <item name="android:windowEnterTransition">@android:transition/slide_right</item>
-        <item name="android:windowExitTransition">@android:transition/slide_left</item>
-        <item name="android:windowSharedElementEnterTransition">@android:transition/move</item>
-        <item name="android:windowSharedElementExitTransition">@android:transition/move</item>
     </style>
 
-    <!-- Shape Appearances -->
+    <!-- ══════════ Shape ══════════ -->
     <style name="ShapeAppearance.CalculadoraHH.SmallComponent" parent="ShapeAppearance.Material3.SmallComponent">
         <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">12dp</item>
+        <item name="cornerSize">11dp</item>
     </style>
 
     <style name="ShapeAppearance.CalculadoraHH.MediumComponent" parent="ShapeAppearance.Material3.MediumComponent">
@@ -96,40 +80,57 @@
 
     <style name="ShapeAppearance.CalculadoraHH.LargeComponent" parent="ShapeAppearance.Material3.LargeComponent">
         <item name="cornerFamily">rounded</item>
-        <item name="cornerSize">24dp</item>
+        <item name="cornerSize">20dp</item>
     </style>
 
-    <!-- Card Style -->
-    <style name="Widget.CalculadoraHH.CardView" parent="Widget.Material3.CardView.Filled">
+    <!-- ══════════ Cards (flat, borda fina — padrão do redesign) ══════════ -->
+    <style name="Widget.CalculadoraHH.CardView" parent="Widget.Material3.CardView.Outlined">
         <item name="cardCornerRadius">16dp</item>
-        <item name="cardElevation">2dp</item>
-        <item name="cardBackgroundColor">@color/md_theme_light_surfaceVariant</item>
+        <item name="cardElevation">0dp</item>
+        <item name="cardBackgroundColor">@color/bg_surface</item>
+        <item name="strokeColor">@color/border_default</item>
+        <item name="strokeWidth">1dp</item>
     </style>
 
-    <!-- Button Styles -->
+    <!-- Card de ação com tonalidade (Home) -->
+    <style name="Widget.CalculadoraHH.CardView.Acao">
+        <item name="cardCornerRadius">18dp</item>
+    </style>
+
+    <!-- ══════════ Botões ══════════ -->
     <style name="Widget.CalculadoraHH.Button" parent="Widget.Material3.Button">
-        <item name="cornerRadius">12dp</item>
-        <item name="android:textAllCaps">false</item>
+        <item name="cornerRadius">13dp</item>
+        <item name="backgroundTint">@color/gold_primary</item>
+        <item name="android:textColor">@color/on_gold</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textSize">12sp</item>
+        <item name="android:letterSpacing">0.04</item>
+        <item name="android:textStyle">bold</item>
     </style>
 
     <style name="Widget.CalculadoraHH.Button.Outlined" parent="Widget.Material3.Button.OutlinedButton">
-        <item name="cornerRadius">12dp</item>
-        <item name="android:textAllCaps">false</item>
+        <item name="cornerRadius">13dp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="strokeColor">@color/border_input</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:textSize">12sp</item>
     </style>
 
     <style name="Widget.CalculadoraHH.Button.Text" parent="Widget.Material3.Button.TextButton">
+        <item name="android:textColor">@color/gold_text</item>
         <item name="android:textAllCaps">false</item>
     </style>
 
-    <!-- TextInputLayout Style -->
+    <!-- ══════════ Inputs ══════════ -->
     <style name="Widget.CalculadoraHH.TextInputLayout" parent="Widget.Material3.TextInputLayout.OutlinedBox">
-        <item name="boxCornerRadiusTopStart">12dp</item>
-        <item name="boxCornerRadiusTopEnd">12dp</item>
-        <item name="boxCornerRadiusBottomStart">12dp</item>
-        <item name="boxCornerRadiusBottomEnd">12dp</item>
+        <item name="boxCornerRadiusTopStart">11dp</item>
+        <item name="boxCornerRadiusTopEnd">11dp</item>
+        <item name="boxCornerRadiusBottomStart">11dp</item>
+        <item name="boxCornerRadiusBottomEnd">11dp</item>
+        <item name="boxStrokeColor">@color/border_input</item>
+        <item name="boxBackgroundColor">@color/bg_input</item>
     </style>
 
-    <!-- FloatingActionButton Style -->
     <style name="Widget.CalculadoraHH.FloatingActionButton" parent="Widget.Material3.FloatingActionButton.Primary">
         <item name="shapeAppearanceOverlay">@style/ShapeAppearance.CalculadoraHH.FloatingActionButton</item>
     </style>
@@ -139,11 +140,60 @@
         <item name="cornerSize">16dp</item>
     </style>
 
-    <!-- Spinner Style with Border -->
     <style name="Widget.CalculadoraHH.Spinner" parent="Widget.AppCompat.Spinner">
         <item name="android:background">@drawable/spinner_border</item>
-        <item name="android:minHeight">56dp</item>
-        <item name="android:paddingStart">12dp</item>
-        <item name="android:paddingEnd">12dp</item>
+        <item name="android:minHeight">52dp</item>
+        <item name="android:paddingStart">14dp</item>
+        <item name="android:paddingEnd">14dp</item>
+    </style>
+
+    <!-- ══════════ Tipografia do redesign ══════════ -->
+
+    <!-- Supertítulo/rótulo em caixa alta: 10sp, 2dp de tracking ≈ 0.2em -->
+    <style name="TextAppearance.CalculadoraHH.LabelCaps" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:textSize">10sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.2</item>
+        <item name="android:textColor">@color/text_dim</item>
+    </style>
+
+    <!-- Rótulo de campo: 9sp, 1.5dp de tracking ≈ 0.167em -->
+    <style name="TextAppearance.CalculadoraHH.FieldLabel" parent="TextAppearance.Material3.LabelSmall">
+        <item name="android:textSize">9sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.167</item>
+        <item name="android:textColor">@color/text_dim</item>
+    </style>
+
+    <!-- Cabeçalho de seção do RDO: 11sp, 1dp ≈ 0.09em -->
+    <style name="TextAppearance.CalculadoraHH.SectionHeader" parent="TextAppearance.Material3.LabelMedium">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textAllCaps">true</item>
+        <item name="android:letterSpacing">0.09</item>
+    </style>
+
+    <style name="TextAppearance.CalculadoraHH.CardTitle" parent="TextAppearance.Material3.TitleSmall">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textStyle">bold</item>
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <style name="TextAppearance.CalculadoraHH.Body" parent="TextAppearance.Material3.BodyMedium">
+        <item name="android:textSize">13sp</item>
+        <item name="android:textColor">@color/text_primary</item>
+    </style>
+
+    <style name="TextAppearance.CalculadoraHH.Detail" parent="TextAppearance.Material3.BodySmall">
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">@color/text_muted</item>
+    </style>
+
+    <!-- Número grande de estatística -->
+    <style name="TextAppearance.CalculadoraHH.StatNumber" parent="TextAppearance.Material3.HeadlineSmall">
+        <item name="android:textSize">28sp</item>
+        <item name="android:textStyle">bold</item>
     </style>
 </resources>
