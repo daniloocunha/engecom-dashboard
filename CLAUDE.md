@@ -88,6 +88,11 @@ npm run gen-config-example
   gitignored.
 
 ### Utility Scripts (scripts/)
+- `scripts/preparar-release.sh` — verifica toda a cadeia de atualização automática e gera o APK
+  de release (`bash scripts/preparar-release.sh`; `--skip-build` só verifica). Confere repo
+  alinhado, versionCode, credenciais em `assets/`, keystore de produção, assinatura do APK
+  e imprime MD5/tamanho + o comando pronto do `update_config_release.py`. Não executa ações
+  externas — não cria Release nem escreve no Sheets
 - `scripts/update_config_release.py` — Atualiza a aba Config no Sheets após um release do app
   (`python scripts/update_config_release.py` mostra os valores; `--apply --versao N --hash H --tamanho M --url U [--mensagem T]` atualiza)
 - `scripts/importar_rdos.py` — Importa RDOs de mensagens WhatsApp/TXT para Sheets
@@ -147,8 +152,9 @@ O deploy é **automático** para qualquer push em `master` que toque `dashboard/
      - app/build.gradle.kts → versionCode +1, versionName X.Y.Z+1
      - CLAUDE.md → Version Information + novo entry no Version History
 4. git add <arquivos> && git commit -m "feat/fix(app): descrição" && git push
-5. Gerar APK de release:
-     ./gradlew assembleRelease
+5. Preparar e verificar o release (recomendado — pega credencial ausente,
+   keystore errado e assinatura divergente antes de publicar):
+     bash scripts/preparar-release.sh
 6. Criar GitHub Release com o APK
 7. Atualizar aba Config no Google Sheets:
      versao_recomendada | <novo versionCode>
@@ -220,6 +226,19 @@ Para o deploy automático funcionar, o GitHub precisa de 3 secrets:
 Após isso, qualquer `git push` com mudanças no dashboard dispara o deploy automaticamente.
 
 ---
+
+### Skill de projeto: `sincronizar-release`
+
+`.claude/skills/sincronizar-release/SKILL.md` é carregada automaticamente quando
+o pedido envolve **sincronizar o repositório com o GitHub, atualizar o app,
+gerar/publicar uma versão ou mexer no hash da atualização automática**.
+
+Ela existe porque "sincronizar o GitHub com o local" neste projeto quase nunca é
+só um `git pull`: se o que mudou foi código do app, a versão em campo só recebe
+a atualização depois de percorrer a cadeia APK assinado → hash → tamanho → URL →
+aba Config do Sheets. A skill documenta essa cadeia, aponta para
+`scripts/preparar-release.sh` e marca as duas ações externas (criar o GitHub
+Release e escrever na aba Config) como dependentes de confirmação explícita.
 
 ## Architecture & Code Structure
 
