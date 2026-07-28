@@ -778,6 +778,18 @@
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"/>
+
+                <!-- Resumo HI x Neutro (atualizado pelo HIManager) -->
+                <TextView
+                    android:id="@+id/tvResumoHI"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:textColor="?attr/colorOnSurfaceVariant"
+                    android:textSize="13sp"
+                    android:visibility="gone"
+                    tools:text="Total: 18,0 HH improdutivas · 6,0 HH neutras (não contam)"
+                    tools:visibility="visible"/>
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 

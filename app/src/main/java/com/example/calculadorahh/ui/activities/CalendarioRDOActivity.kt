@@ -19,6 +19,7 @@ import com.example.calculadorahh.data.database.DatabaseHelper
 import com.example.calculadorahh.data.models.*
 import com.example.calculadorahh.ui.adapters.HistoricoRDOAdapter
 import com.example.calculadorahh.utils.SyncHelper
+import com.example.calculadorahh.domain.managers.JustificativasHIManager
 import com.example.calculadorahh.utils.RDORelatorioUtil
 import com.google.android.material.appbar.MaterialToolbar
 
@@ -163,7 +164,7 @@ class CalendarioRDOActivity : AppCompatActivity() {
     }
 
     private fun compartilharRDO(rdo: RDODataCompleto) {
-        val relatorio = RDORelatorioUtil.gerarRelatorioTexto(rdo)
+        val relatorio = RDORelatorioUtil.gerarRelatorioTexto(rdo, JustificativasHIManager.carregar(this))
 
         val shareIntent = android.content.Intent().apply {
             action = android.content.Intent.ACTION_SEND

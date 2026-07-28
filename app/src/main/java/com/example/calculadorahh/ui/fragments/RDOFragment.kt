@@ -210,7 +210,10 @@ class RDOFragment : Fragment() {
         // Inicializar managers
         servicosManager = ServicosManager(requireContext(), layoutInflater, llServicosRDO)
         materiaisManager = MateriaisManager(requireContext(), layoutInflater, llMateriaisRDO)
-        hiManager = HIManager(requireContext(), layoutInflater, llHIRDO)
+        hiManager = HIManager(
+            requireContext(), layoutInflater, llHIRDO,
+            view.findViewById(R.id.tvResumoHI)
+        )
         transportesManager = TransportesManager(requireContext(), layoutInflater, llTransportesRDO)
         modeloLoader = ModeloLoader(requireContext())
 
@@ -431,7 +434,7 @@ class RDOFragment : Fragment() {
                             )
 
                             // Gerar relatório atualizado
-                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados)
+                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados, JustificativasHIManager.carregar(requireContext()))
                             val builder = AlertDialog.Builder(requireContext())
                             builder.setTitle("Visualizar Relatório Atualizado")
                             builder.setMessage(relatorio)
@@ -471,7 +474,7 @@ class RDOFragment : Fragment() {
                             )
 
                             // ✅ GERAR RELATÓRIO PADRONIZADO
-                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados)
+                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados, JustificativasHIManager.carregar(requireContext()))
                             val builder = AlertDialog.Builder(requireContext())
                             builder.setTitle("Visualizar Relatório")
                             builder.setMessage(relatorio)
@@ -551,7 +554,7 @@ class RDOFragment : Fragment() {
                             )
 
                             // Gerar relatório e compartilhar imediatamente
-                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados)
+                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados, JustificativasHIManager.carregar(requireContext()))
                             compartilharRelatorio(relatorio)
 
                             // Voltar para histórico após compartilhar
@@ -583,7 +586,7 @@ class RDOFragment : Fragment() {
                             )
 
                             // Gerar relatório e compartilhar imediatamente
-                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados)
+                            val relatorio = RDORelatorioUtil.gerarRelatorioTextoSimples(dados, JustificativasHIManager.carregar(requireContext()))
                             compartilharRelatorio(relatorio)
 
                             // Oferece a autoinspeção de qualidade quando houve serviço com checklist

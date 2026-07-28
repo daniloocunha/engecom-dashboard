@@ -8,6 +8,7 @@ import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.example.calculadorahh.databinding.ActivityHistoricoRdoBinding
+import com.example.calculadorahh.domain.managers.JustificativasHIManager
 import com.example.calculadorahh.utils.RDORelatorioUtil
 import com.example.calculadorahh.utils.SyncHelper
 import androidx.lifecycle.lifecycleScope
@@ -173,7 +174,7 @@ class HistoricoRDOActivity : AppCompatActivity() {
     }
 
     private fun compartilharRDO(rdo: RDODataCompleto) {
-        val relatorio = RDORelatorioUtil.gerarRelatorioTexto(rdo)
+        val relatorio = RDORelatorioUtil.gerarRelatorioTexto(rdo, JustificativasHIManager.carregar(this))
 
         val shareIntent = Intent().apply {
             action = Intent.ACTION_SEND

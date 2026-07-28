@@ -671,8 +671,8 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - Orchestração: editar `GoogleSheetsService.kt` apenas se o fluxo principal mudar
 
 ## Version Information
-- **versionCode**: 25
-- **versionName**: "5.2.0"
+- **versionCode**: 26
+- **versionName**: "5.3.0"
 - **AGP Version**: 8.13.1
 - **Kotlin Version**: 2.0.21
 - **Gradle Version**: 8.13 (via wrapper)
@@ -714,6 +714,70 @@ mensagem_bloqueio      | <mensagem se versão abaixo do mínimo>
 > **Hash do APK**: enquanto houver aparelhos com versionCode ≤ 23 em campo, a chave `hash_md5` DEVE conter MD5 (32 caracteres) — versões antigas só calculam MD5 e rejeitariam um SHA-256. A partir do momento em que todos estiverem no versionCode 24+, pode-se usar SHA-256 (64 caracteres) na mesma chave.
 
 ## Version History
+
+### Version 5.3.0 (versionCode 26) — Justificativas de HI padronizadas e classificadas
+
+Padroniza as justificativas de Horas Improdutivas, classifica cada uma em
+Controlável / Não Controlável / **Neutro** e torna o lançamento muito mais rápido.
+
+- **Catálogo template-driven** (`res/raw/justificativas_hi.json`): **fonte única
+  de verdade** das 16 justificativas. Cada uma define `categoria`,
+  `considerarHI`, `considerarPerdaRumo`, `fatorHH`, `minutosMinimos`, `cor`,
+  `icone` (lucide, p/ dashboard), `emoji` (Android), `ordem`, `ativa`,
+  `exigeDescricao` e `aliases`. Reclassificar = editar uma linha do JSON;
+  nenhuma regra de negócio no código muda
+- **Regras de negócio movidas para dados**: Chuva = `fatorHH 0.5` (antes
+  hardcoded no dashboard); trem = `minutosMinimos 20` (antes
+  `METAS.MINUTOS_MINIMOS_TREM`); neutros = `considerarHI false`
+- **Neutros** (Almoço/Refeição, DDS, Trânsito) são registrados para compor a
+  jornada e a rastreabilidade, mas **não contam como HI nem como perda da Rumo**
+- **`aliases`**: nomes históricos ("Passagens de Trem", "Almoço/Refeição",
+  "Deslocamento a Pé"…) resolvem para a justificativa nova, então RDOs antigos
+  continuam classificados corretamente sem migração de dados
+- **Lançamento em um clique** (`dialog_adicionar_hi_rdo.xml` + `HIManager`):
+  chips grandes com emoji agrupados por categoria (cores por categoria), busca
+  rápida que filtra por nome/alias sem acento, e **recentes** (5 últimas,
+  `SharedPreferences`) no topo. O spinner antigo (8 tipos) foi removido
+- **Descrição deixou de ser obrigatória** — só é exigida quando a justificativa
+  define `exigeDescricao` (hoje, "Outros"), que era o campo que mais travava o
+  lançamento
+- **Card do RDO** mostra badge da categoria ("Neutro · não conta como HI") e o
+  formulário ganhou linha de resumo: `Total: X HH improdutivas · Y HH neutras`
+- **Relatório do RDO** separa "⏸️ Horas Improdutivas" de "🕐 Jornada (não conta
+  como HI)"
+- **Refactor**: `HIManager` tinha ~100 linhas duplicadas entre os diálogos de
+  adicionar e editar — agora é um único `mostrarDialog(hiAtual, itemView)`.
+  `BaseItemManager` ganhou o hook `onListaAlterada()`
+- **Testes**: `JustificativasHIManagerTest` — 18 testes JVM (resolução por
+  id/nome/alias/normalização, agrupamento, filtro e `calcularHH` com as regras
+  de neutro, chuva e trem)
+
+> **Sem mudança de schema**: a aba `HorasImprodutivas` do Sheets continua com 10
+> colunas e `HEADERS_VERSION` continua 6. A coluna `Tipo` passa a receber os
+> nomes padronizados; a categoria é **derivada do catálogo** na leitura, o que
+> evita duas fontes de verdade e faz a reclassificação valer retroativamente.
+
+> **Classificações a confirmar**: o pedido não classificou **Deslocamento** e
+> **Treinamento**; ambos entraram como **Controlável**. Para mudar, basta
+> alterar `categoria` (e `considerarHI`/`considerarPerdaRumo`) no JSON.
+
+**Pendente — Dashboard (fase 2):** `_isNaoControlavel()` em `visao-geral.js`
+ainda classifica por substring ("trem"/"chuva") e almoço/DDS/trânsito ainda
+entram como perda controlável. A fase 2 deve sincronizar o catálogo para
+`dashboard/` (nos moldes do `npm run sync-servicos`) e passar a usar
+`considerarHI` / `categoria` / `fatorHH` / `minutosMinimos` em todos os KPIs,
+Pareto, rankings e filtros.
+
+**Arquivos novos:** `app/src/main/res/raw/justificativas_hi.json`,
+`data/models/JustificativaHI.kt`,
+`domain/managers/JustificativasHIManager.kt`,
+`app/src/test/.../JustificativasHIManagerTest.kt`
+**Arquivos alterados:** `domain/managers/{HIManager,BaseItemManager}.kt`,
+`utils/RDORelatorioUtil.kt`, `ui/fragments/RDOFragment.kt`,
+`ui/activities/{HistoricoRDOActivity,CalendarioRDOActivity}.kt`,
+`res/layout/{dialog_adicionar_hi_rdo,item_hi_rdo,fragment_rdo}.xml`
+
+---
 
 ### Version 5.2.0 (versionCode 25) - 2026-07-21
 **Checklist de Inspeção de Qualidade (autoinspeção RUMO) — Solda e Dormente**

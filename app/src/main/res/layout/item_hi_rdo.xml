@@ -29,6 +29,15 @@
                 android:textStyle="bold" />
 
             <TextView
+                android:id="@+id/tvCategoriaHI"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Não Controlável"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <TextView
                 android:id="@+id/tvDescricaoHI"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"

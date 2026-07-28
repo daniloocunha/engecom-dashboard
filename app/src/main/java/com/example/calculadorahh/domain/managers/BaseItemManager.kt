@@ -38,6 +38,7 @@ abstract class BaseItemManager<T>(
     fun limpar() {
         itensAdicionados.clear()
         containerView.removeAllViews()
+        onListaAlterada()
     }
 
     /**
@@ -46,6 +47,7 @@ abstract class BaseItemManager<T>(
     fun adicionarItem(item: T) {
         itensAdicionados.add(item)
         adicionarView(item)
+        onListaAlterada()
     }
 
     /**
@@ -54,6 +56,7 @@ abstract class BaseItemManager<T>(
     protected fun removerItem(item: T, itemView: View) {
         itensAdicionados.remove(item)
         containerView.removeView(itemView)
+        onListaAlterada()
         Toast.makeText(context, getMensagemRemocao(), Toast.LENGTH_SHORT).show()
     }
 
@@ -66,6 +69,12 @@ abstract class BaseItemManager<T>(
         adicionarItem(itemNovo)
         Toast.makeText(context, getMensagemAtualizacao(), Toast.LENGTH_SHORT).show()
     }
+
+    /**
+     * Chamado após qualquer mudança na lista (adição, remoção, atualização ou
+     * limpeza). Subclasses sobrescrevem para atualizar resumos na tela.
+     */
+    protected open fun onListaAlterada() {}
 
     // ========== MÉTODOS ABSTRATOS - Implementados pelas subclasses ==========
 

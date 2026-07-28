@@ -15,8 +15,8 @@ android {
         applicationId = "com.example.calculadorahh"
         minSdk = 24
         targetSdk = 34
-        versionCode = 25
-        versionName = "5.2.0"
+        versionCode = 26
+        versionName = "5.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
