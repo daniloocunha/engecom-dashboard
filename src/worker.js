@@ -29,6 +29,12 @@ export default {
 };
 
 /**
+ * Ações do Apps Script que só leem dados — as únicas seguras de retentar
+ * automaticamente, já que repetir a chamada não altera a planilha.
+ */
+const ACOES_SOMENTE_LEITURA = new Set(['listarGestaoOS', 'obterNotasDia']);
+
+/**
  * Encaminha o POST para o Google Apps Script (servidor→servidor, sem CORS).
  * Garante que a resposta JSON chegue ao browser com o header
  * Access-Control-Allow-Origin: * mesmo que o Apps Script não o envie.
@@ -73,41 +79,59 @@ async function handleAppsScriptProxy(request, env) {
         // Lê o body uma única vez (stream só pode ser lido uma vez)
         const bodyText = await request.text();
 
-        // A requisição inicial ao /exec precisa ir como POST para que o Apps
-        // Script execute doPost() (em vez de doGet()) — isso já acontece nesta
-        // chamada abaixo, fora do loop. Quando a resposta é grande (ex.:
-        // listarGestaoOS), o Apps Script já devolve o resultado computado
-        // através de um redirect 302 para uma URL de conteúdo pré-computado em
-        // script.googleusercontent.com (endpoint "echo"), que só aceita GET —
-        // é somente uma leitura do resultado já calculado, não uma reexecução.
-        // Por isso todo redirect subsequente é seguido como GET sem corpo;
-        // reenviar POST nesse hop retorna 405 com uma página de desafio do
-        // Google em vez do JSON.
-        let proxyResponse = await fetch(appsScriptUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: bodyText,
-            redirect: 'manual'
-        });
+        // Só ações de LEITURA podem ser retentadas automaticamente. Reenviar um
+        // POST que já executou duplicaria escritas (adicionarServico/HI, criarRDO,
+        // duplicarRDO) ou apagaria a linha errada (excluir* usa índice posicional).
+        const acao = (() => {
+            try { return JSON.parse(bodyText).acao || ''; } catch { return ''; }
+        })();
+        const tentativasMax = ACOES_SOMENTE_LEITURA.has(acao) ? 3 : 1;
 
-        let redirects = 0;
-        while (proxyResponse.status >= 300 && proxyResponse.status < 400 && redirects < 5) {
-            const location = proxyResponse.headers.get('Location');
-            if (!location) break;
-            redirects++;
-            proxyResponse = await fetch(location, { redirect: 'manual' });
+        let httpStatus   = 0;
+        let finalUrl     = appsScriptUrl;
+        let responseText = '';
+        let parsed       = null;
+
+        for (let tentativa = 1; tentativa <= tentativasMax; tentativa++) {
+            // redirect:'follow' é o comportamento correto aqui: o POST ao /exec
+            // executa doPost() e o Apps Script devolve o resultado já computado
+            // via 302 para uma URL "echo" em script.googleusercontent.com, que o
+            // fetch busca com GET (conversão POST→GET do próprio spec). Seguir
+            // esses hops manualmente NÃO funciona de forma confiável a partir do
+            // Worker: a URL de echo fica atrelada à requisição que a originou e um
+            // fetch separado recebe 404 de forma intermitente.
+            const proxyResponse = await fetch(appsScriptUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: bodyText,
+                redirect: 'follow'
+            });
+
+            httpStatus   = proxyResponse.status;
+            finalUrl     = proxyResponse.url || appsScriptUrl;
+            responseText = await proxyResponse.text();
+
+            try { parsed = JSON.parse(responseText); } catch { parsed = null; }
+
+            // Ocasionalmente a chamada chega ao doGet() em vez do doPost() e volta
+            // o texto fixo do endpoint ("use POST") — é uma resposta JSON válida,
+            // mas não é o resultado da ação pedida.
+            const caiuNoDoGet = !!parsed && typeof parsed.descricao === 'string' &&
+                                parsed.descricao.indexOf('use POST') >= 0;
+
+            const falhou = !parsed || httpStatus >= 400 || caiuNoDoGet;
+            if (!falhou) break;
+
+            if (tentativa < tentativasMax) {
+                await new Promise(r => setTimeout(r, 300 * tentativa));
+            }
         }
-
-        const httpStatus = proxyResponse.status;
-        const finalUrl   = proxyResponse.url || appsScriptUrl;
-        const responseText = await proxyResponse.text();
 
         // Verifica se a resposta é JSON válido
         let jsonText;
-        try {
-            JSON.parse(responseText);
+        if (parsed) {
             jsonText = responseText;
-        } catch {
+        } else {
             // Apps Script retornou HTML — quase sempre significa redirecionamento
             // para página de login do Google (implantação exige conta Google) ou
             // página de erro de autorização de escopo (DriveApp não autorizado).
