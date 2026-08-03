@@ -217,6 +217,8 @@ class CalendarioTS {
             horaInicio: hi['Hora Início'] || hi.horaInicio || '-',
             horaFim:    hi['Hora Fim']    || hi.horaFim   || '-',
             hh:         parseFloat(hi['HH Improdutivas'] || hi.hhImprodutivas || 0).toFixed(2),
+            operadores: parseInt(hi['Operadores'] || hi.operadores || 0) || efetivo.operadores || 5,
+            categoria:  JustificativasHI.categoria(hi.Tipo || hi.tipo || ''),
             overlap:    false
         }));
 
@@ -388,6 +390,38 @@ class CalendarioTS {
     }
 
     /**
+     * Renderiza o card com a faixa de dias do mês (um quadrado por dia).
+     * Verde = há RDO da turma naquele dia (clicável, abre Detalhes do Dia).
+     * Cinza = sem RDO. Respeita o mês/ano/turma atualmente filtrados.
+     */
+    renderizarFaixaDias(turma) {
+        const { totalDias } = this.getDiasDoMes(this.mesAtual, this.anoAtual);
+        let comRDO = 0;
+        let quadrados = '';
+
+        for (let dia = 1; dia <= totalDias; dia++) {
+            const temRDO = !!this.obterDadosDia(turma, dia, this.mesAtual, this.anoAtual);
+            if (temRDO) comRDO++;
+            quadrados += `
+                <div class="dia-strip-quadrado ${temRDO ? 'tem-rdo' : 'sem-rdo'}"
+                     data-turma="${escapeHtml(turma)}" data-dia="${dia}" data-mes="${this.mesAtual}" data-ano="${this.anoAtual}"
+                     ${temRDO ? `onclick="calendarioTS.mostrarDetalhesDia(this.dataset.turma, +this.dataset.dia, +this.dataset.mes, +this.dataset.ano)"` : ''}
+                     title="${String(dia).padStart(2, '0')}/${String(this.mesAtual).padStart(2, '0')}/${this.anoAtual}${temRDO ? ' — clique para ver detalhes' : ' — sem registro'}">${dia}</div>`;
+        }
+
+        return `
+            <div class="card mb-2 shadow-sm">
+                <div class="card-body py-2 px-3">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted fw-semibold"><i class="fas fa-calendar-check me-1"></i>Produção no mês</small>
+                        <small class="text-muted">${comRDO}/${totalDias} dias com registro</small>
+                    </div>
+                    <div class="dia-strip-container">${quadrados}</div>
+                </div>
+            </div>`;
+    }
+
+    /**
      * Renderiza o card de calendário para uma turma TS (retorna HTML string)
      */
     renderizarCalendario(turma) {
@@ -395,7 +429,9 @@ class CalendarioTS {
         const META_DIARIA = METAS.META_DIARIA_TS;
         const stats = this.calcularEstatisticasTurma(turma);
 
-        let html = `
+        let html = this.renderizarFaixaDias(turma);
+
+        html += `
             <div class="card mb-4 shadow-sm">
                 <div class="card-header bg-danger text-white">
                     <div class="row align-items-center">
@@ -804,7 +840,9 @@ class CalendarioTS {
                                                     <td class="text-center">${s.unidade}</td>
                                                     <td class="text-end"><strong>${s.hh}</strong></td>
                                                     <td class="edit-ctrl text-center" style="display:none;">
-                                                        <div class="edit-ctrl-btns-srv">${editorRDO._htmlSrvBtns(i)}</div>
+                                                        <input type="checkbox" class="form-check-input srv-check me-2" data-idx="${i}"
+                                                               onchange="editorRDO._atualizarBotaoExcluirSrv()" title="Selecionar para exclusão em lote">
+                                                        <div class="edit-ctrl-btns-srv d-inline-block">${editorRDO._htmlSrvBtns(i)}</div>
                                                     </td>
                                                 </tr>
                                             `).join('')}
@@ -822,6 +860,10 @@ class CalendarioTS {
                                 <div class="edit-ctrl" style="display:none;">
                                     <button class="btn btn-sm btn-outline-success mt-1" onclick="editorRDO.toggleFormAdicionarServico()">
                                         <i class="fas fa-plus me-1"></i>Adicionar Solda
+                                    </button>
+                                    <button id="btn-excluir-srv-sel" class="btn btn-sm btn-outline-danger mt-1 ms-1" style="display:none;"
+                                            onclick="editorRDO.excluirServicosSelecionados()">
+                                        <i class="fas fa-trash me-1"></i>Excluir selecionados (<span id="srv-sel-count">0</span>)
                                     </button>
                                     <div id="form-adicionar-servico" class="card card-body mt-2 p-2" style="display:none;">
                                         <div class="row g-2 align-items-end">
@@ -887,6 +929,10 @@ class CalendarioTS {
                                 <div class="edit-ctrl" style="display:none;">
                                     <button class="btn btn-sm btn-outline-warning mt-1" onclick="editorRDO.toggleFormAdicionarHI()">
                                         <i class="fas fa-plus me-1"></i>Adicionar HI
+                                    </button>
+                                    <button id="btn-excluir-hi-sel" class="btn btn-sm btn-outline-danger mt-1 ms-1" style="display:none;"
+                                            onclick="editorRDO.excluirHIsSelecionadas()">
+                                        <i class="fas fa-trash me-1"></i>Excluir selecionadas (<span id="hi-sel-count">0</span>)
                                     </button>
                                     <div id="form-adicionar-hi" class="card card-body mt-2 p-2" style="display:none;">
                                         <div class="row g-2">

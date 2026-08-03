@@ -697,7 +697,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 11
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.6.0
+- **Dashboard Version**: 2.7.0
 
 ## Release Information
 
@@ -962,6 +962,23 @@ conformidades antes da vistoria do fiscal.
 - **Melhoria**: validação de integridade do APK aceita SHA-256 (hash de 64 caracteres na chave
   `hash_md5` da aba Config) com retrocompatibilidade MD5 (32 caracteres). Para usar:
   `Get-FileHash app-release.apk -Algorithm SHA256` e colar o hash na aba Config
+
+---
+
+### Dashboard 2.7.0 — 2026-08-03
+**Correções em Detalhes do Dia + faixa de produção mensal + fix no proxy Apps Script**
+
+Ver detalhes completos em `dashboard/CLAUDE.md` (seção Recent Updates). Resumo: botões de O.S
+(multi-OS) padronizados visualmente; HI de tipo neutro (Almoço, DDS, Trânsito) deixam de ficar
+com HH desatualizado após edição (badge "Neutro" adicionada); edição de Serviços Realizados e HI
+ganhou o seletor de O.S destino que faltava em dias com 2+ O.S; exclusão em lote (checkboxes) nas
+tabelas de Serviços e HI; novo card "Produção no mês" (faixa de quadrados verde/cinza, um por dia)
+nas abas TPs e TSs; corrigido bug no Worker em que `redirect: 'follow'` convertia POST→GET ao
+seguir o 302 do Apps Script, fazendo `listarGestaoOS` (e potencialmente outras ações) cair em
+`doGet()` — daí o erro "Endpoint Engecom - use POST" na Gestão de O.S.
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/{editor-rdo,calendario-tp,
+calendario-ts}.js`, `dashboard/css/dashboard.css`, `src/worker.js`
 
 ---
 

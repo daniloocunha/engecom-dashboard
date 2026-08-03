@@ -182,6 +182,11 @@ class EditorRDO {
                 delete tr.dataset.htmlOriginal;
             }
         });
+
+        // Limpar seleção de exclusão em lote (Serviços e HI)
+        this._qa('input.srv-check, input.hi-check').forEach(cb => { cb.checked = false; });
+        this._atualizarBotaoExcluirSrv();
+        this._atualizarBotaoExcluirHI();
     }
 
     // ── Cabeçalho (OS, Local, KM, Horário) ───────────────────────────────────
@@ -349,7 +354,7 @@ class EditorRDO {
                         &nbsp;|&nbsp;<i class="fas fa-clock me-1"></i>${escapeHtml(horaInicio || '-')} – ${escapeHtml(horaFim || '-')}
                     </span>
                     <span class="edit-ctrl" style="${this.modoEdicao ? '' : 'display:none;'}">
-                        <button class="btn btn-link btn-sm p-0 me-1" onclick="editorRDO.mostrarEditCabecalhoOS(${idx})" title="Editar">
+                        <button class="btn btn-outline-secondary btn-sm py-0 px-1 me-1" onclick="editorRDO.mostrarEditCabecalhoOS(${idx})" title="Editar">
                             <i class="fas fa-pencil-alt" style="font-size:.7rem;"></i>
                         </button>
                         <button class="btn btn-outline-primary btn-sm py-0 px-1 me-1"
@@ -445,11 +450,23 @@ class EditorRDO {
         const unidades = ['M', 'M²', 'M³', 'KG', 'UN', 'T', 'L'];
         const coef = parseFloat(s.coeficiente || 0);
         const hhPrev = (coef > 0 && s.quantidade) ? (s.quantidade * coef).toFixed(2) : '?';
+        const multiplo = this.dados.multiplosRDOs;
+        const rdoAtual = this._rdoDe(s);
 
         tr.innerHTML = `
             <td colspan="${this._colsData}" class="p-2">
                 <div class="row g-2 align-items-center">
-                    <div class="col-12 col-md-5">
+                    ${multiplo ? `
+                    <div class="col-12 col-md-2">
+                        <label class="form-label form-label-sm mb-0 text-muted">O.S</label>
+                        <select id="srv-os-${idx}" class="form-select form-select-sm">
+                            ${(this.dados.hhPorOS || []).map(o => {
+                                const val = o.numeroRDO || o.numeroOS;
+                                return `<option value="${escapeHtml(val)}"${val === rdoAtual ? ' selected' : ''}>${escapeHtml(o.numeroOS)}</option>`;
+                            }).join('')}
+                        </select>
+                    </div>` : ''}
+                    <div class="col-12 col-md-${multiplo ? '3' : '5'}">
                         <select id="srv-sel-${idx}" class="form-select form-select-sm"
                                 onchange="editorRDO._previewHH(${idx})">
                             ${this._buildServicosOptions(s.descricao)}
@@ -505,10 +522,37 @@ class EditorRDO {
 
         if (!descricao) { this._erro('Selecione um serviço'); return; }
 
-        const rdoAlvo = this._rdoDe(s);
-        const indice  = this._indiceRDO(this.dados.servicos, idx);
+        const rdoAtual = this._rdoDe(s);
+        let rdoAlvo = rdoAtual;
+        let osAlvo  = null;
+        if (this.dados.multiplosRDOs) {
+            const osSel = this._el('srv-os-' + idx)?.value;
+            if (osSel) rdoAlvo = osSel;
+            const match = (this.dados.hhPorOS || []).find(o => (o.numeroRDO || o.numeroOS) === rdoAlvo);
+            osAlvo = match ? match.numeroOS : null;
+        }
+        const mudouOS = rdoAlvo !== rdoAtual;
 
         await this._comFeedback(btn, async () => {
+            if (mudouOS) {
+                // O Apps Script não move uma linha entre RDOs — excluir da O.S
+                // antiga e recriar na O.S nova. Recarrega a página ao final para
+                // que os índices client-side (_indiceRDO) fiquem consistentes com
+                // a nova distribuição de linhas entre RDOs no Sheets.
+                const indiceAntigo = this._indiceRDO(this.dados.servicos, idx);
+                await this._api({ acao: 'excluirServico', numeroRDO: rdoAtual, indice: indiceAntigo });
+                await this._api({
+                    acao: 'adicionarServico', numeroRDO: rdoAlvo, numeroOS: osAlvo || '',
+                    data: this.dados.data || '', codigoTurma: this.dados.turma || '',
+                    encarregado: this.dados.encarregado || '', descricao, quantidade, unidade
+                });
+                const modalEl = document.getElementById(this._modalId());
+                if (modalEl) bootstrap.Modal.getInstance(modalEl)?.hide();
+                setTimeout(() => window.location.reload(), 400);
+                return;
+            }
+
+            const indice = this._indiceRDO(this.dados.servicos, idx);
             await this._api({ acao: 'atualizarServico', numeroRDO: rdoAlvo, indice, descricao, quantidade, unidade });
 
             s.descricao   = descricao;
@@ -610,6 +654,8 @@ class EditorRDO {
             tr.id = 'srv-row-' + i;
             const btns = tr.querySelector('.edit-ctrl-btns-srv');
             if (btns) btns.innerHTML = this._htmlSrvBtns(i);
+            const chk = tr.querySelector('input.srv-check');
+            if (chk) chk.dataset.idx = i;
         });
     }
 
@@ -626,7 +672,9 @@ class EditorRDO {
             <td class="text-center">${escapeHtml(s.unidade || '-')}</td>
             <td class="text-end"><strong>${escapeHtml(String(s.hh))}</strong></td>
             <td class="edit-ctrl text-center" style="${this.modoEdicao ? '' : 'display:none'}">
-                <div class="edit-ctrl-btns-srv">${this._htmlSrvBtns(idx)}</div>
+                <input type="checkbox" class="form-check-input srv-check me-2" data-idx="${idx}"
+                       onchange="editorRDO._atualizarBotaoExcluirSrv()" title="Selecionar para exclusão em lote">
+                <div class="edit-ctrl-btns-srv d-inline-block">${this._htmlSrvBtns(idx)}</div>
             </td>`;
     }
 
@@ -642,6 +690,50 @@ class EditorRDO {
             </button>`;
     }
 
+    /** Atualiza o botão "Excluir selecionados" (Serviços) conforme a seleção atual. */
+    _atualizarBotaoExcluirSrv() {
+        const n   = this._qa('input.srv-check:checked').length;
+        const btn = this._el('btn-excluir-srv-sel');
+        const cnt = this._el('srv-sel-count');
+        if (cnt) cnt.textContent = n;
+        if (btn) btn.style.display = n > 0 ? '' : 'none';
+    }
+
+    /** Exclui em lote os serviços marcados nas checkboxes da tabela. */
+    async excluirServicosSelecionados() {
+        const idxs = this._qa('input.srv-check:checked').map(cb => parseInt(cb.dataset.idx, 10));
+        if (idxs.length === 0) return;
+        if (!confirm(`Excluir ${idxs.length} serviço(s) selecionado(s)?\nEsta ação não pode ser desfeita.`)) return;
+
+        // Agrupar por RDO e calcular o índice de cada item ANTES de excluir —
+        // depois, processar do maior índice para o menor dentro de cada RDO,
+        // para que uma exclusão não invalide o índice das próximas do mesmo RDO
+        // (Apps Script localiza a linha via _linhasDaAba(numeroRDO)[indice]).
+        const porRDO = new Map();
+        idxs.forEach(idx => {
+            const s = this.dados.servicos[idx];
+            const rdo = this._rdoDe(s);
+            const indice = this._indiceRDO(this.dados.servicos, idx);
+            if (!porRDO.has(rdo)) porRDO.set(rdo, []);
+            porRDO.get(rdo).push(indice);
+        });
+
+        try {
+            for (const [rdo, indices] of porRDO) {
+                indices.sort((a, b) => b - a);
+                for (const indice of indices) {
+                    await this._api({ acao: 'excluirServico', numeroRDO: rdo, indice });
+                }
+            }
+            idxs.sort((a, b) => b - a).forEach(idx => {
+                this._el('srv-row-' + idx)?.remove();
+                this.dados.servicos.splice(idx, 1);
+            });
+            this._reindexarServicos();
+            this._atualizarBotaoExcluirSrv();
+        } catch (err) { this._erro(err.message); }
+    }
+
     // ── Horas Improdutivas ────────────────────────────────────────────────────
 
     editarHI(idx) {
@@ -655,31 +747,47 @@ class EditorRDO {
                        'Treinamento', 'Almoço/Refeição', 'Deslocamento', 'Outros'];
         // Se o tipo salvo não está na lista (dado legado), adiciona para preservar o valor
         if (hi.tipo && !tipos.includes(hi.tipo)) tipos.unshift(hi.tipo);
+        const multiplo = this.dados.multiplosRDOs;
+        const rdoAtual = this._rdoDe(hi);
 
         tr.innerHTML = `
             <td colspan="${this.dados.multiplosRDOs ? 8 : 7}" class="p-2">
                 <div class="row g-2 align-items-center">
-                    <div class="col-12 col-md-3">
+                    ${multiplo ? `
+                    <div class="col-12 col-md-2">
+                        <label class="form-label form-label-sm mb-0 text-muted">O.S</label>
+                        <select id="hi-os-${idx}" class="form-select form-select-sm">
+                            ${(this.dados.hhPorOS || []).map(o => {
+                                const val = o.numeroRDO || o.numeroOS;
+                                return `<option value="${escapeHtml(val)}"${val === rdoAtual ? ' selected' : ''}>${escapeHtml(o.numeroOS)}</option>`;
+                            }).join('')}
+                        </select>
+                    </div>` : ''}
+                    <div class="col-12 col-md-2">
                         <select id="hi-tipo-${idx}" class="form-select form-select-sm">
                             ${tipos.map(t => `<option${hi.tipo === t ? ' selected' : ''}>${escapeHtml(t)}</option>`).join('')}
                         </select>
                     </div>
-                    <div class="col-12 col-md-3">
+                    <div class="col-12 col-md-2">
                         <input id="hi-desc-${idx}" type="text" class="form-control form-control-sm"
                                value="${escapeHtml(hi.descricao || '')}" placeholder="Descrição (opcional)">
                     </div>
-                    <div class="col-6 col-md-2">
+                    <div class="col-4 col-md-2">
                         <input id="hi-ini-${idx}" type="text" class="form-control form-control-sm"
                                value="${escapeHtml(hi.horaInicio || '')}" placeholder="HH:MM" maxlength="5">
                     </div>
-                    <div class="col-6 col-md-2">
+                    <div class="col-4 col-md-2">
                         <input id="hi-fim-${idx}" type="text" class="form-control form-control-sm"
                                value="${escapeHtml(hi.horaFim || '')}" placeholder="HH:MM" maxlength="5">
                     </div>
-                    <div class="col-12 col-md-2 d-flex gap-1">
+                    <div class="col-4 col-md-1">
+                        <input id="hi-ops-${idx}" type="number" class="form-control form-control-sm"
+                               value="${hi.operadores || 12}" min="1" title="Operadores">
+                    </div>
+                    <div class="col-12 col-md-1 d-flex gap-1">
                         <button class="btn btn-sm btn-success flex-fill"
                                 onclick="editorRDO.salvarHI(${idx}, this)">
-                            <i class="fas fa-save"></i> Salvar
+                            <i class="fas fa-save"></i>
                         </button>
                         <button class="btn btn-sm btn-outline-secondary"
                                 onclick="editorRDO.cancelarEditHI(${idx})">
@@ -704,19 +812,50 @@ class EditorRDO {
         const descricao = this._el('hi-desc-' + idx)?.value.trim();
         const horaInicio = this._el('hi-ini-' + idx)?.value.trim();
         const horaFim    = this._el('hi-fim-' + idx)?.value.trim();
+        const operadores = parseInt(this._el('hi-ops-' + idx)?.value || hi.operadores || 12);
 
         if (!tipo || !horaInicio || !horaFim) { this._erro('Tipo, Hora Início e Hora Fim são obrigatórios'); return; }
 
-        const rdoAlvo = this._rdoDe(hi);
-        const indice  = this._indiceRDO(this.dados.horasImprodutivas, idx);
+        const rdoAtual = this._rdoDe(hi);
+        let rdoAlvo = rdoAtual;
+        let osAlvo  = null;
+        if (this.dados.multiplosRDOs) {
+            const osSel = this._el('hi-os-' + idx)?.value;
+            if (osSel) rdoAlvo = osSel;
+            const match = (this.dados.hhPorOS || []).find(o => (o.numeroRDO || o.numeroOS) === rdoAlvo);
+            osAlvo = match ? match.numeroOS : null;
+        }
+        const mudouOS = rdoAlvo !== rdoAtual;
 
         await this._comFeedback(btn, async () => {
-            await this._api({ acao: 'atualizarHI', numeroRDO: rdoAlvo, indice, tipo, descricao, horaInicio, horaFim });
+            if (mudouOS) {
+                // Igual a Serviços: mover entre O.S = excluir da antiga + recriar na
+                // nova, seguido de reload para manter os índices client-side corretos.
+                const indiceAntigo = this._indiceRDO(this.dados.horasImprodutivas, idx);
+                await this._api({ acao: 'excluirHI', numeroRDO: rdoAtual, indice: indiceAntigo });
+                await this._api({
+                    acao: 'adicionarHI', numeroRDO: rdoAlvo, numeroOS: osAlvo || '',
+                    data: this.dados.data || '', codigoTurma: this.dados.turma || '',
+                    encarregado: this.dados.encarregado || '',
+                    tipo, descricao, horaInicio, horaFim, operadores
+                });
+                const modalEl = document.getElementById(this._modalId());
+                if (modalEl) bootstrap.Modal.getInstance(modalEl)?.hide();
+                setTimeout(() => window.location.reload(), 400);
+                return;
+            }
+
+            const indice = this._indiceRDO(this.dados.horasImprodutivas, idx);
+            await this._api({ acao: 'atualizarHI', numeroRDO: rdoAlvo, indice, tipo, descricao, horaInicio, horaFim, operadores });
 
             hi.tipo       = tipo;
             hi.descricao  = descricao || '';
             hi.horaInicio = horaInicio;
             hi.horaFim    = horaFim;
+            hi.operadores = operadores;
+            hi.categoria  = JustificativasHI.categoria(tipo);
+            const minutos = this._calcDurMin(horaInicio, horaFim);
+            hi.hh         = JustificativasHI.calcularHH(tipo, minutos, operadores).toFixed(2);
 
             const tr = this._el('hi-row-' + idx);
             if (tr) {
@@ -777,7 +916,12 @@ class EditorRDO {
                 tipo, descricao, horaInicio, horaFim, operadores
             });
 
-            const nova = { tipo, descricao: descricao || '', horaInicio, horaFim, hh: '0.00', overlap: false, numeroRDO: null, numeroOS: null };
+            const minutos = this._calcDurMin(horaInicio, horaFim);
+            const hh = JustificativasHI.calcularHH(tipo, minutos, operadores).toFixed(2);
+            const nova = {
+                tipo, descricao: descricao || '', horaInicio, horaFim, hh, operadores,
+                categoria: JustificativasHI.categoria(tipo), overlap: false, numeroRDO: null, numeroOS: null
+            };
             this.dados.horasImprodutivas.push(nova);
 
             const tbody = this._el('tbody-hi');
@@ -801,25 +945,72 @@ class EditorRDO {
             tr.id = 'hi-row-' + i;
             const btns = tr.querySelector('.edit-ctrl-btns-hi');
             if (btns) btns.innerHTML = this._htmlHIBtns(i);
+            const chk = tr.querySelector('input.hi-check');
+            if (chk) chk.dataset.idx = i;
         });
+    }
+
+    /** Atualiza o botão "Excluir selecionados" (HI) conforme a seleção atual. */
+    _atualizarBotaoExcluirHI() {
+        const n   = this._qa('input.hi-check:checked').length;
+        const btn = this._el('btn-excluir-hi-sel');
+        const cnt = this._el('hi-sel-count');
+        if (cnt) cnt.textContent = n;
+        if (btn) btn.style.display = n > 0 ? '' : 'none';
+    }
+
+    /** Exclui em lote as HIs marcadas nas checkboxes da tabela. */
+    async excluirHIsSelecionadas() {
+        const idxs = this._qa('input.hi-check:checked').map(cb => parseInt(cb.dataset.idx, 10));
+        if (idxs.length === 0) return;
+        if (!confirm(`Excluir ${idxs.length} hora(s) improdutiva(s) selecionada(s)?\nEsta ação não pode ser desfeita.`)) return;
+
+        const porRDO = new Map();
+        idxs.forEach(idx => {
+            const hi = this.dados.horasImprodutivas[idx];
+            const rdo = this._rdoDe(hi);
+            const indice = this._indiceRDO(this.dados.horasImprodutivas, idx);
+            if (!porRDO.has(rdo)) porRDO.set(rdo, []);
+            porRDO.get(rdo).push(indice);
+        });
+
+        try {
+            for (const [rdo, indices] of porRDO) {
+                indices.sort((a, b) => b - a);
+                for (const indice of indices) {
+                    await this._api({ acao: 'excluirHI', numeroRDO: rdo, indice });
+                }
+            }
+            idxs.sort((a, b) => b - a).forEach(idx => {
+                this._el('hi-row-' + idx)?.remove();
+                this.dados.horasImprodutivas.splice(idx, 1);
+            });
+            this._reindexarHIs();
+            this._atualizarBotaoExcluirHI();
+        } catch (err) { this._erro(err.message); }
     }
 
     _htmlHIRow(idx, hi) {
         const multiplo = this.dados.multiplosRDOs;
         const dur = this._durDisplay(hi.horaInicio, hi.horaFim);
+        const categoria = hi.categoria || (typeof JustificativasHI !== 'undefined' ? JustificativasHI.categoria(hi.tipo) : 'CONTROLAVEL');
+        const neutro = categoria === 'NEUTRO';
         return `
             ${multiplo ? `<td><span class="badge bg-secondary">${escapeHtml(hi.numeroOS || '-')}</span></td>` : ''}
             <td>
-                <span class="badge bg-warning">${escapeHtml(hi.tipo)}</span>
+                <span class="badge ${neutro ? 'bg-secondary' : 'bg-warning'}">${escapeHtml(hi.tipo)}</span>
+                ${neutro ? '<span class="badge bg-light text-muted border ms-1" style="font-size:.6rem;" title="Não conta como Horas Improdutivas">Neutro</span>' : ''}
                 ${hi.overlap ? '<span class="badge bg-danger ms-1" title="Intervalo se sobrepõe com outra HI">⚠️ sobreposição</span>' : ''}
             </td>
             <td>${escapeHtml(hi.descricao || '')}</td>
             <td class="text-center">${escapeHtml(hi.horaInicio)}</td>
             <td class="text-center">${escapeHtml(hi.horaFim)}</td>
             <td class="text-center text-muted small">${escapeHtml(dur)}</td>
-            <td class="text-end"><strong>${escapeHtml(String(hi.hh))}</strong></td>
+            <td class="text-end"><strong class="${neutro ? 'text-muted' : ''}">${escapeHtml(String(hi.hh))}</strong></td>
             <td class="edit-ctrl text-center" style="${this.modoEdicao ? '' : 'display:none'}">
-                <div class="edit-ctrl-btns-hi">${this._htmlHIBtns(idx)}</div>
+                <input type="checkbox" class="form-check-input hi-check me-2" data-idx="${idx}"
+                       onchange="editorRDO._atualizarBotaoExcluirHI()" title="Selecionar para exclusão em lote">
+                <div class="edit-ctrl-btns-hi d-inline-block">${this._htmlHIBtns(idx)}</div>
             </td>`;
     }
 
