@@ -73,18 +73,16 @@ async function handleAppsScriptProxy(request, env) {
         // Lê o body uma única vez (stream só pode ser lido uma vez)
         const bodyText = await request.text();
 
-        // O Apps Script sempre responde ao /exec com um redirect 302. Com
-        // redirect:'follow', fetch() converte automaticamente POST→GET ao
-        // seguir 301/302/303 (comportamento padrão do fetch/WHATWG) — isso faz
-        // a execução real do script (doGet/doPost) acontecer nessa 1ª requisição
-        // de redirect já como GET, caindo em doGet() e perdendo o corpo da
-        // chamada original. Por isso o 1º hop é reenviado manualmente como POST.
-        //
-        // Respostas grandes (ex.: listarGestaoOS) passam por um 2º redirect,
-        // para uma URL de conteúdo pré-computado em script.googleusercontent.com
-        // (endpoint "echo") que só aceita GET — reenviar POST nesse hop retorna
-        // 405. A partir do 2º hop, portanto, seguimos como GET sem corpo (é
-        // apenas a leitura do resultado já calculado pelo doPost() do 1º hop).
+        // A requisição inicial ao /exec precisa ir como POST para que o Apps
+        // Script execute doPost() (em vez de doGet()) — isso já acontece nesta
+        // chamada abaixo, fora do loop. Quando a resposta é grande (ex.:
+        // listarGestaoOS), o Apps Script já devolve o resultado computado
+        // através de um redirect 302 para uma URL de conteúdo pré-computado em
+        // script.googleusercontent.com (endpoint "echo"), que só aceita GET —
+        // é somente uma leitura do resultado já calculado, não uma reexecução.
+        // Por isso todo redirect subsequente é seguido como GET sem corpo;
+        // reenviar POST nesse hop retorna 405 com uma página de desafio do
+        // Google em vez do JSON.
         let proxyResponse = await fetch(appsScriptUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -97,14 +95,7 @@ async function handleAppsScriptProxy(request, env) {
             const location = proxyResponse.headers.get('Location');
             if (!location) break;
             redirects++;
-            proxyResponse = redirects === 1
-                ? await fetch(location, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: bodyText,
-                    redirect: 'manual'
-                })
-                : await fetch(location, { redirect: 'manual' });
+            proxyResponse = await fetch(location, { redirect: 'manual' });
         }
 
         const httpStatus = proxyResponse.status;
