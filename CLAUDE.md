@@ -697,7 +697,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 11
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.5.2
+- **Dashboard Version**: 2.6.0
 
 ## Release Information
 
@@ -846,15 +846,12 @@ Controlável / Não Controlável / **Neutro** e torna o lançamento muito mais r
 > **Treinamento**; ambos entraram como **Controlável**. Para mudar, basta
 > alterar `categoria` (e `considerarHI`/`considerarPerdaRumo`) no JSON.
 
-**Pendente — Dashboard (fase 2):** especificação completa e autocontida em
-**`FASE2_DASHBOARD_HI.md`** (raiz do repo), com arquivo e linha de cada regra a
-trocar — as regras de HI estão duplicadas em **6 arquivos** do dashboard.
-`_isNaoControlavel()` em `visao-geral.js`
-ainda classifica por substring ("trem"/"chuva") e almoço/DDS/trânsito ainda
-entram como perda controlável. A fase 2 deve sincronizar o catálogo para
-`dashboard/` (nos moldes do `npm run sync-servicos`) e passar a usar
-`considerarHI` / `categoria` / `fatorHH` / `minutosMinimos` em todos os KPIs,
-Pareto, rankings e filtros.
+**Fase 2 — Dashboard: concluída na v2.6.0** (ver Version History abaixo e
+`FASE2_DASHBOARD_HI.md` para a especificação original). O catálogo foi
+sincronizado para `dashboard/` e as 6 cópias hardcoded de regras de HI
+(`_isNaoControlavel()` em `visao-geral.js` incluída) passaram a consultar
+`JustificativasHI` (`considerarHI` / `categoria` / `fatorHH` /
+`minutosMinimos`).
 
 **Arquivos novos:** `app/src/main/res/raw/justificativas_hi.json`,
 `data/models/JustificativaHI.kt`,
@@ -965,6 +962,25 @@ conformidades antes da vistoria do fiscal.
 - **Melhoria**: validação de integridade do APK aceita SHA-256 (hash de 64 caracteres na chave
   `hash_md5` da aba Config) com retrocompatibilidade MD5 (32 caracteres). Para usar:
   `Get-FileHash app-release.apk -Algorithm SHA256` e colar o hash na aba Config
+
+---
+
+### Dashboard 2.6.0 — 2026-07-28
+**Fase 2: dashboard passa a consumir o catálogo de justificativas de HI**
+
+Ver detalhes completos em `dashboard/CLAUDE.md` (seção Recent Updates). Resumo: as 6 cópias
+hardcoded de regras de HI (trem < 20 min, chuva ÷ 2, controlável/não controlável por substring)
+foram trocadas pela leitura do catálogo `justificativas_hi.json` (fonte: Fase 1, app v5.3.0),
+sincronizado para o dashboard via `npm run sync-justificativas`. Novo módulo `JustificativasHI`
+(`dashboard/js/justificativas-hi.js`). Almoço/DDS/Trânsito (Neutro) deixam de contar como HI e
+como perda controlável — passam a compor `hhNeutras`, exposta nos KPIs e na Composição de Horas,
+sem reduzir produtividade/meta/ranking. Textos fixos que citavam só "trem e chuva" como não
+controláveis agora listam as 6 justificativas reais do catálogo.
+
+**Arquivos novos:** `scripts/sync-justificativas-hi.js`, `dashboard/justificativas_hi.json`,
+`dashboard/js/justificativas-hi-data.js`, `dashboard/js/justificativas-hi.js`
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/{calculations,calendario-tp,
+calendario-ts,sheets-api,gestao-os,visao-geral}.js`, `package.json`, `tests/calculations.test.js`
 
 ---
 

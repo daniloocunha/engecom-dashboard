@@ -44,11 +44,17 @@ class VisaoGeral {
         return re.some(r => r.test(d)) ? 'PDM_TPS' : 'CORRELATO_TPS';
     }
 
-    /** Perdas não controláveis = passagem de trem + chuva. Verifica tipo e descrição. */
-    _isNaoControlavel(tipo, descricao = '') {
-        const norm = s => (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-        const t = norm(tipo) + ' ' + norm(descricao);
-        return t.includes('trem') || t.includes('chuva');
+    /** Classificação de uma HI conforme o catálogo (NAO_CONTROLAVEL | CONTROLAVEL | NEUTRO). */
+    _categoriaHI(tipo) {
+        return JustificativasHI.categoria(tipo);
+    }
+
+    /** Nomes das justificativas não controláveis do catálogo, para textos explicativos. */
+    _nomesNaoControlaveis() {
+        return JustificativasHI.ativas()
+            .filter(j => j.categoria === 'NAO_CONTROLAVEL')
+            .map(j => j.nome)
+            .join(', ');
     }
 
     // ── Cálculos ─────────────────────────────────────────────────────────────
@@ -59,7 +65,7 @@ class VisaoGeral {
         const classPDM  = tipoTurma === 'TP' ? 'PDM_TPS'       : 'PDM_SOLDA';
         const metaDia   = tipoTurma === 'TP' ? METAS.META_DIARIA_TP : METAS.META_DIARIA_TS;
 
-        let totalHHServ = 0, totalHHPDM = 0, totalHHCorr = 0, totalHHImprod = 0;
+        let totalHHServ = 0, totalHHPDM = 0, totalHHCorr = 0, totalHHImprod = 0, totalHHNeutro = 0;
         const dadosTurmas = [], servicosGlobal = {}, perdasGlobal = {}, evolucaoDiaria = {};
         let rdosSemEfetivo = 0, hisSemHorario = 0, servicosSemCoef = 0;
         const listaRDOsSemEfetivo = [], listaHIsSemHorario = [], listaServicosSemCoef = [];
@@ -68,7 +74,7 @@ class VisaoGeral {
             const rdosTurma = calc.filtrarRDOsPorTurma(turmaId, mes, ano);
             if (!rdosTurma.length) return;
 
-            let hhServ = 0, hhPDM = 0, hhCorr = 0;
+            let hhServ = 0, hhPDM = 0, hhCorr = 0, hhNeutroTurma = 0;
             const servicosTurma = {}, perdasTurma = {}, osPorTurma = {};
             const hhServPorData = new Map();
 
@@ -129,7 +135,7 @@ class VisaoGeral {
                 const efetivo   = calc.indices.efetivosPorRDO.get(numRDO);
                 const opPadrao  = operadoresPadraoTurma(turmaId); // TP=12, TS=5, TMC=6
                 const opDefault = efetivo ? (parseInt(efetivo['Operadores'] || efetivo.operadores || 0) || opPadrao) : opPadrao;
-                let hhHIDia = 0;
+                let hhHIDia = 0, hhNeutroDia = 0;
                 (calc.indices.hiPorRDO.get(numRDO) || []).forEach(hi => {
                     const tipo   = (hi['Tipo'] || hi.tipo || '').trim();
                     const inicio = hi['Hora Início'] || hi.horaInicio || '';
@@ -139,19 +145,25 @@ class VisaoGeral {
                     let s = pm(inicio), e = pm(fim);
                     if (e <= s) e += 1440;
                     const dur = e - s;
-                    const tl  = tipo.toLowerCase();
-                    if (tl.includes('trem') && dur < METAS.MINUTOS_MINIMOS_TREM) return;
                     let op = parseInt(hi['Operadores'] || hi.operadores || 0);
                     if (op <= 0) op = opDefault;
-                    let hh = (dur / 60) * op;
-                    if (tl.includes('chuva')) hh /= 2;
-                    hhHIDia += hh;
                     const hiDesc = hi['Descrição'] || hi.descricao || '';
-                    const chave = tipo || hiDesc || 'Outros';
-                    const nc    = this._isNaoControlavel(tipo, hiDesc);
-                    const reg   = { numRDO, data: dataNorm, turma: turmaId, horaInicio: inicio, horaFim: fim, operadores: op, hh, descricao: hiDesc };
+
+                    // Justificativas neutras (almoço/DDS/trânsito): compõem a jornada mas não
+                    // são HI nem perda — não entram em perdasGlobal/perdasTurma nem no ranking
+                    if (!JustificativasHI.considerarHI(tipo)) {
+                        hhNeutroDia += (dur / 60) * op;
+                        return;
+                    }
+                    if (dur < JustificativasHI.minutosMinimos(tipo)) return;
+
+                    const hh = (dur / 60) * op * JustificativasHI.fatorHH(tipo);
+                    hhHIDia += hh;
+                    const chave    = tipo || hiDesc || 'Outros';
+                    const categoria = this._categoriaHI(tipo);
+                    const reg      = { numRDO, data: dataNorm, turma: turmaId, horaInicio: inicio, horaFim: fim, operadores: op, hh, descricao: hiDesc };
                     [perdasGlobal, perdasTurma].forEach(m => {
-                        if (!m[chave]) m[chave] = { hh: 0, count: 0, tipo, controlavel: !nc, registros: [] };
+                        if (!m[chave]) m[chave] = { hh: 0, count: 0, tipo, categoria, controlavel: categoria !== 'NAO_CONTROLAVEL', registros: [] };
                         m[chave].hh += hh; m[chave].count++;
                         m[chave].registros.push(reg);
                     });
@@ -164,10 +176,13 @@ class VisaoGeral {
                 }
 
                 if (dataNorm) {
-                    if (!evolucaoDiaria[dataNorm]) evolucaoDiaria[dataNorm] = { hhServicos: 0, hhImprod: 0 };
+                    if (!evolucaoDiaria[dataNorm]) evolucaoDiaria[dataNorm] = { hhServicos: 0, hhImprod: 0, hhNeutro: 0 };
                     evolucaoDiaria[dataNorm].hhServicos += hhServDia;
                     evolucaoDiaria[dataNorm].hhImprod   += hhHIDia;
+                    evolucaoDiaria[dataNorm].hhNeutro   += hhNeutroDia;
                 }
+
+                hhNeutroTurma += hhNeutroDia;
             });
 
             const diasBateuMeta = [...hhServPorData.values()].filter(hh => hh >= metaDia).length;
@@ -193,6 +208,7 @@ class VisaoGeral {
                 mediaOperadores: countOps > 0 ? totalOps / countOps : 0,
                 hhServicos: hhServ, hhPDM, hhCorrelato: hhCorr,
                 hhImprodutivas: hhImprodOficial,
+                hhNeutras: hhNeutroTurma,
                 servicos: toArr(servicosTurma),
                 perdas:   pArr(perdasTurma),
                 totalSoldas,
@@ -203,6 +219,7 @@ class VisaoGeral {
             totalHHPDM    += hhPDM;
             totalHHCorr   += hhCorr;
             totalHHImprod += hhImprodOficial;
+            totalHHNeutro += hhNeutroTurma;
         });
 
         dadosTurmas.sort((a, b) => b.hhServicos - a.hhServicos);
@@ -237,7 +254,7 @@ class VisaoGeral {
             qualidade: { rdosSemEfetivo, hisSemHorario, servicosSemCoef, listaRDOsSemEfetivo, listaHIsSemHorario, listaServicosSemCoef },
             totais: {
                 hhServicos: totalHHServ, hhPDM: totalHHPDM, hhCorrelato: totalHHCorr,
-                hhImprodutivas: totalHHImprod, hhTotal, taxaProdutividade,
+                hhImprodutivas: totalHHImprod, hhNeutras: totalHHNeutro, hhTotal, taxaProdutividade,
                 metaMensal, metaDiaria: metaDia * n, percentualMeta,
                 hhNaoTrabalhado, hhNC, hhC,
                 diasUteis, classPDM,
@@ -398,9 +415,9 @@ class VisaoGeral {
                     <span class="badge bg-secondary bg-opacity-50 small fw-normal ms-1" title="HI = Horas Improdutivas: períodos registrados em que a equipe estava presente mas não realizou serviços produtivos.">O que é HI?</span>
                 </p>
                 <p class="text-muted mb-2" style="font-size:.75rem;">
-                    <i class="fas fa-ban text-danger me-1"></i><strong>Não Controláveis</strong>: passagem de trem e chuva — inerentes à operação ferrroviária &nbsp;·&nbsp;
-                    <i class="fas fa-tools text-warning me-1"></i><strong>Controláveis</strong>: fatores que a gestão pode reduzir (deslocamento, aguardando liberação, etc.)
-                    &nbsp;·&nbsp; HI Chuva conta como <strong>metade</strong> das horas na fórmula de medição.
+                    <i class="fas fa-ban text-danger me-1"></i><strong>Não Controláveis</strong>: ${escapeHtml(this._nomesNaoControlaveis())} — inerentes à operação ferroviária &nbsp;·&nbsp;
+                    <i class="fas fa-tools text-warning me-1"></i><strong>Controláveis</strong>: fatores que a gestão pode reduzir (deslocamento, aguardando faixa, falta de material, etc.)
+                    &nbsp;·&nbsp; HI Chuva conta como <strong>metade</strong> das horas na fórmula de medição &nbsp;·&nbsp; Almoço/DDS/Trânsito são <strong>Neutros</strong> (não contam como HI).
                 </p>
             </div>
             <div class="row mb-2" id="vg-perdas-split-${s}"></div>
@@ -478,7 +495,7 @@ class VisaoGeral {
             { label: 'HH Improdutivo Total',      value: `${fmt(totais.hhImprodutivas)} HH`, icon: 'fa-pause-circle', color: 'danger',
               sub: `${fmt(totais.hhNC)} não control. + ${fmt(totais.hhC)} control.` },
             { label: 'Total de Horas Entregues',  value: `${fmt(totais.hhTotal)} HH`,        icon: 'fa-layer-group',  color: 'info',
-              sub: 'Produtivo + Improdutivo' },
+              sub: totais.hhNeutras > 0.05 ? `Produtivo + Improdutivo (${fmt(totais.hhNeutras)} HH neutras à parte)` : 'Produtivo + Improdutivo' },
             { label: 'Meta vs Realizado',          value: fmtPct(totais.percentualMeta),      icon: 'fa-bullseye',     color: totais.percentualMeta >= 80 ? 'info' : 'warning',
               sub: `Meta ${fmt(totais.metaMensal)} HH no mês` },
         ] : [
@@ -489,7 +506,7 @@ class VisaoGeral {
             { label: 'HH Improdutivo TS',         value: `${fmt(totais.hhImprodutivas)} HH`, icon: 'fa-pause-circle', color: 'danger',
               sub: `${fmt(totais.hhImprodutivas / (dados.turmas.length||1))} HH/turma` },
             { label: 'Total de Horas Entregues',  value: `${fmt(totais.hhTotal)} HH`,        icon: 'fa-layer-group',  color: 'info',
-              sub: 'Soldador + Improdutivo' },
+              sub: totais.hhNeutras > 0.05 ? `Soldador + Improdutivo (${fmt(totais.hhNeutras)} HH neutras à parte)` : 'Soldador + Improdutivo' },
         ];
 
         el.innerHTML = kpis.map(k => `
@@ -586,6 +603,15 @@ class VisaoGeral {
         });
         const restoC = perdasC.slice(3).reduce((a, p) => a + p.hh, 0);
         if (restoC > 0) datasets.push({ label: `Outras Control. (${restoC.toFixed(0)} HH)`, data: [+restoC.toFixed(1)], backgroundColor: '#FFE0B2' });
+
+        // Horas Neutras (jornada: almoço, DDS, trânsito) — não são perda, só informativas
+        if (totais.hhNeutras > 0.5) {
+            datasets.push({
+                label: `Horas Neutras / Jornada (${totais.hhNeutras.toFixed(0)} HH)`,
+                data: [+totais.hhNeutras.toFixed(1)],
+                backgroundColor: '#90CAF9',
+            });
+        }
 
         // Gap até a meta (horas não alocadas — meta não atingida)
         if (totais.hhNaoTrabalhado > 0.5) {
@@ -1036,7 +1062,7 @@ class VisaoGeral {
                     <div class="card-header d-flex justify-content-between align-items-center" style="background:rgba(198,40,40,.07);">
                         <div>
                             <h6 class="mb-0 text-danger"><i class="fas fa-ban me-2"></i>Não Controláveis</h6>
-                            <small class="text-muted">Passagem de trem e chuva — operação não pode evitar</small>
+                            <small class="text-muted">${escapeHtml(this._nomesNaoControlaveis())} — operação não pode evitar</small>
                         </div>
                         <div class="text-end">
                             <span class="badge bg-danger fs-6">${hhNC.toFixed(0)} HH</span><br>

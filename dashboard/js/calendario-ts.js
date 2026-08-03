@@ -114,12 +114,14 @@ class CalendarioTS {
             let endMin   = parseMin(horaFim);
             if (endMin <= startMin) endMin += 1440;
 
-            const tipo = (hi.Tipo || hi.tipo || '').toLowerCase();
+            const tipo = hi.Tipo || hi.tipo || '';
             let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
             if (operadores <= 0) operadores = operadoresDefault;
 
-            // Pré-filtro: trens < 15 min descartados
-            if (tipo.includes('trem') && (endMin - startMin) < METAS.MINUTOS_MINIMOS_TREM) return;
+            // Pré-filtro: justificativas neutras (almoço/DDS/trânsito) e eventos abaixo
+            // da duração mínima do catálogo (ex.: trem < 20 min) são descartados
+            if (!JustificativasHI.considerarHI(tipo)) return;
+            if ((endMin - startMin) < JustificativasHI.minutosMinimos(tipo)) return;
 
             intervals.push({ startMin, endMin, tipo, operadores });
         });
@@ -142,13 +144,9 @@ class CalendarioTS {
             if (active.length === 0) continue;
 
             const operadores = Math.max(...active.map(iv => iv.operadores));
-            const hasChuva = active.some(iv => iv.tipo.includes('chuva'));
+            const fator = Math.min(...active.map(iv => JustificativasHI.fatorHH(iv.tipo)));
 
-            if (hasChuva) {
-                totalHH += (duracaoHoras * operadores) / METAS.DIVISOR_CHUVA;
-            } else {
-                totalHH += duracaoHoras * operadores;
-            }
+            totalHH += duracaoHoras * operadores * fator;
         }
 
         return totalHH;

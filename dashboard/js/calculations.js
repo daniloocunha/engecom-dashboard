@@ -590,6 +590,8 @@ class CalculadoraMedicao {
      * Evita dupla-contagem de eventos simultâneos no mesmo RDO.
      * Ex: trem 08:00–12:00 + trem 09:00–09:30 → [08:00–12:00] = 4h (não 4,5h)
      * Ex: HI 10:00–10:20 + HI 10:15–10:35 → [10:00–10:35] = 35min (não 40min)
+     * Regras de duração mínima e fator (Chuva ÷2, trem < 20min descartado, neutros
+     * excluídos) vêm do catálogo — ver JustificativasHI (justificativas-hi.js).
      * @param {Array}  hisRDO           - registros de HI de um único RDO
      * @param {number} operadoresDefault - fallback quando campo Operadores está ausente
      * @returns {number}
@@ -613,12 +615,15 @@ class CalculadoraMedicao {
             let endMin   = parseMin(horaFim);
             if (endMin <= startMin) endMin += 1440; // overnight
 
-            const tipo = (hi.Tipo || hi.tipo || '').toLowerCase();
+            const tipo = hi.Tipo || hi.tipo || '';
             let operadores = parseInt(hi['Operadores'] || hi.operadores || 0);
             if (operadores <= 0) operadores = operadoresDefault;
 
-            // Pré-filtro: trens < 20 min são descartados (baseado no intervalo original)
-            if (tipo.includes('trem') && (endMin - startMin) < METAS.MINUTOS_MINIMOS_TREM) return;
+            // Justificativas neutras (almoço, DDS, trânsito) não entram na HI — ver JustificativasHI
+            if (!JustificativasHI.considerarHI(tipo)) return;
+
+            // Duração mínima do catálogo (baseado no intervalo original), ex.: trens = 20 min
+            if ((endMin - startMin) < JustificativasHI.minutosMinimos(tipo)) return;
 
             intervals.push({ startMin, endMin, tipo, operadores });
         });
@@ -647,16 +652,10 @@ class CalculadoraMedicao {
 
             // Max operadores entre intervalos ativos (evita somar operadores de intervalos independentes)
             const operadores = Math.max(...active.map(iv => iv.operadores));
-            const tipos = active.map(iv => iv.tipo);
-            const hasChuva = tipos.some(t => t.includes('chuva'));
+            // Fator mais conservador entre os ativos (ex.: Chuva = 0.5) — hoje só a Chuva reduz o fator
+            const fator = Math.min(...active.map(iv => JustificativasHI.fatorHH(iv.tipo)));
 
-            let hh;
-            if (hasChuva) {
-                hh = (duracaoHoras * operadores) / METAS.DIVISOR_CHUVA;
-            } else {
-                hh = duracaoHoras * operadores;
-            }
-            totalHH += hh;
+            totalHH += duracaoHoras * operadores * fator;
         }
 
         return totalHH;
@@ -664,7 +663,9 @@ class CalculadoraMedicao {
 
     /**
      * Calcula HH de horas improdutivas
-     * Regras: Chuva ÷ 2, Trens >= 20min; sobreposições são mescladas antes do cálculo
+     * Regras do catálogo de justificativas (JustificativasHI): Chuva ÷ 2, Trens >= 20min,
+     * justificativas neutras (almoço/DDS/trânsito) excluídas; sobreposições são mescladas
+     * antes do cálculo
      */
     calcularHHImprodutivas(rdos) {
         let totalHH = 0;
