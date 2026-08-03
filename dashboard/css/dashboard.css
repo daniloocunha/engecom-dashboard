@@ -1016,6 +1016,44 @@ canvas {
     margin-bottom: 6px;
 }
 
+/* Faixa de dias do mês (card "Produção no mês") */
+.dia-strip-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+
+.dia-strip-quadrado {
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: #fff;
+    background: #ced4da;
+    user-select: none;
+}
+
+.dia-strip-quadrado.sem-rdo {
+    background: #e9ecef;
+    color: #adb5bd;
+}
+
+.dia-strip-quadrado.tem-rdo {
+    background: #28a745;
+    color: #fff;
+    cursor: pointer;
+    transition: transform .1s ease, background-color .1s ease;
+}
+
+.dia-strip-quadrado.tem-rdo:hover {
+    background: #218838;
+    transform: scale(1.12);
+}
+
 .dia-hh {
     font-size: 1.1rem;
     color: #1976D2;

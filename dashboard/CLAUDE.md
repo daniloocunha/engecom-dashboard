@@ -703,6 +703,46 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.7.0 (2026-08-03)** - Correções em Detalhes do Dia + faixa de produção mensal + fix no proxy Apps Script:
+
+- **Botões da O.S (multi-OS)**: Editar/Duplicar/Excluir agora têm o mesmo formato (outline, mesmo
+  padding); antes Editar usava `btn-link` (sem borda) e destoava visualmente dos outros dois
+  (`editor-rdo.js`, `calendario-tp.js`)
+- **Horas Improdutivas ainda contando tipos neutros** (Almoço/Refeição, DDS, Trânsito): a causa raiz
+  era `salvarHI()` não recalcular `hi.hh` após uma edição — se o usuário reclassificava um
+  apontamento para um tipo neutro (ou mudava o horário), o HH exibido ficava com o valor antigo até
+  um reload completo. `salvarNovaHI()` também gravava `hh: '0.00'` fixo para qualquer tipo novo.
+  Ambos agora recalculam via `JustificativasHI.calcularHH()`; linhas Neutro (não contam como HI)
+  ganharam badge "Neutro" e HH acinzentado na tabela do modal para deixar isso visualmente claro
+  (`editor-rdo.js`, `calendario-tp.js`, `calendario-ts.js`)
+- **Editar Serviço Realizado sem campo de O.S**: em dias com 2+ O.S, editar um serviço já lançado
+  não mostrava o seletor "O.S destino" que o formulário de adicionar já tinha — não dava para
+  corrigir um serviço lançado na O.S errada. Corrigido com o mesmo seletor no formulário de edição;
+  como o Apps Script não tem uma ação para mover uma linha entre RDOs, trocar a O.S faz
+  excluir+recriar seguido de reload da página. Mesma correção aplicada em Horas Improdutivas, que
+  tinha a mesma lacuna
+- **Exclusão em lote**: checkbox por linha + botão "Excluir selecionados" nas tabelas de Serviços
+  Realizados e Horas Improdutivas do modal Detalhes do Dia. Os índices de cada RDO são resolvidos
+  antes de excluir e processados do maior para o menor, para não invalidar `_linhasDaAba()` no
+  Apps Script durante exclusões sequenciais no mesmo RDO
+- **Card "Produção no mês"** nas abas TPs e TSs: nova faixa horizontal com um quadrado por dia do
+  mês filtrado — verde quando há RDO da turma naquele dia (clicável, abre Detalhes do Dia), cinza
+  quando não há. Respeita os filtros de mês/ano/turma já aplicados (`renderizarFaixaDias()` em
+  `calendario-tp.js`/`calendario-ts.js`)
+- **Fix — Gestão de O.S retornando "Endpoint Engecom - use POST"**: o Worker usava
+  `redirect: 'follow'` ao encaminhar para o Apps Script; como o `/exec` do Apps Script costuma
+  responder com um 302, e `fetch()` converte POST→GET automaticamente ao seguir 301/302/303
+  (comportamento padrão do fetch/WHATWG), a chamada acabava caindo em `doGet()` em vez de
+  `doPost()` — daí a resposta ser o texto fixo do `doGet()`. Mais provável de aparecer em
+  respostas grandes (como `listarGestaoOS`), que é onde o Apps Script costuma redirecionar.
+  Corrigido em `src/worker.js`: os redirecionamentos agora são seguidos manualmente, sempre
+  reenviando como POST com o mesmo corpo
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/{editor-rdo,calendario-tp,
+calendario-ts}.js`, `dashboard/css/dashboard.css`, `src/worker.js`
+
+---
+
 **Version 2.6.0 (2026-07-28)** - Fase 2: dashboard passa a consumir o catálogo de justificativas de HI:
 
 Antes desta versão, a classificação de Horas Improdutivas (controlável/não controlável) era
@@ -1013,7 +1053,7 @@ Após cada reimplantação, atualizar o dump `appscript_atual.md`.
 
 ## Version Information
 
-- **Current Version**: 2.6.0
+- **Current Version**: 2.7.0
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)

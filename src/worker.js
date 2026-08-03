@@ -73,12 +73,32 @@ async function handleAppsScriptProxy(request, env) {
         // Lê o body uma única vez (stream só pode ser lido uma vez)
         const bodyText = await request.text();
 
-        const proxyResponse = await fetch(appsScriptUrl, {
+        // O Apps Script costuma responder ao /exec com um redirect 302 para
+        // script.googleusercontent.com. fetch() com redirect:'follow' converte
+        // automaticamente POST→GET ao seguir 301/302/303 (comportamento padrão
+        // do fetch/WHATWG) — isso faz a requisição reexecutar como GET e cair em
+        // doGet() em vez de doPost(), perdendo o corpo (acao, dados) da chamada
+        // original. Por isso seguimos os redirecionamentos manualmente, sempre
+        // reenviando como POST com o mesmo corpo.
+        let proxyResponse = await fetch(appsScriptUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: bodyText,
-            redirect: 'follow'     // segue redirecionamentos do Apps Script automaticamente
+            redirect: 'manual'
         });
+
+        let redirects = 0;
+        while (proxyResponse.status >= 300 && proxyResponse.status < 400 && redirects < 5) {
+            const location = proxyResponse.headers.get('Location');
+            if (!location) break;
+            redirects++;
+            proxyResponse = await fetch(location, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: bodyText,
+                redirect: 'manual'
+            });
+        }
 
         const httpStatus = proxyResponse.status;
         const finalUrl   = proxyResponse.url || appsScriptUrl;
