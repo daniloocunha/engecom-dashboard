@@ -1016,11 +1016,53 @@ canvas {
     margin-bottom: 6px;
 }
 
-/* Faixa de dias do mês (card "Produção no mês") */
-.dia-strip-container {
-    display: flex;
-    flex-wrap: wrap;
+/* Faixa de dias do mês (card "Produção no mês") — uma linha por turma */
+.dia-strip-scroll {
+    overflow-x: auto;
+}
+
+.dia-strip-grid {
+    display: grid;
     gap: 4px;
+    align-items: center;
+    width: max-content;
+}
+
+/* Célula vazia do canto superior esquerdo (acima dos nomes das turmas) */
+.dia-strip-canto {
+    /* sem estilo — apenas ocupa a 1ª coluna da linha de cabeçalho */
+}
+
+/* Inicial do dia da semana, no topo de cada coluna */
+.dia-strip-dow {
+    text-align: center;
+    font-size: 0.6rem;
+    font-weight: 700;
+    color: #6c757d;
+    line-height: 1;
+}
+
+.dia-strip-dow.fds {
+    color: #c62828;
+}
+
+/* Rótulo da turma, na 1ª coluna de cada linha */
+.dia-strip-turma {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    justify-content: flex-end;
+    padding-right: 8px;
+    font-size: 0.75rem;
+    font-weight: 600;
+    white-space: nowrap;
+    color: #333;
+}
+
+.dia-strip-contagem {
+    font-size: 0.65rem;
+    font-weight: 500;
+    color: #6c757d;
 }
 
 .dia-strip-quadrado {

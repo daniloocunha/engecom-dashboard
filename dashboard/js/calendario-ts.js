@@ -390,33 +390,64 @@ class CalendarioTS {
     }
 
     /**
-     * Renderiza o card com a faixa de dias do mês (um quadrado por dia).
-     * Verde = há RDO da turma naquele dia (clicável, abre Detalhes do Dia).
-     * Cinza = sem RDO. Respeita o mês/ano/turma atualmente filtrados.
+     * Card único "Produção no mês" com uma linha por turma.
+     * Cada dia do mês é um quadrado: verde = há RDO da turma naquele dia
+     * (clicável, abre Detalhes do Dia), cinza = sem registro. O cabeçalho
+     * mostra o dia da semana de cada coluna. Respeita os filtros aplicados.
+     *
+     * @param {string[]} turmas - turmas já filtradas, na ordem de exibição
      */
-    renderizarFaixaDias(turma) {
-        const { totalDias } = this.getDiasDoMes(this.mesAtual, this.anoAtual);
-        let comRDO = 0;
-        let quadrados = '';
+    renderizarFaixaDias(turmas) {
+        if (!turmas || turmas.length === 0) return '';
 
+        const { totalDias } = this.getDiasDoMes(this.mesAtual, this.anoAtual);
+        const INICIAIS = ['D', 'S', 'T', 'Q', 'Q', 'S', 'S'];
+
+        // Cabeçalho: inicial do dia da semana em cada coluna
+        let cabecalho = '<div class="dia-strip-canto"></div>';
         for (let dia = 1; dia <= totalDias; dia++) {
-            const temRDO = !!this.obterDadosDia(turma, dia, this.mesAtual, this.anoAtual);
-            if (temRDO) comRDO++;
-            quadrados += `
-                <div class="dia-strip-quadrado ${temRDO ? 'tem-rdo' : 'sem-rdo'}"
-                     data-turma="${escapeHtml(turma)}" data-dia="${dia}" data-mes="${this.mesAtual}" data-ano="${this.anoAtual}"
-                     ${temRDO ? `onclick="calendarioTS.mostrarDetalhesDia(this.dataset.turma, +this.dataset.dia, +this.dataset.mes, +this.dataset.ano)"` : ''}
-                     title="${String(dia).padStart(2, '0')}/${String(this.mesAtual).padStart(2, '0')}/${this.anoAtual}${temRDO ? ' — clique para ver detalhes' : ' — sem registro'}">${dia}</div>`;
+            const diaSemana = new Date(this.anoAtual, this.mesAtual - 1, dia).getDay();
+            const fds = (diaSemana === 0 || diaSemana === 6) ? ' fds' : '';
+            cabecalho += `<div class="dia-strip-dow${fds}">${INICIAIS[diaSemana]}</div>`;
         }
 
+        let linhas = '';
+        turmas.forEach(turma => {
+            let comRDO = 0;
+            let quadrados = '';
+            for (let dia = 1; dia <= totalDias; dia++) {
+                const temRDO = !!this.obterDadosDia(turma, dia, this.mesAtual, this.anoAtual);
+                if (temRDO) comRDO++;
+                quadrados += `
+                    <div class="dia-strip-quadrado ${temRDO ? 'tem-rdo' : 'sem-rdo'}"
+                         data-turma="${escapeHtml(turma)}" data-dia="${dia}" data-mes="${this.mesAtual}" data-ano="${this.anoAtual}"
+                         ${temRDO ? `onclick="calendarioTS.mostrarDetalhesDia(this.dataset.turma, +this.dataset.dia, +this.dataset.mes, +this.dataset.ano)"` : ''}
+                         title="${escapeHtml(turma)} — ${String(dia).padStart(2, '0')}/${String(this.mesAtual).padStart(2, '0')}/${this.anoAtual}${temRDO ? ' — clique para ver detalhes' : ' — sem registro'}">${dia}</div>`;
+            }
+            linhas += `
+                <div class="dia-strip-turma" title="${escapeHtml(turma)}">
+                    ${escapeHtml(turma)}
+                    <span class="dia-strip-contagem">${comRDO}/${totalDias}</span>
+                </div>
+                ${quadrados}`;
+        });
+
+        // 1 coluna para o rótulo da turma + 1 coluna por dia do mês
+        const colunas = `minmax(96px, max-content) repeat(${totalDias}, 26px)`;
+
         return `
-            <div class="card mb-2 shadow-sm">
+            <div class="card mb-3 shadow-sm">
                 <div class="card-body py-2 px-3">
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <small class="text-muted fw-semibold"><i class="fas fa-calendar-check me-1"></i>Produção no mês</small>
-                        <small class="text-muted">${comRDO}/${totalDias} dias com registro</small>
+                        <small class="text-muted">Verde = dia com RDO lançado</small>
                     </div>
-                    <div class="dia-strip-container">${quadrados}</div>
+                    <div class="dia-strip-scroll">
+                        <div class="dia-strip-grid" style="grid-template-columns: ${colunas};">
+                            ${cabecalho}
+                            ${linhas}
+                        </div>
+                    </div>
                 </div>
             </div>`;
     }
@@ -429,9 +460,7 @@ class CalendarioTS {
         const META_DIARIA = METAS.META_DIARIA_TS;
         const stats = this.calcularEstatisticasTurma(turma);
 
-        let html = this.renderizarFaixaDias(turma);
-
-        html += `
+        let html = `
             <div class="card mb-4 shadow-sm">
                 <div class="card-header bg-danger text-white">
                     <div class="row align-items-center">
@@ -619,14 +648,18 @@ class CalendarioTS {
             return;
         }
 
+        // Turmas visíveis após o filtro — usadas tanto na faixa consolidada
+        // quanto nos calendários, para que as duas visões fiquem coerentes
+        const tssVisiveis = tss.filter(turma =>
+            !this.turmaFiltro || this.turmaFiltro === 'todas' || this.turmaFiltro === turma
+        );
+
         let html = '';
-        tss.forEach(turma => {
-            // Respeitar filtro de turma específica (se selecionada no filtro global)
-            if (this.turmaFiltro && this.turmaFiltro !== 'todas' && this.turmaFiltro !== turma) {
-                return;
-            }
+        tssVisiveis.forEach(turma => {
             html += this.renderizarCalendario(turma);
         });
+
+        if (html) html = this.renderizarFaixaDias(tssVisiveis) + html;
 
         if (!html) {
             container.innerHTML = `

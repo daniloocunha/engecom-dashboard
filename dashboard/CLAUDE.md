@@ -703,6 +703,28 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.7.1 (2026-08-03)** - "Produção no mês" consolidado em um card por aba:
+
+- O card "Produção no mês" da v2.7.0 era repetido dentro do bloco de cada turma. Agora é **um
+  único card por aba** (TPs e TSs), com **uma linha por turma** — o código da turma fica à
+  esquerda, junto da contagem de dias com registro (ex.: `TP-911 · 21/31`)
+- **Cabeçalho com os dias da semana** (D S T Q Q S S) alinhado a cada coluna, com sábados e
+  domingos em vermelho, para localizar rapidamente as faltas em dia útil
+- Implementado com CSS Grid (`.dia-strip-grid`) para que cabeçalho e todas as linhas fiquem
+  alinhados na mesma coluna; a faixa rola horizontalmente dentro do card (`.dia-strip-scroll`),
+  sem provocar rolagem lateral na página
+- `renderizarFaixaDias()` passou a receber a **lista de turmas já filtradas** e é chamada uma vez
+  em `renderizarTodos()` (antes era chamada por turma dentro de `renderizarCalendario()`), o que
+  mantém a faixa e os calendários sempre coerentes com o filtro aplicado
+- **Fix**: `css/dashboard.css` não tinha cache-busting (só os `.js` tinham). Sem isso, uma
+  mudança de layout entraria com o CSS antigo em cache no navegador dos usuários e renderizaria
+  quebrada. Passou a usar `?v=<versão>` como os scripts
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/{calendario-tp,calendario-ts}.js`,
+`dashboard/css/dashboard.css`
+
+---
+
 **Version 2.7.0 (2026-08-03)** - Correções em Detalhes do Dia + faixa de produção mensal + fix no proxy Apps Script:
 
 - **Botões da O.S (multi-OS)**: Editar/Duplicar/Excluir agora têm o mesmo formato (outline, mesmo
@@ -1053,7 +1075,7 @@ Após cada reimplantação, atualizar o dump `appscript_atual.md`.
 
 ## Version Information
 
-- **Current Version**: 2.7.0
+- **Current Version**: 2.7.1
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)

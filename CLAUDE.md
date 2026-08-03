@@ -697,7 +697,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 11
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.7.0
+- **Dashboard Version**: 2.7.1
 
 ## Release Information
 
@@ -962,6 +962,21 @@ conformidades antes da vistoria do fiscal.
 - **Melhoria**: validação de integridade do APK aceita SHA-256 (hash de 64 caracteres na chave
   `hash_md5` da aba Config) com retrocompatibilidade MD5 (32 caracteres). Para usar:
   `Get-FileHash app-release.apk -Algorithm SHA256` e colar o hash na aba Config
+
+---
+
+### Dashboard 2.7.1 — 2026-08-03
+**"Produção no mês" consolidado em um card por aba**
+
+Ver detalhes em `dashboard/CLAUDE.md` (seção Recent Updates). Resumo: o card criado na v2.7.0
+era repetido dentro do bloco de cada turma; agora é um único card por aba (TPs e TSs), com uma
+linha por turma (código da turma + contagem de dias à esquerda) e um cabeçalho com os dias da
+semana alinhado às colunas, sábados e domingos em vermelho. Implementado com CSS Grid, rolando
+horizontalmente dentro do card. Também corrigido: `css/dashboard.css` não tinha cache-busting,
+então mudanças de layout entrariam com o CSS antigo em cache no navegador dos usuários.
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/{calendario-tp,calendario-ts}.js`,
+`dashboard/css/dashboard.css`
 
 ---
 
