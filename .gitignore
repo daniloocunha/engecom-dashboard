@@ -35,6 +35,10 @@ nul*
 # Cloudflare Wrangler — cache de build local
 .wrangler/
 
+# Python — bytecode cache (scripts/)
+__pycache__/
+*.pyc
+
 # Credenciais Google Service Account — NUNCA COMITAR!
 rdo-engecom-*.json
 
