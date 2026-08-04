@@ -697,7 +697,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 11
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.7.1
+- **Dashboard Version**: 2.7.2
 
 ## Release Information
 
@@ -962,6 +962,18 @@ conformidades antes da vistoria do fiscal.
 - **Melhoria**: validação de integridade do APK aceita SHA-256 (hash de 64 caracteres na chave
   `hash_md5` da aba Config) com retrocompatibilidade MD5 (32 caracteres). Para usar:
   `Get-FileHash app-release.apk -Algorithm SHA256` e colar o hash na aba Config
+
+---
+
+### Dashboard 2.7.2 — 2026-08-04
+**Fix: turma sem RDO no mês filtrado aparecia no calendário TP**
+
+`calendario-tp.js` montava a lista de turmas para o card "Produção no mês" e para os calendários
+a partir de todo o histórico de RDOs, sem filtrar por mês/ano — uma turma que só trabalhou em
+outro mês continuava aparecendo no mês atual, sempre com 0/31 dias. `calendario-ts.js` já fazia
+esse filtro corretamente; `calendario-tp.js` passou a seguir o mesmo padrão.
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/calendario-tp.js`
 
 ---
 

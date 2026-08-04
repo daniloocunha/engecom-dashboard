@@ -1392,11 +1392,23 @@ class CalendarioTP {
 
         debugLog('[CalendarioTP] Renderizando calendários...');
 
-        // Extrair TPs
+        // Extrair TPs que têm RDOs no mês/ano filtrado — sem isso, uma turma
+        // que só trabalhou em outro mês continuava aparecendo (0/31) porque
+        // dados.rdos cobre todo o histórico, não só o período selecionado
         const tpsSet = new Set();
         this.dados.rdos.forEach(rdo => {
             const turma = rdo['Código Turma'] || rdo.codigoTurma || '';
-            if (turma && (turma.startsWith('TP-') || turma.startsWith('TP '))) {
+            const dataBanco = rdo['Data'] || rdo.data || '';
+            const deletado = (rdo['Deletado'] || rdo.deletado || '').toLowerCase();
+
+            if (!turma || deletado === 'sim') return;
+            if (!(turma.startsWith('TP-') || turma.startsWith('TP '))) return;
+
+            const partes = dataBanco.split('/');
+            if (partes.length !== 3) return;
+            const mes = parseInt(partes[1]);
+            const ano = parseInt(partes[2]);
+            if (mes === this.mesAtual && ano === this.anoAtual) {
                 tpsSet.add(turma);
             }
         });
