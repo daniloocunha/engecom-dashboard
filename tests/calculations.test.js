@@ -267,3 +267,35 @@ test('calcularMedicaoTP: RDO deletado é excluído do faturamento', async () => 
     await calc.carregarDados(rdos, [], [], [], []);
     assert.equal(calc.calcularMedicaoTP('TP-274', 11, 2024), null);
 });
+
+// ────────────────────────────────────────────────
+// GoogleSheetsAPI.converterHoraParaMinutos / calcularDuracaoHoras
+// ────────────────────────────────────────────────
+function novaSheetsAPI() {
+    return get('new GoogleSheetsAPI()');
+}
+
+test('converterHoraParaMinutos: aceita HH:MM e HH:MM:SS (Sheets às vezes formata com segundos)', () => {
+    const api = novaSheetsAPI();
+    assert.equal(api.converterHoraParaMinutos('08:00'), 480);
+    assert.equal(api.converterHoraParaMinutos('08:00:00'), 480);   // com segundos — bug real reportado
+    assert.equal(api.converterHoraParaMinutos('11:26:45'), 686);   // segundos são ignorados, não arredondam
+    assert.equal(api.converterHoraParaMinutos('23:59:59'), 1439);
+});
+
+test('converterHoraParaMinutos: rejeita formatos realmente inválidos', () => {
+    const api = novaSheetsAPI();
+    assert.equal(api.converterHoraParaMinutos(''), null);
+    assert.equal(api.converterHoraParaMinutos(null), null);
+    assert.equal(api.converterHoraParaMinutos('0800'), null);          // sem separador
+    assert.equal(api.converterHoraParaMinutos('08:00:00:00'), null);   // partes demais
+    assert.equal(api.converterHoraParaMinutos('25:00'), null);         // hora fora de faixa
+});
+
+test('calcularDuracaoHoras: HH:MM:SS não some contando como HI 0 — bug do card Horas Improdutivas', () => {
+    const api = novaSheetsAPI();
+    // "Aguardando Liberação" 08:00:00–11:26:00 aparecia com HH=0.00 no modal
+    // porque converterHoraParaMinutos rejeitava o formato com segundos
+    assert.ok(Math.abs(api.calcularDuracaoHoras('08:00:00', '11:26:00') - (3 + 26 / 60)) < 1e-9);
+    assert.ok(Math.abs(api.calcularDuracaoHoras('08:00', '11:26') - (3 + 26 / 60)) < 1e-9); // sem segundos continua igual
+});

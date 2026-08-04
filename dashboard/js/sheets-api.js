@@ -538,13 +538,14 @@ class GoogleSheetsAPI {
     }
 
     /**
-     * Converte hora em formato HH:MM para minutos totais
+     * Converte hora em formato HH:MM (ou HH:MM:SS — segundos ignorados; o
+     * Sheets às vezes formata a célula com segundos) para minutos totais
      */
     converterHoraParaMinutos(hora) {
         if (!hora || typeof hora !== 'string') return null;
 
         const partes = hora.trim().split(':');
-        if (partes.length !== 2) return null;
+        if (partes.length < 2 || partes.length > 3) return null;
 
         const horas = parseInt(partes[0]);
         const minutos = parseInt(partes[1]);

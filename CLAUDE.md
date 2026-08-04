@@ -697,7 +697,7 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - **Gradle Version**: 8.13 (via wrapper)
 - **Database Version**: 11
 - **Sheets HEADERS_VERSION**: 6
-- **Dashboard Version**: 2.7.2
+- **Dashboard Version**: 2.7.3
 
 ## Release Information
 
@@ -962,6 +962,22 @@ conformidades antes da vistoria do fiscal.
 - **Melhoria**: validação de integridade do APK aceita SHA-256 (hash de 64 caracteres na chave
   `hash_md5` da aba Config) com retrocompatibilidade MD5 (32 caracteres). Para usar:
   `Get-FileHash app-release.apk -Algorithm SHA256` e colar o hash na aba Config
+
+---
+
+### Dashboard 2.7.3 — 2026-08-04
+**Fix: HI com horário em formato HH:MM:SS não contava horas**
+
+`GoogleSheetsAPI.converterHoraParaMinutos()` exigia exatamente 2 partes ao separar o horário por
+`:` e rejeitava qualquer valor com segundos (`HH:MM:SS`, formato que o Sheets às vezes aplica à
+célula) — zerando a duração e, por consequência, o HH de qualquer apontamento de Horas
+Improdutivas nesse formato (reportado: "Aguardando Liberação" 08:00:00–11:26:00 aparecendo com
+HH: 0.00 mesmo sendo uma justificativa que conta como HI). O resto do código já ignorava os
+segundos naturalmente; só essa função tinha a checagem estrita. Corrigida para aceitar 2 ou 3
+partes. Testes novos em `tests/calculations.test.js`.
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/sheets-api.js`,
+`tests/calculations.test.js`
 
 ---
 

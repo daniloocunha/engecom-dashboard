@@ -703,6 +703,29 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.7.3 (2026-08-04)** - Fix: HI com horário em formato HH:MM:SS não contava horas:
+
+- `GoogleSheetsAPI.converterHoraParaMinutos()` exigia exatamente 2 partes ao separar por `:`
+  (`HH:MM`) e rejeitava (retornava `null`) qualquer horário com segundos (`HH:MM:SS` — formato
+  que o Google Sheets às vezes aplica à célula). Isso zerava `calcularDuracaoHoras()` e, por
+  consequência, `hi.hh`/`HH Improdutivas` de qualquer apontamento com esse formato — reportado
+  como "Aguardando Liberação 08:00:00–11:26:00" aparecendo com `HH: 0.00` no card Horas
+  Improdutivas do modal Detalhes do Dia, mesmo sendo uma justificativa que conta como HI
+- Todo o resto do código (`calendario-tp.js`, `calendario-ts.js`, `visao-geral.js`,
+  `calculations.js`) já fazia `[h, m] = t.split(':')`, que ignora segundos naturalmente — só essa
+  função tinha a checagem estrita. Corrigida para aceitar 2 ou 3 partes, ignorando os segundos
+- Afeta qualquer lugar que leia `hi.hh`/`HH Improdutivas` por linha: o próprio card de Horas
+  Improdutivas do modal e a tabela de Apontamentos na Visão Geral. Os totais "oficiais" de
+  faturamento (`CalculadoraMedicao._mergeHIIntervals`) não eram afetados, pois já tinham o parse
+  tolerante a segundos
+- **Testes**: `tests/calculations.test.js` ganhou casos para `converterHoraParaMinutos` (HH:MM,
+  HH:MM:SS, formatos inválidos) e `calcularDuracaoHoras` reproduzindo o caso relatado
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/sheets-api.js`,
+`tests/calculations.test.js`
+
+---
+
 **Version 2.7.2 (2026-08-04)** - Fix: turma sem RDO no mês filtrado aparecia no calendário TP:
 
 - `calendario-tp.js` → `renderizarTodos()` montava a lista de turmas (`tpsSet`) a partir de
@@ -1088,7 +1111,7 @@ Após cada reimplantação, atualizar o dump `appscript_atual.md`.
 
 ## Version Information
 
-- **Current Version**: 2.7.2
+- **Current Version**: 2.7.3
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)
