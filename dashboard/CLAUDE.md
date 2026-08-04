@@ -703,6 +703,19 @@ if (tipo.includes('NovoTipo')) {
 
 ### Recent Updates
 
+**Version 2.7.2 (2026-08-04)** - Fix: turma sem RDO no mês filtrado aparecia no calendário TP:
+
+- `calendario-tp.js` → `renderizarTodos()` montava a lista de turmas (`tpsSet`) a partir de
+  **todo** o histórico de `dados.rdos`, sem filtrar por mês/ano — uma turma que só trabalhou em
+  outro mês continuava aparecendo no card "Produção no mês" e no calendário do mês atual, sempre
+  com 0/31 dias. `calendario-ts.js` já fazia esse filtro corretamente; `calendario-tp.js` agora
+  segue o mesmo padrão (turma + data no mês/ano atual + `Deletado ≠ Sim`)
+- Sem mudança visual para quem já filtrava certo — só some quem não deveria aparecer
+
+**Arquivos alterados:** `dashboard/index.html`, `dashboard/js/calendario-tp.js`
+
+---
+
 **Version 2.7.1 (2026-08-03)** - "Produção no mês" consolidado em um card por aba:
 
 - O card "Produção no mês" da v2.7.0 era repetido dentro do bloco de cada turma. Agora é **um
@@ -1075,7 +1088,7 @@ Após cada reimplantação, atualizar o dump `appscript_atual.md`.
 
 ## Version Information
 
-- **Current Version**: 2.7.1
+- **Current Version**: 2.7.2
 - **Target Browsers**: Modern browsers (Chrome, Firefox, Edge, Safari)
 - **Dependencies**:
   - Bootstrap 5.3.0 (CSS framework)
