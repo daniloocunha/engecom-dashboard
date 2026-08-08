@@ -298,7 +298,10 @@ com.example.calculadorahh/
 ├── utils/
 │   ├── AppConstants.kt                 # Regex, ranges de validação, constantes
 │   ├── AppLogger.kt                    # Logging estruturado com armazenamento em arquivo
-│   ├── DateFormatter.kt                # Formatação de data/hora
+│   ├── DateFormatter.kt                # ⚠️ SEM CHAMADORES — as 15 funções estão
+│   │                                   # mortas; DatabaseHelper, Sheets e as
+│   │                                   # Activities seguem criando SimpleDateFormat
+│   │                                   # na mão (Fragmento 8 do RELATORIO_QUALIDADE)
 │   ├── ErrorHandler.kt                 # Mensagens de erro amigáveis ao usuário
 │   ├── IntentExtensions.kt             # Compatibilidade de Intent (Android < API 33)
 │   ├── KmInputMask.kt                  # Máscara de entrada KM ferroviário "123+456"

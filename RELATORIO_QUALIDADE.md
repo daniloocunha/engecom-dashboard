@@ -21,6 +21,7 @@
 5. [Fragmento 5 — Transportes + ModeloLoader + RDOValidator](#fragmento-5--transportes--modeloloader--rdovalidator) — 🟡 3 médios · ⚪ 5 baixos
 6. [Fragmento 6 — Checklist de Qualidade](#fragmento-6--checklist-de-qualidade) — 🟡 1 médio · ⚪ 4 baixos
 7. [Fragmento 7 — Sincronização Google Sheets](#fragmento-7--sincronização-google-sheets) — 🔴 **1 crítico (segurança)** · 🟠 1 alto · 🟡 2 médios · ⚪ 6 baixos
+8. [Fragmento 8 — Utils: validação e formatação](#fragmento-8--utils-validação-e-formatação) — 🟠 1 alto · 🟡 1 médio · ⚪ 5 baixos
 
 ---
 
@@ -1077,5 +1078,156 @@ três: `HIManager.OPERADORES_PADRAO`, `AppConstants.DEFAULT_COLABORADORES_HI`
   Data de Criação original.
 - `credenciaisPresentes()` distingue "credencial ausente do APK" de outros erros
   de inicialização, o que dá uma mensagem de diagnóstico útil em builds de teste.
+
+---
+
+## Fragmento 8 — Utils: validação e formatação
+
+**Escopo:** `utils/TimeValidator.kt` (178), `utils/TimeInputMask.kt` (53),
+`utils/ValidationHelper.kt` (137), `utils/KmUtils.kt` (60),
+`utils/KmInputMask.kt` (43), `utils/DateFormatter.kt` (237),
+`utils/AppConstants.kt` (149).
+
+### O que essa camada faz
+
+É a base de validação e formatação compartilhada por toda a UI:
+
+- **`TimeValidator`** — fonte única de verdade para horários: `validateAndParse`
+  (regex + range), `calcularDiferencaHoras` (com suporte a overnight) e
+  `validatePeriodo`.
+- **`ValidationHelper`** — validações prontas para o formulário, em duas
+  famílias: as que escrevem erro no `TextInputLayout` e as "puras" que devolvem
+  `String?` (`validarParKM`, `validarParHorario`).
+- **`KmUtils`** — conversão entre o formato ferroviário `"123+456"` e `Double`
+  (123.456 km).
+- **`KmInputMask` / `TimeInputMask`** — máscaras de digitação (`TextWatcher`).
+- **`DateFormatter`** — parsing, formatação, validação e comparação de datas.
+- **`AppConstants`** — constantes centralizadas.
+
+### Achados
+
+**🟠 Alto — `DateFormatter.kt` inteiro (237 linhas) está morto, e a duplicação que ele foi criado para eliminar continua intacta**
+
+Nenhuma das **15 funções públicas** tem um único chamador em todo o app.
+
+O agravante está no próprio KDoc do arquivo, que declara a razão de existir:
+*"Elimina duplicação de código de formatação de datas espalhado por várias
+classes (DatabaseHelper, GoogleSheetsService, Fragments)"*. Essas mesmas classes
+continuam instanciando `SimpleDateFormat` na mão — **20+ ocorrências**, sendo
+**11 só no `DatabaseHelper`**, além de `GoogleSheetsService`,
+`SheetsAuditService`, `HistoricoRDOActivity`, `CalendarioRDOActivity`,
+`HomeActivity` e `HistoricoRDOAdapter`.
+
+Não é um problema apenas estético: com os formatos espalhados como literais, o
+Fragmento 2 já mostrou o custo — a coluna `data` guarda `dd/MM/yyyy`, o que
+obrigou 5 cópias da expressão `substr(data,7,4)||'-'||...` nas queries. Um
+ponto único de formatação tornaria a migração para ISO uma mudança local.
+
+Efeito colateral: 5 constantes de `AppConstants` (`PATTERN_FULL_DATE`,
+`PATTERN_SHORT_DATE`, `PATTERN_TIMESTAMP`, `PATTERN_TIME`, `REGEX_DATE_FORMAT`)
+só são referenciadas **dentro** do `DateFormatter` — logo, transitivamente
+mortas também.
+
+É o **segundo arquivo inteiro sem chamadores** encontrado nesta auditoria; com
+o `DatabaseHelperExtensions.kt` (383 linhas, Fragmento 2), já são **620 linhas
+de código morto**. **Anotado no CLAUDE.md.**
+
+**🟡 Médio — `KmUtils.formatarKm()` perde metros por truncamento, e a perda é gravada ao editar um transporte**
+
+`formatarKm` calcula os metros com `((km - kmInteiros) * 1000).toInt()`. A
+subtração em ponto flutuante produz valores como `6.999999…`, e `toInt()`
+**trunca** em vez de arredondar. Verificado numericamente:
+
+| Valor armazenado | Campo exibe | Volta como | |
+|---|---|---|---|
+| 10.007 | `10+006` | 10.006 | perde 1 m |
+| 5.999 | `5+998` | 5.998 | perde 1 m |
+| 1.001 | `1` | 1.0 | perde o metro **e** a notação |
+| 123.456 | `123+456` | 123.456 | ok |
+| 123.001 | `123+001` | 123.001 | ok |
+
+A perda é gravada porque `TransportesManager.mostrarDialogEditar:161-162` usa
+`formatarKm` para pré-preencher os campos; ao confirmar, o valor exibido é o
+que vai para o banco e para a aba `TransporteSucatas` do Sheets.
+
+Verificado também que **a perda não é cumulativa**: depois da primeira edição o
+valor estabiliza (10.006 volta a formatar como `10+006`). Trocar `toInt()` por
+`Math.round()` corrige — testado, o round-trip fica exato.
+
+**⚪ Baixo — `converterKmParaDouble` corromperia entrada com ponto decimal, mas a máscara protege**
+
+A função faz `.replace(".", "")` antes do parse para tratar separador de
+milhar — e nesse caso está certa (`"1.234+567"` → 1234.567). Mas no ramo sem
+`+` isso destrói decimais: `"123.5"` → **1235.0** (10×) e `"123.456"` →
+**123456.0** (1000×).
+
+**Não é alcançável hoje**: os quatro campos de KM (`RDOFragment:625-626`,
+`TransportesManager:50-51` e `:153-154`) têm `KmInputMask` aplicada, e a
+máscara remove o "." a cada tecla antes de a função ser chamada. Fica
+registrado como fragilidade latente — a função é pública e não valida a própria
+pré-condição.
+
+**⚪ Baixo — 13 constantes mortas em `AppConstants`, com os valores hardcoded exatamente onde elas deveriam entrar**
+
+O KDoc do arquivo diz "Organiza todos os valores hardcoded em um único local".
+Sem uso: `QUANTIDADE_DEFAULT`, `MAX_TENTATIVAS_OPERACAO`, `MAX_TENTATIVAS_SYNC`,
+`INTERVALO_SYNC_HORAS`, `INTERVALO_CLEANUP_DIAS`, `MAX_QUERY_LIMIT`,
+`TIMEOUT_NETWORK_MS`, `SHEETS_BATCH_DELAY_MS`, `SHEETS_BATCH_SIZE`,
+`DEFAULT_COLABORADORES_HI`, `TOAST_DURATION_SHORT`, `TOAST_DURATION_LONG`,
+`UI_ANIMATION_DELAY_MS` — somadas às 5 transitivamente mortas via
+`DateFormatter`, são **18 de 35**.
+
+E os valores correspondentes estão hardcoded justamente nos pontos que as
+constantes deveriam cobrir:
+
+| Constante morta | Valor hardcoded em |
+|---|---|
+| `INTERVALO_SYNC_HORAS` | `CalculadoraHHApplication:64` (`6, TimeUnit.HOURS`) |
+| `INTERVALO_CLEANUP_DIAS` | `CalculadoraHHApplication:91` (`7, TimeUnit.DAYS`) |
+| `MAX_TENTATIVAS_SYNC` | `DatabaseHelper:922` (`novasTentativas >= 3`) |
+| `DEFAULT_COLABORADORES_HI` | `HIManager:392` + `SheetsRelatedDataManager:95` |
+
+**⚪ Baixo — as duas máscaras usam callbacks diferentes do `TextWatcher`**
+
+`KmInputMask` formata em `afterTextChanged` (correto). `TimeInputMask` formata
+em `onTextChanged` e chama `setText()` de dentro dele — a documentação do
+Android recomenda `afterTextChanged` justamente porque o `Editable` está sendo
+despachado nesse momento. Funciona na prática, mas é inconsistência entre dois
+utilitários irmãos e um risco conhecido de reentrância.
+
+**⚪ Baixo — `KmInputMask` ignora entradas com mais de 6 dígitos**
+
+`if (text.isNotEmpty() && text.length <= 6)` — acima disso nenhuma formatação é
+aplicada e o campo fica com o texto cru. Na prática limita a máscara a
+`999+999`; trechos com quilometragem ≥ 1000 ficam sem formatação.
+
+Atrito de UX relacionado: apagar um dígito de `"123+456"` re-formata para
+`"12+345"`, porque o `+` é recalculado a cada tecla a partir dos últimos 3
+dígitos. É inerente a esse estilo de máscara, mas muda o significado do que o
+usuário estava editando.
+
+**⚪ Baixo — `TimeValidator.formatMinutesToTime` e `formatHoursToTime` mortas**
+
+Sem chamadores. `formatHoursToTime` ainda usa `(totalHours * 60).toInt()`, ou
+seja, carrega o mesmo truncamento do `formatarKm` caso venha a ser adotada.
+
+### O que está bem resolvido
+
+- **`TimeValidator` é a centralização que deu certo** — e o contraste com o
+  `DateFormatter` é instrutivo: `validateAndParse` é usada em 6 pontos,
+  `calcularDiferencaHoras` em 3, e o `ValidationHelper` **delega** a ela em vez
+  de reimplementar, com comentário explícito ("Delega validação de formato ao
+  TimeValidator (fonte única de verdade)"). Mesma intenção de projeto, dois
+  desfechos opostos.
+- O tratamento de overnight em `calcularDiferencaHoras` está correto nos dois
+  ramos e é aplicado de forma consistente por todos os chamadores.
+- `DateFormatter` cria um `SimpleDateFormat` por chamada em vez de compartilhar
+  instância — decisão certa (`SimpleDateFormat` não é thread-safe) e
+  documentada no KDoc.
+- `parseFullDate`/`parseTime` usam `isLenient = false`, impedindo que
+  "32/13/2024" seja silenciosamente aceito — mais rigoroso que o default do
+  Java.
+- `REGEX_TIME_FORMAT` (`^([01]?[0-9]|2[0-3]):[0-5][0-9]$`) está correto e é a
+  base efetiva da validação de horário em todo o app.
 
 ---
