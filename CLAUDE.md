@@ -397,8 +397,14 @@ dashboard/
 
 #### 6. Business Logic Managers (Template Method Pattern)
 - **BaseItemManager\<T\>**: Classe base abstrata; métodos concretos: `getItens()`, `adicionarItem()`, `removerItem()`; abstratos: `mostrarDialogAdicionar()`, `adicionarView()`, etc.
-- **ServicosManager**: Carrega serviços do JSON, gerencia seleção e cálculos HH
-- **MateriaisManager**: Gerencia materiais com seleção de unidade (KG, M³, M, UN)
+- **ServicosManager**: Carrega serviços do JSON e gerencia a seleção no RDO.
+  ⚠️ A **unidade** de cada serviço não vem do `servicos.json` (que só tem
+  `descricao` + `coeficiente`) — é **inferida por substring** da descrição
+  ("Trilho"→m, "Lastro"/"Pedra"/"Roçada"→m², resto→uni). 75 dos 102 serviços
+  caem no default "uni" e "m³" é inalcançável. Essa unidade é gravada na aba
+  `Servicos` do Sheets. Ver Fragmento 3 em `RELATORIO_QUALIDADE.md`
+- **MateriaisManager**: Gerencia materiais com seleção de unidade
+  (`AppConstants.UNIDADES_MATERIAL`: uni, m, m², m³, kg, L, cx, PC)
 - **HIManager**: Horas Improdutivas com cálculo por categoria (Chuva ÷2, outros × 1)
 - **TransportesManager**: Transportes com validação de KM e horários
 - **RDOValidator**: Validação do formulário RDO — lógica pura sem dependências de UI Android. Retorna `RDOValidationResult` (Valid | Error | ConfirmacaoNecessaria)

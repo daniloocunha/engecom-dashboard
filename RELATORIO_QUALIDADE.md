@@ -16,6 +16,7 @@
 
 1. [Fragmento 1 — Modelos de dados](#fragmento-1--modelos-de-dados) — 🟠 1 alto · 🟡 1 médio (doc) · ⚪ 1 baixo
 2. [Fragmento 2 — Camada de banco de dados](#fragmento-2--camada-de-banco-de-dados) — 🔴 1 crítico · 🟠 2 altos · 🟡 2 médios · ⚪ 2 baixos
+3. [Fragmento 3 — Managers base + Serviços + Materiais](#fragmento-3--managers-base--serviços--materiais) — 🟠 1 alto · 🟡 2 médios · ⚪ 4 baixos
 
 ---
 
@@ -283,5 +284,162 @@ comum.
 - `atualizarRDO()` faz leitura do estado anterior e escrita dentro da mesma
   transação, e devolve o número antigo para a renomeação em cascata no Sheets
   — desenho certo para o problema.
+
+---
+
+## Fragmento 3 — Managers base + Serviços + Materiais
+
+**Escopo:** `domain/managers/BaseItemManager.kt` (110), `ServicosManager.kt`
+(320), `MateriaisManager.kt` (164). Consultados como apoio:
+`utils/ServicosCache.kt`, `utils/AppConstants.kt`,
+`res/layout/dialog_adicionar_servico_rdo.xml`, `res/raw/servicos.json`.
+
+### O que esses arquivos fazem
+
+**`BaseItemManager<T>`** é a classe base (Template Method) das listas
+dinâmicas do formulário de RDO — as seções onde o usuário vai acrescentando
+linhas (Serviços, Materiais, HI, Transportes). Ela mantém dois estados em
+paralelo: a lista de dados (`itensAdicionados`) e as views correspondentes
+dentro de um `LinearLayout`. Os métodos concretos (`adicionarItem`,
+`removerItem`, `atualizarItem`, `limpar`, `getItens`) cuidam de manter os dois
+em sincronia; as subclasses implementam o que é específico de cada tipo:
+montar o diálogo de adicionar/editar, inflar a view do item e fornecer as
+mensagens de Toast. O hook `onListaAlterada()` (adicionado na v5.3.0) permite
+que a subclasse atualize resumos na tela a cada mudança.
+
+**`ServicosManager`** implementa a seção de Serviços. No construtor carrega os
+102 serviços do `servicos.json` (via `ServicosCache`) e os converte em objetos
+`ServicoRDO` que servem de "catálogo" para o `AutoCompleteTextView`. Suporta
+dois modos: serviço do catálogo (descrição obrigatoriamente da lista) ou
+**serviço customizado** (nome livre + unidade escolhida + HH manual opcional).
+
+**`MateriaisManager`** é o mais simples: descrição livre + quantidade +
+unidade de `AppConstants.UNIDADES_MATERIAL`.
+
+### Achados
+
+**🟠 Alto — o campo de busca de serviço fica travado (somente leitura) depois de marcar e desmarcar "customizado"**
+
+`ServicosManager.kt:61-77`. O XML define
+`android:inputType="textNoSuggestions"` no `AutoCompleteTextView`, ou seja,
+editável. O listener do checkbox, no ramo *desmarcado*, faz
+`autoCompleteServico.inputType = android.text.InputType.TYPE_NULL` — e
+`TYPE_NULL` deixa o campo **não editável** (o teclado não abre).
+
+*Cenário concreto:* o usuário abre "Adicionar Serviço", marca "serviço
+customizado", muda de ideia e desmarca. A partir daí o campo de busca não
+aceita digitação, e a única forma de escolher entre os 102 serviços é
+rolar o dropdown inteiro — ou fechar e reabrir o diálogo. O estado inicial
+está correto (o listener ainda não disparou), então o problema só aparece
+depois do ciclo marcar→desmarcar.
+
+A intenção provável era forçar a seleção pela lista, mas digitar é justamente
+o mecanismo de filtro do autocomplete; desligar a digitação inutiliza a busca.
+
+**🟡 Médio — a unidade dos serviços é adivinhada por substring da descrição, e esse palpite vai para o Google Sheets**
+
+`ServicosManager.carregarServicos():298-319`. O `servicos.json` — fonte única
+de verdade — só tem `descricao` e `coeficiente`; **não tem unidade**. O manager
+infere a unidade com uma cadeia de seis `contains()`. Rodando a heurística
+contra os 102 serviços reais:
+
+| Unidade inferida | Qtd |
+|---|---|
+| `uni` (default) | 75 |
+| `m` | 19 |
+| `m²` | 8 |
+| `m³` | **0 — inalcançável** |
+
+Casos claramente errados que a heurística produz hoje:
+
+- `Corte De Trilho` → **m** (é contagem por corte)
+- `Serv Furação De Trilho` → **m** (por furo)
+- `Serv Subst Placa Duplo Enc Contra Trilho` → **m** (por placa)
+- `Nivelamento E Alinhamento Manual De AMV` → **m** (por AMV)
+- `Serv Encaixe Pedra Manual Em AMV` → **m²** (por AMV)
+- `Descarga De Pedra Britada` → **m²** (lastro é volume → m³, que a
+  heurística nunca gera)
+
+*Impacto:* a unidade **não** participa do cálculo de HH (que é
+`quantidade × coeficiente`), então as horas não estão erradas por causa
+disso. Mas ela **é gravada na aba `Servicos` do Sheets**
+(`SheetsConstants.kt:50`, `SheetsRelatedDataManager.kt:67`) e aparece nos
+relatórios — ou seja, contamina o dado de auditoria/medição, não o número de
+horas. A correção estrutural é acrescentar `unidade` ao `servicos.json` e
+propagá-la pelo `npm run sync-servicos`, eliminando o palpite.
+**Documentado no CLAUDE.md nesta sessão.**
+
+**🟡 Médio — `mostrarDialogAdicionar` e `mostrarDialogEditar` são quase idênticos; o refactor da v5.3.0 só chegou no HIManager**
+
+`ServicosManager` tem 108 + 111 linhas com ~90% de sobreposição;
+`MateriaisManager`, 51 + 58 linhas na mesma situação. O changelog da v5.3.0
+registra exatamente esse conserto no `HIManager` ("~100 linhas duplicadas
+entre os diálogos de adicionar e editar — agora é um único
+`mostrarDialog(hiAtual, itemView)`"), mas os outros dois managers ficaram
+para trás.
+
+O próprio `BaseItemManager` institucionaliza a duplicação, ao declarar
+`mostrarDialogAdicionar()` e `mostrarDialogEditar()` como dois abstratos
+separados — o `HIManager` teve que contornar isso.
+
+O risco não é teórico: **o bug do `inputType` acima existe só no diálogo de
+adicionar**; o de editar não registra o listener e por isso se comporta de
+outro jeito. É exatamente o modo de falha que a duplicação produz.
+
+**⚪ Baixo — a lista de unidades existe como constante, mas `ServicosManager` repete o literal duas vezes**
+
+`AppConstants.UNIDADES_MATERIAL` já é
+`listOf("uni","m","m²","m³","kg","L","cx","PC")` e o `MateriaisManager` a usa.
+O `ServicosManager` reescreve o mesmo literal em `:55` e `:196` — três cópias
+da mesma lista.
+
+Junto disso: o `CLAUDE.md` descrevia o `MateriaisManager` como tendo 4
+unidades ("KG, M³, M, UN"); são 8. **Corrigido nesta sessão.**
+
+**⚪ Baixo — editar um item o move para o fim da lista**
+
+`BaseItemManager.atualizarItem():66-71` remove o antigo e chama
+`adicionarItem(itemNovo)`, que faz `add()` no fim da lista e `addView()` no
+fim do container. Editar o 1º de 5 serviços o joga para a 5ª posição — na
+tela, no banco e na ordem enviada ao Sheets. Lista e views continuam
+coerentes entre si (não corrompe nada), mas a ordem de lançamento se perde.
+
+**⚪ Baixo — unidade fora da lista é trocada por "uni" silenciosamente ao editar**
+
+`ServicosManager:214-217` e `MateriaisManager:123-126` fazem
+`unidades.indexOf(atual.unidade)`; quando dá -1, o spinner fica em 0 ("uni") e
+ao confirmar o item é salvo com a unidade trocada, sem nenhum aviso.
+Alcançável ao editar um item vindo de RDO antigo ou de modelo cuja unidade
+não esteja mais na lista.
+
+**⚪ Baixo — 4 métodos públicos mortos em `ServicosCache`**
+
+`clearCache()`, `getCount()`, `findByDescricao()` e `search()` não têm
+chamadores. Detalhar no **Fragmento 9** (utils), já que o arquivo pertence
+àquele escopo — anotado aqui porque é a fonte de dados desta camada.
+
+### Observação estrutural (para o Fragmento 36)
+
+`carregarServicos()` **descarta o `coeficiente`** ao converter
+`Servico(descricao, coeficiente)` → `ServicoRDO(descricao, 0.0, unidade)`. Isso
+é por desenho — o coeficiente é reaplicado do lado do dashboard por
+`enriquecerServicosComCoeficientes()` — mas a consequência é que **a string
+`descricao` é a chave de junção entre app e dashboard**. Renomear um serviço
+no `servicos.json` faz os RDOs históricos perderem o coeficiente
+silenciosamente. Vou conferir o outro lado dessa junção nos Fragmentos 19 e 36.
+
+### O que está bem resolvido
+
+- `getItens()` devolve `itensAdicionados.toList()` — cópia imutável, então a
+  UI externa não consegue mutar a lista interna do manager.
+- `removerItem()` mantém lista e views em sincronia mesmo com itens
+  estruturalmente idênticos: remove o primeiro igual da lista e a view
+  clicada; como os itens são iguais, o resultado é indistinguível. É um
+  contraste interessante com o problema achado no `CalculadoraHHViewModel`
+  (Fragmento 1), que usa `filter { it != x }` e apaga **todos** os iguais.
+- Validação de quantidade centralizada em `ValidationHelper.validarQuantidade()`
+  nos dois managers, em vez de reimplementada.
+- `ServicosCache` usa `@Volatile` + double-checked locking corretamente, e
+  degrada para lista vazia se o JSON falhar, em vez de derrubar o app.
 
 ---
