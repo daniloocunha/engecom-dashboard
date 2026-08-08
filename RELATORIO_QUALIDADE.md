@@ -24,6 +24,7 @@
 8. [Fragmento 8 — Utils: validação e formatação](#fragmento-8--utils-validação-e-formatação) — 🟠 1 alto · 🟡 1 médio · ⚪ 5 baixos
 9. [Fragmento 9 — Utils: sync, update e logging](#fragmento-9--utils-sync-update-e-logging) — 🟡 2 médios · ⚪ 7 baixos · + padrão sistêmico
 10. [Fragmento 10 — Workers + Application](#fragmento-10--workers--application) — 🟡 2 médios · ⚪ 5 baixos
+11. [Fragmento 11 — ViewModel + Calculadora HH](#fragmento-11--viewmodel--calculadora-hh) — 🟠 2 altos · 🟡 2 médios · ⚪ 4 baixos
 
 ---
 
@@ -1519,5 +1520,152 @@ propriedade herdada.
   de resultados para distinguir erro de "zero órfãos".
 - O tema é aplicado em `onCreate` antes de qualquer Activity, e a remoção do
   Material You está documentada no próprio código com a razão.
+
+---
+
+## Fragmento 11 — ViewModel + Calculadora HH
+
+**Escopo:** `viewmodels/CalculadoraHHViewModel.kt` (244),
+`ui/fragments/CalculadoraHHFragment.kt` (236),
+`res/layout/fragment_calculadora_hh.xml`.
+
+### O que essa tela faz
+
+É a aba mais simples do app e um fluxo **deliberadamente independente** do RDO:
+o usuário escolhe serviços de uma lista, informa a quantidade, e o total de HH
+vai sendo somado (`quantidade × coeficiente`) contra a meta diária de 72 HH.
+Também aceita lançamentos de Horas Improdutivas com tipo livre e par de
+horários. Nada disso é persistido — é uma calculadora de apoio, não gera RDO.
+
+O `CalculadoraHHViewModel` guarda o estado em cinco `LiveData`
+(`servicosBase`, `servicosAdicionados`, `hisAdicionados`, `totalHoras`,
+`horasFaltantes`) mais um sexto, `erro`, e usa o padrão imutável — cada
+alteração cria uma lista nova em vez de mutar a existente.
+
+### Achados
+
+**🟠 Alto — nenhuma validação da Calculadora dá feedback ao usuário; o LiveData de erro existe e nunca é observado**
+
+O ViewModel expõe `erro: LiveData<String?>` e `clearErro()`, e `adicionarHI()`
+popula `_erro` em quatro situações distintas (tipo vazio, horários vazios,
+período inválido, falha no cálculo). Mas `observarViewModel()` (`:181-220`)
+observa `servicosBase`, `servicosAdicionados`, `hisAdicionados`, `totalHoras` e
+`horasFaltantes` — **e não `erro`**. Confirmado por grep em todo o app:
+`clearErro()` não tem nenhum chamador e não existe observer de `erro` em lugar
+algum.
+
+Pior: `adicionarServico()` e `adicionarServicoCustomizado()` fazem `return`
+silencioso quando a quantidade é inválida, **sem sequer popular `_erro`**.
+
+Efeito prático: tocar "+ ADICIONAR SERVIÇO" sem preencher a quantidade, ou
+"+ ADICIONAR HI" sem horários, **não faz nada e não informa nada** — o botão
+parece simplesmente quebrado. Todo o mecanismo de erro foi construído no
+ViewModel e nunca ligado à tela.
+
+**🟠 Alto — remoção por igualdade estrutural apaga todos os itens idênticos (confirmação do Fragmento 1)**
+
+Agora rastreado ponta a ponta: `ServicosAdapter` e `HIsAdapter` chamam
+`viewModel.removerServico(servico)` / `removerHI(hi)` passando o **objeto**
+(`:59-71`); o ViewModel executa `listaAtual.filter { it != x }` (`:117`, `:187`).
+Como `ServicoCalculado` e `HICalculado` são `data class`, o filtro remove
+**todas** as ocorrências estruturalmente iguais.
+
+Cenário realista: a turma executa o mesmo serviço em dois trechos e o usuário
+lança "Substituição Dormente / 10" duas vezes — dois itens idênticos na lista.
+Ao remover um, **os dois somem** e o total de horas cai o dobro, sem aviso. O
+mesmo vale para duas HIs de mesmo tipo e mesmo horário.
+
+Correção natural: remover por índice — o adapter já conhece a posição — em vez
+de por valor.
+
+**🟡 Médio — serviço customizado nunca soma horas, e a tela não oferece como informar o HH**
+
+`adicionarServicoCustomizado(descricao, quantidade, observacoes)` é chamado com
+3 argumentos (`:117-121`); o 4º (`hhManual: Double? = null`) não é passado — e o
+layout da Calculadora **não tem campo de HH manual** (zero ocorrências de
+`hhManual` no XML). No ViewModel, `horas = 0.0` quando `hhManual` é nulo, e
+`calcularTotal()` sequer é chamado nesse caminho.
+
+O aviso na tela é honesto — *"⚠️ Serviços customizados não calculam HH
+automaticamente. Adicione o coeficiente no dashboard depois."* — então o
+usuário não é enganado. O que fica registrado é a **assimetria com o RDO**,
+onde o mesmo recurso tem campo de HH manual (`etHHManualServicoRDO`): duas
+telas do mesmo app, dois comportamentos para a mesma funcionalidade.
+
+**🟡 Médio — `servicoSelecionado` é capturado no clique e não revalidado na confirmação**
+
+O `setOnItemClickListener` (`:173-177`) guarda o `Servico` escolhido numa
+variável de instância. O `ServicosManager` (RDO) resolve o mesmo problema de
+forma diferente e mais robusta: busca
+`servicosBase.find { it.descricao == textoDigitado }` **no momento de
+confirmar**. Aqui, se o texto mudar depois da seleção — possível no modo
+customizado, que libera a digitação — `servicoSelecionado` fica desatualizado.
+
+Atenuante relevante: no modo normal o campo usa
+`Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu` com
+`inputType="none"`, então só é possível escolher pelo dropdown, o que mantém a
+variável coerente. O risco fica restrito à transição customizado → normal.
+
+### Um achado do Fragmento 3 que **não** se aplica aqui
+
+À primeira vista, `binding.actvServico.inputType = InputType.TYPE_NULL`
+(`:101`) parecia o mesmo bug que o `ServicosManager` (Fragmento 3). **Não é.**
+Verificado no layout: o `actvServico` já nasce com `android:inputType="none"`
+dentro de um `ExposedDropdownMenu` — o padrão Material de dropdown exposto, em
+que tocar no campo abre a lista completa sem precisar digitar. Ou seja, o ramo
+`else` apenas **restaura o estado original**, e está correto.
+
+O bug do Fragmento 3 continua específico do `ServicosManager`, onde o
+`AutoCompleteTextView` fica solto (sem `ExposedDropdownMenu`), nasce com
+`inputType="textNoSuggestions"` e hint *"Digite para pesquisar…"* — e o toggle
+trava a digitação mantendo o mesmo hint, contradizendo o que a tela pede.
+
+### Demais achados
+
+**⚪ Baixo — o `TimePickerDialog` sempre abre na hora atual**
+`mostrarTimePicker` (`:222-230`) usa `Calendar.getInstance()` toda vez,
+ignorando o horário já selecionado. Ao corrigir o horário de fim depois de
+escolher o início, o usuário recomeça da hora do relógio.
+
+**⚪ Baixo — "duplicar HI" copia só o tipo e depende da hierarquia do layout**
+`onDuplicateClicked` (`:72-81`) preenche apenas `etTipoHI` e tenta rolar a tela
+com `binding.root.parent as? NestedScrollView`. Se a hierarquia mudar, o scroll
+falha em silêncio. Compare com o `HIManager` do RDO, cujo "duplicar" abre o
+diálogo já preenchido com justificativa, descrição e operadores.
+
+**⚪ Baixo — `String.format` sem `Locale` em quatro pontos**
+`:146`, `:153`, `:204`, `:214`. Consistente com o mesmo achado no
+`RDOValidator` (Fragmento 5), e em contraste com `HIManager.formatarHH`, que
+passa `Locale` explicitamente.
+
+**⚪ Baixo — a meta é sempre 72 HH, mesmo para turmas TS**
+`META_HORAS_DIARIAS = AppConstants.META_HORAS_DIARIAS_DEFAULT` (72, que é a
+meta de TP: 12 operadores × 6 h). O dashboard trabalha com duas metas
+(`META_DIARIA_TP` = 72 e `META_DIARIA_TS` = 6). Para um soldador de turma TS, a
+Calculadora vai sempre exibir "Faltam …h para completar o dia" em vermelho.
+Note que a Calculadora não sabe a que turma pertence — não há seleção de turma
+nessa tela —, então a correção não é trivial.
+
+**Observação (não é bug):** o total da Calculadora soma HH produtivas e
+improdutivas sem distinção, e não aplica as regras do catálogo de
+justificativas (neutro, chuva ÷ 2, trem < 20 min) que o `HIManager` do RDO usa.
+O CLAUDE.md registra a Calculadora como fluxo deliberadamente mais simples, mas
+na prática as duas telas do app respondem "quanto falta para fechar o dia" por
+critérios diferentes.
+
+### O que está bem resolvido
+
+- O padrão imutável nas listas do ViewModel (`listaAtual + item`, `filter`)
+  evita o vazamento que uma `MutableLiveData<MutableList>` compartilhada
+  causaria — e a intenção está comentada no código.
+- `_binding = null` em `onDestroyView` — padrão correto de ViewBinding em
+  Fragment, sem reter a hierarquia de views.
+- Observers registrados com `viewLifecycleOwner`, e não com `this`, que é o
+  correto para Fragment.
+- O campo de serviço usa o componente Material adequado (`ExposedDropdownMenu`),
+  que resolve a escolha entre 102 itens sem exigir digitação.
+- `adicionarHI` faz o parse em `Dispatchers.Default` e volta à Main para
+  atualizar o LiveData — excesso de cuidado para o volume atual, mas correto.
+- O aviso sobre serviço customizado é explícito e honesto quanto à limitação.
 
 ---
