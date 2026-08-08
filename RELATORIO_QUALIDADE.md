@@ -20,6 +20,7 @@
 4. [Fragmento 4 — Horas Improdutivas](#fragmento-4--horas-improdutivas) — 🟡 2 médios · ⚪ 3 baixos
 5. [Fragmento 5 — Transportes + ModeloLoader + RDOValidator](#fragmento-5--transportes--modeloloader--rdovalidator) — 🟡 3 médios · ⚪ 5 baixos
 6. [Fragmento 6 — Checklist de Qualidade](#fragmento-6--checklist-de-qualidade) — 🟡 1 médio · ⚪ 4 baixos
+7. [Fragmento 7 — Sincronização Google Sheets](#fragmento-7--sincronização-google-sheets) — 🔴 **1 crítico (segurança)** · 🟠 1 alto · 🟡 2 médios · ⚪ 6 baixos
 
 ---
 
@@ -888,5 +889,193 @@ auditoria da RUMO. O CLAUDE.md já registra o sync como etapa futura.
   (`["Papel","App"]`); um `tipo:"opcoes"` sem `opcoes` deixaria o usuário sem
   como responder e o `validar()` bloquearia o salvamento para sempre.
 - 15 testes JVM de lógica pura, batendo com o número que o CLAUDE.md afirma.
+
+---
+
+## Fragmento 7 — Sincronização Google Sheets
+
+**Escopo:** `services/GoogleSheetsService.kt` (329), `SheetsConstants.kt` (105),
+`SheetsHeaderManager.kt` (193), `SheetsLookupHelper.kt` (48),
+`SheetsRelatedDataManager.kt` (282), `SheetsAuditService.kt` (251).
+Conferidos como apoio: `app/build.gradle.kts`, `.gitignore`,
+`utils/UpdateDownloader.kt`, e a visibilidade do repositório/Releases no GitHub.
+
+### O que essa camada faz
+
+`GoogleSheetsService` é uma facade que autentica na Sheets API v4 com uma
+credencial de conta de serviço e delega para 5 helpers especializados. O fluxo
+de `syncRDO()`:
+
+1. Valida campos obrigatórios (`numeroRDO`, `data`, `numeroOS`).
+2. `findRowNumberByNumeroRDO()` procura a linha pelo **Número RDO** (coluna B da
+   aba RDO) — aceitando um `numeroRDOAntigo` para suportar edição de data/O.S.
+3. Achou → `updateRDOInSheet()`; não achou → `insertRDOInSheet()`.
+4. Nos dois casos, `insertRelatedData()` grava as 6 abas relacionadas
+   (Servicos, Materiais, HI, Transportes, Efetivo, Equipamentos).
+5. `logSyncAction()` registra INSERT/UPDATE/DELETE/ERROR na aba AuditoriaSync.
+
+Deleção é **lógica**: a coluna S ("Deletado") recebe "Sim"; a linha permanece.
+`SheetsHeaderManager` garante que as 9 abas existam e que os headers estejam na
+versão esperada. `SheetsAuditService` cuida da auditoria, da proteção por versão
+de app e da limpeza de órfãos usada pelo `DataCleanupWorker`.
+
+### Achados
+
+**🔴 CRÍTICO (segurança) — a chave da conta de serviço Google é distribuída publicamente dentro do APK**
+
+Cadeia confirmada ponto a ponto:
+
+1. `GoogleSheetsService.initialize()` lê a credencial de
+   `context.assets.open(ARQUIVO_CREDENCIAIS)` — ou seja, o arquivo JSON da conta
+   de serviço **é empacotado no APK**.
+2. O escopo pedido é `SheetsScopes.SPREADSHEETS` — **leitura e escrita**.
+3. O `.gitignore` mantém o JSON fora do repositório (`app/src/main/assets/*.json`)
+   e tem o comentário *"APKs — contêm credenciais nos assets, usar GitHub
+   Releases"*, o que mostra que a exposição foi percebida e a mitigação
+   escolhida foi distribuir por Releases.
+4. **Mas o repositório é público** — confirmado pela API do GitHub
+   (`private: false`, `visibility: "public"`) — e portanto os Releases também
+   são. As notas de release listam `app-release.apk` publicamente desde a
+   v5.1.4 (março/2026), incluindo a v5.4.0 atual.
+5. Um APK é um arquivo zip e **assets não são ofuscados pelo ProGuard** — a
+   ofuscação atinge bytecode, não recursos.
+6. O ID da planilha está em `app/build.gradle.kts:24`
+   (`buildConfigField GOOGLE_SHEETS_ID`), arquivo versionado no mesmo
+   repositório público.
+
+Resultado: a credencial que dá acesso de leitura e escrita à planilha de
+produção está publicamente disponível há meses, junto com o identificador da
+planilha. **A chave precisa ser considerada comprometida e rotacionada**, e a
+rotação sozinha não resolve — qualquer APK novo carrega a chave nova.
+
+*Agravante secundário:* a aba `Config` comanda a atualização automática
+(`url_download`, `hash_md5`, `forcar_update`). Quem escreve na planilha controla
+**tanto a URL do APK quanto o hash esperado**, e o `UpdateDownloader` valida o
+hash contra esse mesmo valor — não há âncora de confiança independente nem
+allowlist de URL. O que limita o dano aqui é o Android: uma atualização assinada
+com outro certificado é recusada por cima do app instalado. Ainda assim, o
+caminho de "atualização forçada apontando para binário arbitrário" existe e não
+deveria depender só dessa checagem do sistema.
+
+**Correção estrutural sugerida:** o app parar de falar direto com a Sheets API e
+passar pelo mesmo proxy que o dashboard já usa (Cloudflare Worker → Apps
+Script), mantendo a credencial no servidor. A infraestrutura já existe e está em
+produção. Medidas imediatas: revogar a chave atual no Google Cloud, conferir a
+quais planilhas essa conta de serviço tem acesso, e avaliar tornar o repositório
+privado (paliativo — não resolve, já que qualquer usuário de campo com o APK
+também consegue extrair a chave). **Alerta registrado no CLAUDE.md.**
+
+**🟠 Alto — `updateRDOInSheet` apaga os dados relacionados antes de reinserir, sem transação**
+
+Em `GoogleSheetsService:229-241` a atualização é feita como *delete-then-insert*:
+primeiro `deleteRelatedDataByNumeroRDO()` remove as linhas das 6 abas, depois
+`insertRelatedData()` regrava.
+
+Se a reinserção falhar (rede, cota 429), as linhas apagadas **não voltam**: o
+rollback interno do `insertRelatedData` é cirúrgico e só desfaz o que ele mesmo
+inseriu — não tem como restaurar o que o delete anterior removeu. E a linha
+principal do RDO já foi atualizada antes (`:222-225`).
+
+Estado resultante no Sheets: o RDO existe na aba RDO, mas sem nenhum serviço,
+HI, efetivo ou equipamento — ou seja, **um dia que aparece no dashboard como se
+não tivesse produzido nada**.
+
+O sistema se auto-cura *se* o retry acontecer: o SQLite local ainda tem tudo, o
+RDO fica marcado com erro de sync e, no próximo ciclo, o caminho de UPDATE
+regrava. Mas entre a falha e o retry bem-sucedido o dashboard mostra números
+errados, e se as tentativas se esgotarem o estado fica assim até intervenção
+manual.
+
+**🟡 Médio — a proteção por versão de app é aplicada tarde demais no caminho de UPDATE**
+
+`deleteRelatedDataByNumeroRDO()` (`SheetsRelatedDataManager:192-199`) consulta
+`getRDOAppVersion()` e aborta se o RDO na planilha foi escrito por uma versão
+mais nova do app. Só que, no fluxo de `updateRDOInSheet`, **a linha principal do
+RDO já foi sobrescrita** (`:222-225`) antes de essa checagem rodar (`:232`/`:235`).
+
+Ou seja: um aparelho com versão antiga sobrescreve o cabeçalho do RDO de uma
+versão mais nova e **só então** descobre o conflito e lança exceção — deixando a
+linha já degradada. O CLAUDE.md (v2.4.0) descreve "apps antigos não deletam
+dados de versões novas", o que é verdade para os dados relacionados e falso para
+a linha principal.
+
+**🟡 Médio — `initialize()` engole falha de estrutura e mesmo assim retorna sucesso**
+
+`SheetsHeaderManager.ensureSheetsExist()` tem um `catch` abrangente que só loga,
+sem relançar (`:49-51`) — e `createHeaders()` e `atualizarHeaders()` seguem o
+mesmo padrão. Se a criação das abas ou a escrita dos headers falhar por
+completo, `initialize()` ainda devolve `true` e o sync segue contra uma
+estrutura possivelmente quebrada, falhando depois com um erro mais confuso e
+distante da causa.
+
+**⚪ Baixo — `syncMultipleRDOs()` não tem chamadores**
+
+O KDoc da facade lista o método como parte da "API pública (usada por SyncHelper
+e DataCleanupWorker)", mas o `SyncHelper` faz o próprio laço por RDO
+(`SyncHelper:220-265`) e nunca o chama. API morta.
+
+**⚪ Baixo — três métodos públicos acessam `lateinit` sem checar inicialização**
+
+`verificarSeRDOExiste()`, `getValidRDONumbers()` e `cleanOrphanedData()`
+delegam direto para `lookupHelper`/`auditService`, que são `lateinit`. Chamados
+antes de um `initialize()` bem-sucedido, lançam
+`UninitializedPropertyAccessException` em vez de um erro compreensível. Hoje os
+chamadores inicializam antes (`DataCleanupWorker:49`, `SyncHelper:47`), então é
+latente.
+
+**⚪ Baixo — `findRowNumberByNumeroRDO` varre a coluna inteira a cada consulta**
+
+Cada sync de um RDO baixa toda a coluna B da aba RDO; cada
+`deleteRelatedDataByNumeroRDO` baixa a coluna A das 6 abas relacionadas.
+Sincronizar N RDOs pendentes multiplica isso por N. Como há comentários no
+próprio código citando erro 429 (cota), vale registrar que este é o maior
+consumidor de chamadas do fluxo.
+
+**⚪ Baixo — o "versionamento" de headers é, na prática, binário**
+
+`detectarVersaoHeaders()` só devolve 0 (ausente ou erro), 1 (divergente) ou
+`HEADERS_VERSION` (bate exatamente). Não distingue v2 de v5, então
+`HEADERS_VERSION` não habilita migração escalonada — é um "confere / não
+confere". Funciona, mas o histórico de comentários da constante (v1…v6) sugere
+uma capacidade que não existe. Efeito colateral menor: um erro de rede na
+leitura devolve 0, e o `createHeaders` trata isso como "criar", disparando uma
+escrita dos mesmos headers.
+
+**⚪ Baixo — `SheetsLookupHelper` tem import e campo mortos**
+
+`import android.util.Log` e `private val tag` nunca são usados no arquivo.
+
+**⚪ Baixo — terceira cópia do "12 colaboradores"**
+
+`SheetsRelatedDataManager:95` usa o literal
+`hi.colaboradores.takeIf { it > 0 } ?: 12`. Somando ao Fragmento 4, agora são
+três: `HIManager.OPERADORES_PADRAO`, `AppConstants.DEFAULT_COLABORADORES_HI`
+(morta) e este literal.
+
+### O que está bem resolvido
+
+- **Todos os 8 conjuntos de headers batem exatamente** com as linhas
+  construídas e com os ranges usados — conferido um a um: RDO 22 (A:V),
+  Servicos 11 (A:K), Materiais 8 (A:H), HI 10 (A:J), Transportes 11 (A:K),
+  Efetivo 11 (A:K), Equipamentos 7 (A:G), Auditoria 7 (A:G). Nenhum
+  desalinhamento coluna↔header, e tudo conferindo com a tabela do CLAUDE.md.
+- `findRowNumberByNumeroRDO()` **propaga** exceção de rede em vez de devolver
+  null, com comentário explicando o porquê — sem isso, uma falha de rede seria
+  lida como "não existe" e viraria um INSERT duplicado. Distinção sutil e
+  correta.
+- O rollback de `insertRelatedData()` é **cirúrgico**: desfaz apenas as abas
+  efetivamente inseridas, e quando o próprio rollback falha registra
+  `ROLLBACK_FAILED` nomeando as abas que ficaram com dados órfãos.
+- `cleanOrphanedData()` tem guard contra `validRDOs` vazio, abortando em vez de
+  interpretar "lista vazia" como "tudo é órfão" — defesa exatamente no ponto
+  onde uma falha de leitura viraria deleção em massa.
+- `deleteSheetRows()` ordena os índices em ordem decrescente e envia **um único
+  batchUpdate**, com comentário citando o 429 que motivou a otimização.
+- `logSyncAction()` é não-bloqueante por desenho — falha de auditoria nunca
+  derruba o sync.
+- `updateRDOInSheet()` relê a coluna U antes de sobrescrever, preservando a
+  Data de Criação original.
+- `credenciaisPresentes()` distingue "credencial ausente do APK" de outros erros
+  de inicialização, o que dá uma mensagem de diagnóstico útil em builds de teste.
 
 ---

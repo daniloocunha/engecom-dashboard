@@ -736,6 +736,18 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - APKs são gitignored: `app/release/*.apk`
 - Credenciais de serviço Google são gitignored: `rdo-engecom-*.json`
 
+> 🔴 **ALERTA DE SEGURANÇA — chave de serviço exposta.** O `.gitignore` mantém a
+> credencial fora do repositório, mas ela **é empacotada dentro do APK**
+> (`assets/`, lida por `GoogleSheetsService.initialize()`), e os APKs são
+> publicados em **GitHub Releases de um repositório público**. Um APK é um zip
+> e assets não são ofuscados pelo ProGuard, então a chave da conta de serviço
+> (escopo `SPREADSHEETS`, leitura e escrita) é extraível por qualquer pessoa —
+> e o ID da planilha está em `app/build.gradle.kts`, também público.
+> **A chave deve ser considerada comprometida e rotacionada.** A correção
+> estrutural é o app parar de falar direto com a Sheets API e passar pelo proxy
+> que o dashboard já usa (Cloudflare Worker → Apps Script). Ver Fragmento 7 em
+> `RELATORIO_QUALIDADE.md`.
+
 **Google Sheets Config (aba Config):**
 ```
 versao_minima          | <versionCode mínimo aceitável>
