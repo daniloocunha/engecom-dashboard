@@ -898,7 +898,11 @@ conformidades antes da vistoria do fiscal.
   registrando-o em `ChecklistManager.rawPorTipo()` + `ChecklistManager.TIPOS`
 - **Seleção de atividade**: ao abrir pela tela inicial, um diálogo pergunta qual
   atividade inspecionar (Solda / Dormente). Pelo RDO, o tipo é detectado dos
-  serviços (`tiposParaServicos()`); com mais de um, pede a escolha
+  serviços (`tiposParaServicos()`); com mais de um, pede a escolha.
+  ⚠️ A detecção casa **substring da descrição do serviço** contra os termos de
+  `ChecklistManager.TIPOS`, e o `servicos.json` usa abreviações — `Serv Reesp
+  Dorm AMV` não casa o termo "dormente" e **não oferece o checklist**. Falha
+  silenciosa. Ver Fragmento 6 em `RELATORIO_QUALIDADE.md`
 - **Estrutura de solda**: seção geral (localização, PCM, reemprego) + seção
   **repetível por solda** (14 itens técnicos: marcação no trilho, tolerâncias de
   desnível 0,4 mm / desalinhamento 0,3 mm, desgaste vertical, furo/bisel, soldas

@@ -19,6 +19,7 @@
 3. [Fragmento 3 — Managers base + Serviços + Materiais](#fragmento-3--managers-base--serviços--materiais) — 🟠 1 alto · 🟡 2 médios · ⚪ 4 baixos
 4. [Fragmento 4 — Horas Improdutivas](#fragmento-4--horas-improdutivas) — 🟡 2 médios · ⚪ 3 baixos
 5. [Fragmento 5 — Transportes + ModeloLoader + RDOValidator](#fragmento-5--transportes--modeloloader--rdovalidator) — 🟡 3 médios · ⚪ 5 baixos
+6. [Fragmento 6 — Checklist de Qualidade](#fragmento-6--checklist-de-qualidade) — 🟡 1 médio · ⚪ 4 baixos
 
 ---
 
@@ -732,5 +733,160 @@ serviços, materiais e equipamentos, e só descobre o campo faltante no fim.
 - `KmInputMask` e `TimeInputMask` são aplicados nos **dois** diálogos
   (adicionar e editar) — apesar da duplicação de código, não houve
   esquecimento aqui.
+
+---
+
+## Fragmento 6 — Checklist de Qualidade
+
+**Escopo:** `domain/managers/ChecklistManager.kt` (224),
+`res/raw/checklist_solda.json`, `res/raw/checklist_dormente.json`,
+`app/src/test/.../ChecklistManagerTest.kt` (238, 15 testes).
+
+### O que essa camada faz
+
+Reproduz dentro do app o formulário de auditoria que os fiscais da RUMO usam
+para inspecionar as O.S, para que a turma se autoinspecione **antes** da
+vistoria. Como o catálogo de HI, é template-driven: as perguntas moram nos
+JSONs, e o `ChecklistManager` é lógica pura em cima deles.
+
+**Estrutura dos templates** (conferida item a item):
+
+| Template | Seções | Itens | Repetível |
+|---|---|---|---|
+| `solda` | Localização e Atividade (3) · Inspeção por Solda (14) · Boletim e Fechamento (6) | 23 | sim, "por_solda" |
+| `dormente` | Localização e Marcação (4) · Qualidade do Serviço (7) · Boletim e Fechamento (7) | 18 | **nenhuma** |
+
+As quatro funções centrais:
+
+- **`avaliar()`** conta não conformidades (e quantas são de itens críticos) e
+  devolve o veredito. Cada item declara em `naoConforme` qual resposta o
+  reprova; `naoConforme` vazio significa item **informativo**, que nunca
+  reprova. "Não Aplicável" e resposta em branco também nunca reprovam.
+- **`validar()`** devolve a lista de pendências de preenchimento — resposta
+  faltando, observação obrigatória (quando a resposta é não conforme ou quando
+  o template define `observacaoObrigatoriaQuando`) e foto obrigatória (quando
+  o template exige, ou como **evidência** de uma não conformidade).
+- **`podarRespostasExcedentes()`** limpa respostas de índices além de
+  `qtdSoldas` quando o usuário reduz o stepper, devolvendo os caminhos das
+  fotos órfãs para o chamador apagar.
+- **`tiposParaServicos()`** decide, a partir das descrições dos serviços do
+  RDO, qual(is) checklist(s) oferecer.
+
+As respostas ficam num mapa plano com chave `secaoId__itemId` (ou
+`secaoId__índice__itemId` nas seções repetíveis).
+
+### Achados
+
+**🟡 Médio — `tiposParaServicos()` deixa de oferecer o checklist de dormente por causa das abreviações do catálogo de serviços**
+
+A detecção casa **substring** dos termos de `ChecklistManager.TIPOS` contra a
+descrição livre do serviço. Só que o `servicos.json` abrevia. Rodando o
+matcher contra os 102 serviços reais:
+
+- 13 serviços casam `"dormente"` corretamente (Substituição Dormente, Carga
+  Dormente…);
+- **`Serv Reesp Dorm AMV`** — reespaçamento de dormente em AMV — **não casa**,
+  então o RDO com esse serviço nunca oferece a autoinspeção de dormente;
+- `Serv Subst Fixação Rígida Dorm P/Elástica` também não casa (caso
+  fronteiriço — é fixação, não dormente em si);
+- e há dois falsos-negativos benignos, que *não deveriam* mesmo oferecer o
+  checklist: `Limp Parcial Lastro Cota Inf Dor Estreit` e
+  `Limp Parc Lastro Cot Inf Dorm Mist C Bid` (limpeza de lastro).
+
+O trade-off é o problema: acrescentar o termo `"dorm"` resolveria o caso
+legítimo, mas traria os dois de limpeza de lastro junto. Casar substring de
+texto livre é frágil por construção — o robusto seria declarar o tipo de
+checklist no próprio `servicos.json`, que já é a fonte única de verdade dos
+serviços.
+
+O modo de falha agrava: é **silencioso**. Não há erro nem aviso, o checklist
+simplesmente não é oferecido. Como o propósito da feature é lembrar a turma de
+se autoinspecionar antes da vistoria da RUMO, deixar de oferecer é exatamente
+o resultado que ela existe para evitar. **Documentado no CLAUDE.md nesta
+sessão.**
+
+Para solda não há falso-negativo — os 6 serviços "Solda Alumin …" casam todos.
+Há um provável falso-**positivo**: `Alívio De Tensões Em Trilho Longo Soldado`
+casa por `"soldado"`. Pode ser legítimo (alívio de tensões em TLS envolve
+corte e resolda); fica a critério do negócio.
+
+Nota menor: dos três termos de solda (`"solda"`, `"soldado"`, `"aluminot"`),
+só o primeiro faz trabalho — `"soldado"` já contém `"solda"` como substring, e
+todo serviço aluminotérmico começa com "Solda Alumin". Redundância inofensiva.
+
+**⚪ Baixo — o KDoc de `avaliar()` descreve uma regra mais estreita que o código**
+
+O comentário diz: *"Reprova se houver qualquer item crítico não conforme OU
+qualquer não conformidade nos itens técnicos por solda"*. O código faz
+`if (naoConformidades > 0) REPROVADA`, contando **todas** as seções.
+
+A discrepância é maior no dormente, que **não tem nenhuma seção de
+repetição**: pelo KDoc, só os 3 itens críticos reprovariam; na prática os 7
+itens de "Qualidade do Serviço" também reprovam. O código está correto (bate
+com o CLAUDE.md, "Reprovada se houver qualquer não conformidade") — quem está
+errado é o comentário.
+
+**⚪ Baixo — `qtdSoldas` governa todas as seções de repetição, não só as de solda**
+
+`avaliar()`, `validar()` e `podarRespostasExcedentes()` iteram
+`0 until preenchido.qtdSoldas` para **qualquer** seção com
+`tipo: "repeticao"`. Hoje só o template de solda tem repetição, então funciona
+— mas o campo (e o nome) amarram um modelo genérico a um tipo específico. Um
+futuro `checklist_amv.json` com seção repetível herdaria a contagem de soldas.
+
+**⚪ Baixo — `cache` sem proteção de concorrência, divergindo do manager irmão**
+
+`ChecklistManager.cache` é um `mutableMapOf` num `object` singleton, sem
+`@Volatile` nem `synchronized`, enquanto o `JustificativasHIManager` — mesmo
+padrão, mesmo pacote, mesma responsabilidade — usa `@Volatile` +
+double-checked locking. Risco prático baixo (o carregamento ocorre na UI
+thread), mas é inconsistência entre dois componentes gêmeos.
+
+**⚪ Baixo — `tiposParaServicos()` não tem teste**
+
+Os 15 testes cobrem bem `ehNaoConforme`, `avaliar`, `validar` e
+`podarRespostasExcedentes`, inclusive casos de borda como polaridade invertida
+e índices além de `qtdSoldas`. Mas **não cobrem `tiposParaServicos()`** — que
+é justamente onde está o achado médio acima. `comResposta()` também não é
+testada (trivial).
+
+### Ponto de atenção para o Fragmento 15
+
+`avaliar()` e `validar()` iteram `0 until qtdSoldas`. Se a UI permitir
+`qtdSoldas = 0`, um checklist de solda pode ser salvo como **Aprovada** sem
+nenhuma solda inspecionada, bastando responder o fechamento. Verificar o
+mínimo do stepper na `ChecklistInspecaoActivity`.
+
+### Risco sistêmico (documentado, não é bug)
+
+O checklist é gravado **apenas no SQLite local** — não vai para o Sheets nem
+para o dashboard. Diferente do `causaNaoServico` (Fragmento 5), aqui o dado ao
+menos é relido pelo próprio app. Ainda assim, perder ou resetar o aparelho
+apaga todas as autoinspeções, e a gestão não tem nenhuma visibilidade sobre
+elas — o que limita bastante uma feature cujo propósito é antecipar a
+auditoria da RUMO. O CLAUDE.md já registra o sync como etapa futura.
+
+### O que está bem resolvido
+
+- **Templates bem formados.** `fotos_medidas` declara `tipo:"foto"` +
+  `foto:true` + `fotoObrigatoria:true` — as três são necessárias, porque
+  `validar()` avalia `item.foto && (item.fotoObrigatoria || naoConforme)`;
+  esquecer `foto:true` tornaria a obrigatoriedade silenciosamente inócua.
+  Não é o caso em nenhum dos dois templates.
+- A semântica de `naoConforme` vazio = informativo está aplicada exatamente
+  nos itens que o CLAUDE.md cita como o bug corrigido na v5.2.0
+  (`turma_no_local`, `ordem_marcada_pcm`, `material_reemprego` — todos com
+  `naoConforme` vazio).
+- Inversões de polaridade corretas onde o negócio exige: `dormentes_balanco`,
+  `defeito_aparente` e `quantidade_inferior` usam `naoConforme: "Sim"`.
+- O separador de chave `__` é seguro: nenhum id de seção ou item contém
+  underscore duplo, então o parse de índice em `podarRespostasExcedentes` é
+  inequívoco.
+- `podarRespostasExcedentes()` **devolver** as fotos órfãs em vez de apagá-las
+  é a decisão certa — mantém o manager livre de I/O e testável na JVM.
+- O item de `tipo:"opcoes"` (`local_checklist`) declara suas opções
+  (`["Papel","App"]`); um `tipo:"opcoes"` sem `opcoes` deixaria o usuário sem
+  como responder e o `validar()` bloquearia o salvamento para sempre.
+- 15 testes JVM de lógica pura, batendo com o número que o CLAUDE.md afirma.
 
 ---
