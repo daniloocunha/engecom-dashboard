@@ -384,7 +384,7 @@ dashboard/
   - Indexes de performance em: `data`, `numero_os`, `sincronizado`, `numero_rdo`
 
 #### 5. Data Models
-- **RDOData**: Dados completos do RDO para escrita (19 campos incluindo `causaNaoServico`)
+- **RDOData**: Dados completos do RDO para escrita (24 campos incluindo `causaNaoServico`, `houveTransporte`, `transportes` e `nomeColaboradores`)
 - **RDODataCompleto**: Versão extendida para leitura com campos calculados
 - **ServicoRDO**: Serviço com descrição, quantidade, coeficiente, HH manual (opcional)
 - **HIItem**: Horas Improdutivas com tipo, horários, operadores
