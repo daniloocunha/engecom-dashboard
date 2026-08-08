@@ -1333,6 +1333,10 @@ calendario-ts,sheets-api,gestao-os,visao-geral}.js`, `package.json`, `tests/calc
 **App Android:**
 - Fix: `DatabaseHelper.marcarRDOComoPendente()` — `putNull` substituído por `put("", "")` (evita NULL em coluna DEFAULT '')
 - Fix: `TransportesManager` — dialog de edição exibia "Adicionar" em vez de "Editar"
+  ⚠️ **Este fix não está no código atual.** Os diálogos de Serviço, Material e
+  Transporte continuam com título e botão "Adicionar" ao editar; os TextViews
+  de título nem têm `android:id`. Só o de HI faz certo. Ver Fragmento 5 em
+  `RELATORIO_QUALIDADE.md`
 - Refactor: removido dead code em `HIManager` (imports mortos), `ValidationHelper` (3 funções nunca usadas), `AppConstants` (2 constantes órfãs), `DatabaseHelper` (2 métodos duplicados)
 - Refactor: `DataCleanupWorker` — constantes do companion object unificadas com `AppConstants`
 

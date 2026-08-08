@@ -18,6 +18,7 @@
 2. [Fragmento 2 — Camada de banco de dados](#fragmento-2--camada-de-banco-de-dados) — 🔴 1 crítico · 🟠 2 altos · 🟡 2 médios · ⚪ 2 baixos
 3. [Fragmento 3 — Managers base + Serviços + Materiais](#fragmento-3--managers-base--serviços--materiais) — 🟠 1 alto · 🟡 2 médios · ⚪ 4 baixos
 4. [Fragmento 4 — Horas Improdutivas](#fragmento-4--horas-improdutivas) — 🟡 2 médios · ⚪ 3 baixos
+5. [Fragmento 5 — Transportes + ModeloLoader + RDOValidator](#fragmento-5--transportes--modeloloader--rdovalidator) — 🟡 3 médios · ⚪ 5 baixos
 
 ---
 
@@ -574,5 +575,162 @@ resultados, o estado-vazio exibe o aviso obsoleto em vez de uma mensagem de
 
 **Sem drift de documentação neste fragmento:** o que o CLAUDE.md descreve
 sobre HI confere com o código.
+
+---
+
+## Fragmento 5 — Transportes + ModeloLoader + RDOValidator
+
+**Escopo:** `domain/managers/TransportesManager.kt` (219),
+`domain/managers/ModeloLoader.kt` (135), `domain/managers/RDOValidator.kt`
+(211). Conferidos como apoio: `utils/ValidationHelper.kt`,
+`utils/TimeValidator.kt` e os 4 layouts `dialog_adicionar_*.xml`.
+
+### O que esses arquivos fazem
+
+**`RDOValidator`** é o único componente de domínio do app escrito como lógica
+100% pura: recebe um `RDOFormData` (snapshot dos campos coletado pelo Fragment)
+e devolve um `RDOValidationResult`, sem tocar em nenhuma view. O resultado é
+uma `sealed class` com três estados — `Valid`, `Error(campo, mensagem,
+setFieldError)` e `ConfirmacaoNecessaria(tipo, título, mensagem)`. As
+confirmações cobrem dois casos legítimos de campo: KM final menor que o
+inicial (turma trabalhando em sentido decrescente) e horário de fim menor que
+o de início (turno cruzando meia-noite). O `RDOFragment` reenvia o formulário
+com a flag de confirmação ligada depois que o usuário aceita, o que torna a
+revalidação idempotente.
+
+A regra de negócio central: quando `houveServico = true`, o RDO exige tema de
+DDS, horários válidos e **pelo menos um serviço, um material e um
+equipamento**; quando é `false`, exige observações. `nomeColaboradores` é
+sempre obrigatório.
+
+**`TransportesManager`** é a seção de manejo de sucatas — descrição,
+quantidade de colaboradores, par de horários e par de KM. É o manager que mais
+delega validação ao `ValidationHelper` (`validarColaboradores`,
+`validarParHorario`, `validarParKM`), sem regra inline.
+
+**`ModeloLoader`** implementa o "usar RDO anterior como modelo": recebe um
+`RDODataCompleto` e despeja seus valores no formulário, através de um objeto
+`FormularioViews` com as 22 views e dos 4 managers de lista.
+
+### Achados
+
+**🟡 Médio — os três diálogos de edição (Serviço, Material, Transporte) se identificam como "Adicionar"; o fix registrado na v5.1.6 não está no código**
+
+Os títulos são texto fixo no XML e **não têm `android:id`**, então nem seria
+possível trocá-los em runtime sem editar o layout:
+
+| Layout | Título | Botão confirmar |
+|---|---|---|
+| `dialog_adicionar_servico_rdo.xml` | `:11` "Adicionar Serviço" (sem id) | `:139` "Adicionar" |
+| `dialog_adicionar_material_rdo.xml` | `:11` "Adicionar Material" (sem id) | `:81` "Adicionar" |
+| `dialog_adicionar_transporte_rdo.xml` | `:16` "Adicionar Transporte" (sem id) | `:180` `@string/adicionar` |
+| `dialog_adicionar_hi_rdo.xml` | `:15` **`tvTituloHI` (com id)** | `:199` sobrescrito em runtime |
+
+Os `mostrarDialogEditar()` dos três managers não alteram título nem botão. Só
+o `HIManager` faz certo, definindo o título por modo (Adicionar / Editar /
+Duplicar) e trocando o botão para "Salvar" ao editar.
+
+O `CLAUDE.md`, na entrada da v5.1.6, afirma: *"Fix: `TransportesManager` —
+dialog de edição exibia 'Adicionar' em vez de 'Editar'"*. **Esse fix não
+existe no código atual** — nem em Transportes, nem nos outros dois.
+**Anotado no CLAUDE.md nesta sessão.** É a mesma raiz do achado do Fragmento
+3: o refactor chegou no HI e parou ali.
+
+**🟡 Médio — `validarParKM` proíbe KM decrescente nos transportes, enquanto o RDO explicitamente o permite**
+
+`ValidationHelper.validarParKM:103` bloqueia de forma dura:
+`if (kmFim <= kmInicio) return "KM de fim deve ser maior que KM de início"`.
+
+Mas o `RDOValidator:120-126` **permite** `kmFim < kmInicio` no cabeçalho do
+RDO, pedindo apenas confirmação — e a mensagem do diálogo diz literalmente
+*"Isso pode acontecer caso o estejam trabalhando em sentido decrescente"*.
+
+Ou seja, o app reconhece o sentido decrescente como cenário válido no RDO, mas
+**a turma que trabalha nesse sentido não consegue lançar o transporte de
+sucata no mesmo trecho** — é rejeitado sem escapatória. O `<=` também impede
+um transporte que carrega e descarrega no mesmo KM.
+
+**🟡 Médio — `causaNaoServico` não é validado, não é sincronizado e ninguém o lê**
+
+`RDOFormData` **nem tem esse campo**, então o `RDOValidator` não teria como
+checá-lo. O `RDOFragment` o inicializa como `""` (`:321`, `:1105`, `:1173`) e
+só o preenche se o usuário tocar num dos rádios — logo, é possível salvar um
+RDO com `houveServico = false` sem atribuir a causa (RUMO ou ENGECOM), que é
+justamente a informação de negócio que justifica o dia sem produção.
+
+E o destino do dado é um beco sem saída: pelo levantamento do Fragmento 1, os
+únicos pontos que tocam o campo são o model, o `DatabaseHelper` (escrita e
+leitura) e o `RDOFragment` (UI). Ele **não vai para o Sheets** (removido dos
+headers na v6, o próprio CLAUDE.md documenta) e não entra no
+`RDORelatorioUtil`. Na prática é um **dado write-only**: o app pede ao
+usuário, guarda localmente, e nenhum consumidor jamais lê. Vale decidir entre
+sincronizar ou remover da UI.
+
+**⚪ Baixo — a validação "diferença de horários não pode ultrapassar 24 horas" é inalcançável**
+
+`RDOValidator:174` testa `diferencaHoras > 24`, mas
+`TimeValidator.calcularDiferencaHoras` nunca devolve mais que 23,98 h:
+
+- mesmo dia: `fim - inicio`, no máximo 1439 min;
+- overnight: `(1440 - inicio) + fim`, e como esse ramo só roda quando
+  `fim < inicio`, o máximo também é 1439 min.
+
+Logo a condição nunca é verdadeira — é uma proteção documentada que não
+existe. Ganha relevância porque a entrada do Dashboard v2.5.2 afirma que o
+`novo-rdo.js` "espelha o `RDOValidator.kt` (… diferença > 24h bloqueante …)":
+os dois lados implementam a mesma regra morta. Confirmar no **Fragmento 25**.
+
+**⚪ Baixo — `ModeloLoader` descarta equipamentos em silêncio**
+
+`ModeloLoader:56-63` casa o tipo do equipamento por string exata num `when`
+com 4 opções e **sem ramo `else`**. Qualquer tipo fora dessas quatro (grafia
+diferente, acento, tipo novo) é ignorado sem log nem aviso — e o Toast final
+ainda diz "Modelo carregado com sucesso!".
+
+**⚪ Baixo — `ModeloLoader` copia os transportes mas não as flags que os governam**
+
+O loader popula o `transportesManager` com os transportes do modelo, mas não
+restaura `houveServico`, `houveTransporte` nem `observacoes`. Como as flags
+voltam ao default, é possível terminar com a lista de transportes preenchida e
+`houveTransporte = false` — um estado incoerente que seria gravado no banco e
+enviado ao Sheets ("não houve transporte" + 3 transportes). O comportamento
+exato depende de como o `RDOFragment` monta o `RDOData`; **confirmar no
+Fragmento 12** antes de fechar a severidade.
+
+**⚪ Baixo — `selecionarSpinnerPorValor` falha em silêncio**
+
+Se o valor do modelo não existir no adapter, o spinner simplesmente fica na
+posição 0. Para Turma e Encarregado isso é benigno (o `RDOValidator` rejeita a
+posição 0 e obriga o usuário a escolher), mas `spinnerStatusOS` e
+`spinnerClima` **não são validados** — ali um valor não encontrado vira
+silenciosamente o primeiro item da lista.
+
+**⚪ Baixo — `String.format` sem `Locale` no `RDOValidator`**
+
+`:124` monta a mensagem do diálogo com `String.format("%.1f", ...)` sem
+`Locale` explícito, diferente do padrão já adotado em `HIManager.formatarHH` e
+`TransporteItem.calcularDistanciaFormatada`. Afeta só o texto do diálogo.
+
+**Nota de UX (não é bug):** `nomeColaboradores` é validado **depois** do bloco
+`houveServico`, então quem esqueceu os colaboradores é avisado primeiro sobre
+serviços, materiais e equipamentos, e só descobre o campo faltante no fim.
+
+### O que está bem resolvido
+
+- `RDOValidator` é genuinamente lógica pura — `RDOFormData` entra,
+  `RDOValidationResult` sai, zero dependência de Android. É o componente mais
+  testável do app e, ainda assim, **não tem nenhum teste** (anotar para o
+  Fragmento 17).
+- O desenho da `sealed class` separa bem as responsabilidades: o validador
+  decide *o que* dizer, o Fragment decide *como* mostrar; e o campo `campo`
+  permite `requestFocus` sem que o validador conheça views.
+- As duas confirmações são idempotentes via flags no `RDOFormData`, então
+  revalidar depois do aceite do usuário não reabre o mesmo diálogo — e as duas
+  podem ocorrer em sequência sem conflito.
+- `TransportesManager` é o manager que melhor delega: toda a validação sai do
+  `ValidationHelper`, sem regra inline duplicada.
+- `KmInputMask` e `TimeInputMask` são aplicados nos **dois** diálogos
+  (adicionar e editar) — apesar da duplicação de código, não houve
+  esquecimento aqui.
 
 ---
