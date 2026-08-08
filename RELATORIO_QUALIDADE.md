@@ -23,6 +23,7 @@
 7. [Fragmento 7 — Sincronização Google Sheets](#fragmento-7--sincronização-google-sheets) — 🔴 **1 crítico (segurança)** · 🟠 1 alto · 🟡 2 médios · ⚪ 6 baixos
 8. [Fragmento 8 — Utils: validação e formatação](#fragmento-8--utils-validação-e-formatação) — 🟠 1 alto · 🟡 1 médio · ⚪ 5 baixos
 9. [Fragmento 9 — Utils: sync, update e logging](#fragmento-9--utils-sync-update-e-logging) — 🟡 2 médios · ⚪ 7 baixos · + padrão sistêmico
+10. [Fragmento 10 — Workers + Application](#fragmento-10--workers--application) — 🟡 2 médios · ⚪ 5 baixos
 
 ---
 
@@ -1404,5 +1405,119 @@ data espalhada, mensagens de erro cruas, paginação ausente) seguem no código.
   o status salvo se o app já foi atualizado por fora, evitando banner fantasma.
 - `RDORelatorioUtil` (6 chamadores) e `IntentExtensions` (4 chamadores) são
   utilitários pequenos e efetivamente adotados.
+
+---
+
+## Fragmento 10 — Workers + Application
+
+**Escopo:** `CalculadoraHHApplication.kt` (106),
+`workers/RDOSyncWorker.kt` (227), `workers/DataCleanupWorker.kt` (165).
+
+### O que essa camada faz
+
+`CalculadoraHHApplication.onCreate()` faz três coisas: aplica o tema (escuro por
+padrão, com o Material You removido de propósito — as cores do papel de parede
+sobrescreveriam o dourado da Engecom no Android 12+), e enfileira os dois
+trabalhos periódicos com `enqueueUniquePeriodicWork`.
+
+**`RDOSyncWorker`** roda a cada 6 h: verifica conectividade, chama
+`SyncHelper.syncPendingRDOs()` reportando progresso por notificação e, ao final,
+consulta a aba Config para saber se há atualização do app disponível — este
+último passo explicitamente não-crítico.
+
+**`DataCleanupWorker`** roda a cada 7 dias: obtém o conjunto de Números RDO
+válidos (não deletados) da aba RDO e varre as 6 abas relacionadas removendo
+linhas cujo RDO não existe mais.
+
+### Achados
+
+**🟡 Médio — o canal de notificação do sync nasce com importância LOW e nunca é elevado; o aviso de falha de sincronização fica mudo**
+
+`RDOSyncWorker.showNotification()` recria o `NotificationChannel` a cada chamada,
+derivando a importância da prioridade recebida (`:187-191`). O problema é que o
+Android **ignora alteração de importância em canal já existente** — depois de
+criado, `createNotificationChannel()` atualiza apenas nome e descrição; nunca
+importância, som ou vibração.
+
+E a ordem das chamadas garante o pior caso: `doWork` sempre chama primeiro
+`showNotification("Sincronizando RDOs...", PRIORITY_PROGRESS)` (`:61`), que cria
+o canal com `IMPORTANCE_LOW` **e** aplica `setSound(null, null)` +
+`enableVibration(false)`. Quando mais tarde ocorre um erro e o código tenta criar
+o canal com `IMPORTANCE_HIGH` (`:188`), a chamada não tem efeito nenhum.
+
+Resultado: **a notificação de falha de sincronização nunca alerta o usuário** —
+sem som, sem vibração, sem heads-up. Num app em que o dado só chega à gestão
+pelo sync, é justamente o aviso que precisaria chamar atenção. Isso agrava o
+achado do Fragmento 9 (RDOs saindo do laço de sync após 10 falhas): o usuário
+não tem como perceber que isso está acontecendo.
+
+**🟡 Médio — `ExistingPeriodicWorkPolicy.KEEP` congela o agendamento nas instalações existentes**
+
+`setupPeriodicSync` (`:75`) e `setupDataCleanup` (`:102`) usam `KEEP`, que
+preserva o trabalho já enfileirado. Consequência: mudar o intervalo (6 h / 7
+dias), as constraints ou a política de backoff numa versão futura **não terá
+efeito em nenhum aparelho já instalado** — só em instalações novas. Para alterar
+de fato seria preciso `UPDATE` (WorkManager 2.8+) ou `CANCEL_AND_REENQUEUE`.
+
+Isso interage diretamente com o Fragmento 9: se o intervalo de sync precisasse
+ser reduzido para mitigar RDOs presos, a mudança não chegaria ao campo.
+
+**⚪ Baixo — cada execução do worker autentica duas vezes no Google**
+
+`doWork` chama `SyncHelper.syncPendingRDOs`, que constrói e inicializa um
+`GoogleSheetsService`; logo depois `verificarAtualizacaoApp()` (`:114`) constrói
+**outro** e chama `verificarAtualizacao()`, que executa `inicializarLeve()` —
+nova autenticação completa. Duas por execução, somando ao consumo de cota
+apontado nos Fragmentos 7 e 9.
+
+**⚪ Baixo — tratamento de falha inconsistente no `DataCleanupWorker`**
+
+Falha de inicialização devolve `Result.failure()` (`:54`), que espera o próximo
+período — **7 dias**. Já qualquer exceção devolve `Result.retry()` (`:122`), com
+backoff de 1 hora. Uma falha transiente de inicialização (por exemplo, 429 de
+cota) é exatamente o caso que mereceria retry, e é justamente o que espera mais.
+
+**⚪ Baixo — os intervalos continuam hardcoded, embora as constantes existam**
+
+`CalculadoraHHApplication:64` usa `6, TimeUnit.HOURS` e `:91` usa
+`7, TimeUnit.DAYS`, enquanto `AppConstants.INTERVALO_SYNC_HORAS` e
+`INTERVALO_CLEANUP_DIAS` existem e estão mortas (confirmado no Fragmento 8).
+
+O detalhe revelador: `WORK_NAME_SYNC`, `WORK_NAME_CLEANUP`, os
+`NOTIFICATION_ID_*` e os `NOTIFICATION_CHANNEL_*` **são** consumidos pelos
+workers. Ou seja, a adoção do `AppConstants` parou pela metade dentro do mesmo
+par de arquivos — o que reforça o padrão sistêmico consolidado no Fragmento 9.
+
+**⚪ Baixo — `POST_NOTIFICATIONS` não é verificada nos workers**
+
+No Android 13+, `notificationManager.notify()` sem a permissão é descartado
+silenciosamente. A permissão é solicitada na `HomeActivity` (v5.1.7), mas se o
+usuário negar, todo o feedback de sync e de limpeza some sem caminho
+alternativo. Verificar no **Fragmento 13** se a Home oferece algum indicador
+que não dependa de notificação.
+
+**⚪ Baixo — ambos os workers guardam `private val context`**
+
+`CoroutineWorker` já expõe `applicationContext`. Guardar o parâmetro do
+construtor funciona (o WorkManager passa o application context), mas sombreia a
+propriedade herdada.
+
+### O que está bem resolvido
+
+- Constraints apropriadas para aparelho de campo nos dois workers:
+  `NetworkType.CONNECTED` + `setRequiresBatteryNotLow(true)`.
+- Backoff exponencial configurado em ambos (15 min no sync, 1 h na limpeza).
+- `enqueueUniquePeriodicWork` com nome único evita empilhar agendamentos a cada
+  `onCreate` da Application — que roda a cada início de processo.
+- `verificarAtualizacaoApp()` é explicitamente não-crítico: `try/catch` que
+  apenas loga, sem afetar o `Result` do sync. Decisão certa — uma falha na
+  verificação de update não deveria reagendar a sincronização.
+- O `DataCleanupWorker` aborta quando `validRDOs` vem vazio (`:61`), **além** do
+  guard equivalente dentro de `cleanOrphanedData` (Fragmento 7): proteção em
+  duas camadas contra deleção em massa acidental.
+- A limpeza continua nas demais abas quando uma falha, e registra `-1` no mapa
+  de resultados para distinguir erro de "zero órfãos".
+- O tema é aplicado em `onCreate` antes de qualquer Activity, e a remoção do
+  Material You está documentada no próprio código com a razão.
 
 ---
