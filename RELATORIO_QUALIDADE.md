@@ -17,6 +17,7 @@
 1. [Fragmento 1 — Modelos de dados](#fragmento-1--modelos-de-dados) — 🟠 1 alto · 🟡 1 médio (doc) · ⚪ 1 baixo
 2. [Fragmento 2 — Camada de banco de dados](#fragmento-2--camada-de-banco-de-dados) — 🔴 1 crítico · 🟠 2 altos · 🟡 2 médios · ⚪ 2 baixos
 3. [Fragmento 3 — Managers base + Serviços + Materiais](#fragmento-3--managers-base--serviços--materiais) — 🟠 1 alto · 🟡 2 médios · ⚪ 4 baixos
+4. [Fragmento 4 — Horas Improdutivas](#fragmento-4--horas-improdutivas) — 🟡 2 médios · ⚪ 3 baixos
 
 ---
 
@@ -441,5 +442,137 @@ silenciosamente. Vou conferir o outro lado dessa junção nos Fragmentos 19 e 36
   nos dois managers, em vez de reimplementada.
 - `ServicosCache` usa `@Volatile` + double-checked locking corretamente, e
   degrada para lista vazia se o JSON falhar, em vez de derrubar o app.
+
+---
+
+## Fragmento 4 — Horas Improdutivas
+
+**Escopo:** `domain/managers/HIManager.kt` (394),
+`domain/managers/JustificativasHIManager.kt` (154),
+`res/raw/justificativas_hi.json` (16 justificativas, 3 categorias). Conferidos
+como apoio: `JustificativasHIManagerTest.kt`, `ValidationHelper.validarParHorario`,
+`AppConstants`, e as cópias do catálogo em `dashboard/`.
+
+### O que essa camada faz
+
+É onde mora a regra de negócio mais delicada do sistema, e o desenho é
+**template-driven**: o `justificativas_hi.json` é a fonte única de verdade, e
+cada justificativa carrega a própria regra de cálculo — `fatorHH` (Chuva =
+0,5), `minutosMinimos` (trem = 20), `considerarHI` (falso para os neutros) e
+`considerarPerdaRumo`. Reclassificar uma justificativa é editar uma linha do
+JSON; nenhum código muda. As 3 categorias são Não Controlável, Controlável e
+Neutro.
+
+**`JustificativasHIManager`** é um `object` que carrega o catálogo (com cache
+`@Volatile` + double-checked locking) e o consulta. As funções de consulta são
+**puras** — recebem o catálogo por parâmetro — o que as torna testáveis na JVM
+sem `Context`; só `carregar()` toca em recursos Android. O `resolver()` faz
+uma cascata id → nome exato → alias → nome normalizado (minúsculo, sem acento
+e sem pontuação), que é o mecanismo pelo qual RDOs antigos continuam
+classificados corretamente sem migração de dados. Também guarda as 5
+justificativas usadas recentemente em `SharedPreferences`.
+
+**`HIManager`** implementa a seção de HI no formulário do RDO: chips agrupados
+por categoria com busca rápida e "recentes" no topo, um diálogo único que
+serve para adicionar, editar e duplicar, e a linha de resumo
+`Total: X HH improdutivas · Y HH neutras` abaixo da lista.
+
+### Achados
+
+**🟡 Médio — HI com justificativa fora do catálogo desaparece dos dois totais do resumo**
+
+`HIManager.hhDe():63-72` começa com
+`if (justificativa?.ehNeutra != apenasNeutras) return 0.0`. Quando
+`resolver()` devolve null (tipo fora do catálogo e sem alias que case), tanto
+`null != false` quanto `null != true` são verdadeiros — então a HI contribui
+**0.0 para `getTotalHHImprodutivas()` e 0.0 para `getTotalHHNeutras()`**. Ela
+simplesmente some do resumo, sem aviso.
+
+O ponto interessante é que isso **contradiz o contrato do próprio
+`JustificativasHIManager`**, que trata o desconhecido como "conta
+integralmente":
+
+- `considerarHI()` (:101-102) devolve `resolver(...)?.considerarHI ?: true`
+- `calcularHH()` (:126) tem um ramo dedicado:
+  `if (justificativa == null) return (minutos / 60.0) * operadores`
+- e `JustificativasHIManagerTest:123` **afirma explicitamente**
+  `assertTrue(JustificativasHIManager.considerarHI(catalogo, "Tipo Legado Qualquer"))`
+
+Ou seja: o teste unitário passa — porque exercita o manager isolado — enquanto
+o único consumidor real faz o oposto. E aquele ramo `justificativa == null` de
+`calcularHH` é **inalcançável a partir do `HIManager`**, já que `hhDe` retorna
+antes de chegar lá. É exatamente o tipo de divergência que teste de unidade
+sozinho não pega.
+
+Cenário alcançável: o próprio diálogo trata `tipoOriginalDesconhecido` (:156),
+reconhecendo que existem RDOs com tipo fora do catálogo (registros anteriores
+à v5.3.0, ou carregados via `ModeloLoader`).
+
+*Impacto contido:* grep confirma que `getTotalHHImprodutivas()` e
+`getTotalHHNeutras()` só são consumidos dentro do próprio `HIManager`, em
+`onListaAlterada()`, para a linha de resumo. Não afetam o que é gravado no
+banco nem o cálculo do dashboard. Mas é o número que o encarregado vê enquanto
+preenche o RDO.
+
+**🟡 Médio — o app soma HIs sobrepostas; o dashboard funde. Os dois números divergem para o mesmo RDO**
+
+`getTotalHHImprodutivas()` faz `sumOf` item a item, sem tratar sobreposição de
+intervalos. O dashboard, por outro lado, usa `_mergeHIIntervals()` (sweep
+line) e, quando há sobreposição, `Math.max()` dos operadores — justamente para
+não contar as mesmas horas duas vezes (uma turma é um grupo só).
+
+Consequência: um RDO com duas HIs que se sobrepõem no tempo mostra no app um
+total maior do que o dashboard vai apurar depois. Confirmar o lado do
+dashboard no **Fragmento 19**.
+
+**⚪ Baixo — `AppConstants.DEFAULT_COLABORADORES_HI = 12` está morto; o `HIManager` define a própria constante**
+
+`AppConstants.kt:136` declara `DEFAULT_COLABORADORES_HI = 12` e ninguém a usa.
+O `HIManager` tem a sua `OPERADORES_PADRAO = 12` (:392), aplicada em 4 lugares
+(:67, :257, :296, :341). Duas constantes para o mesmo conceito, uma delas sem
+chamadores — se um dia a composição padrão da turma mudar, é fácil ajustar a
+errada.
+
+**⚪ Baixo — faixa de operadores `1..20` hardcoded**
+
+`HIManager:298` valida com números mágicos, embora `AppConstants` seja
+justamente o lugar das faixas de validação (`VALID_HOUR_RANGE`,
+`VALID_MINUTE_RANGE` estão lá).
+
+**⚪ Baixo — `tvVazio` acumula duas funções e se contamina**
+
+A linha 229 usa `tvVazio` como estado-vazio da busca
+(`visibility = if (exibidas == 0) VISIBLE else GONE`), enquanto as linhas
+268-272 **sobrescrevem o texto dele** com o aviso "Justificativa atual (...)
+não está no catálogo". Dois efeitos: (a) o aviso desaparece assim que o
+usuário digita qualquer coisa na busca, e (b) se depois uma busca não retornar
+resultados, o estado-vazio exibe o aviso obsoleto em vez de uma mensagem de
+"nenhuma justificativa encontrada".
+
+### O que está bem resolvido
+
+- **O catálogo está em sincronia** entre o app e as duas cópias no dashboard
+  (`dashboard/justificativas_hi.json` e `dashboard/js/justificativas-hi-data.js`)
+  — verificado por diff normalizado: a única diferença é `1.0` vs `1` na
+  serialização JSON, semanticamente idêntico. 16 justificativas dos dois
+  lados, batendo com o que o CLAUDE.md documenta.
+- O design template-driven cumpre o que promete: as regras de negócio
+  (`fatorHH`, `minutosMinimos`, `considerarHI`, `considerarPerdaRumo`) saem do
+  JSON, não do código.
+- `resolver()` com cascata id → nome → alias → normalizado resolve bem o
+  problema dos RDOs históricos, e os aliases no JSON cobrem os nomes antigos
+  reais ("Passagens de Trem", "Almoço/Refeição", "Deslocamento a Pé"…).
+- `JustificativasHIManager` isola corretamente as consultas puras da única
+  função que toca `Context` — é o que viabiliza os 18 testes JVM existentes.
+- `HIManager` é o **único** dos managers que já fez o refactor de diálogo
+  único (`mostrarDialog(hiAtual, itemView, modo)` cobrindo adicionar/editar/
+  duplicar), em contraste direto com Serviços e Materiais (Fragmento 3).
+- `corSegura()` protege contra cor inválida vinda do JSON em vez de deixar
+  `Color.parseColor` lançar exceção.
+- `considerarPerdaRumo` não é lido pelo código do app (só pelo dashboard) —
+  não é código morto, é campo de um catálogo compartilhado entre os dois.
+
+**Sem drift de documentação neste fragmento:** o que o CLAUDE.md descreve
+sobre HI confere com o código.
 
 ---
