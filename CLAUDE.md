@@ -13,7 +13,7 @@ The project also includes a **web dashboard** (`dashboard/`) hosted on **Cloudfl
 - **RDO Management**: Create, store, and manage daily work reports with auto-generated RDO numbers
 - **Histórico**: View and filter historical RDOs with calendar integration
 - **Export**: Export RDO data to CSV/JSON formats via FileProvider
-- **Database**: Local SQLite storage (v10) with Gson serialization, UNIQUE constraints, and performance indexes
+- **Database**: Local SQLite storage (v11) with Gson serialization, UNIQUE constraints, and performance indexes
 - **Google Sheets Sync**: Automatic background sync every 6 hours via WorkManager with conflict-free offline support
 - **Auto-Update System**: Check for updates, download, validate (MD5), and install APKs from GitHub Releases
 - **Dashboard Web**: Management reporting with TMC calculations, calendars, productivity analysis, and OS management
@@ -374,11 +374,15 @@ dashboard/
   - LiveData para atualizações reativas da UI
 
 #### 4. Database Layer
-- **DatabaseHelper** (v10):
+- **DatabaseHelper** (v11):
   - Singleton com `@Volatile` double-checked locking — sempre usar `getInstance(context)`
-  - Tabela principal: `rdo` com 31 colunas
+  - Tabelas: `rdo` (30 colunas) e `checklist_inspecao` (9 colunas, v11)
   - Auto-geração de número RDO: formato `OS-DD.MM.YY-XXX` (ex: "998070-13.11.24-001")
-  - UNIQUE constraint em `numero_rdo` com retry automático (backoff linear: 10ms × tentativa)
+  - UNIQUE constraint em `numero_rdo`. ⚠️ O retry automático descrito abaixo
+    (backoff linear 10ms × tentativa) **não funciona hoje** — ver Fragmento 2 em
+    `RELATORIO_QUALIDADE.md`. `SQLiteDatabase.insert()` retorna -1 em vez de
+    lançar `SQLiteConstraintException`, então o `catch` que faria o retry é
+    inalcançável e a colisão vira exceção imediata
   - Gson para serialização de campos complexos (serviços, HI, transportes)
   - Thread-safe com métodos sincronizados
   - Indexes de performance em: `data`, `numero_os`, `sincronizado`, `numero_rdo`
@@ -546,9 +550,14 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 **Ver `GERENCIAR_SERVICOS.md` para instruções detalhadas.**
 
 ### DatabaseHelper — Notas de Arquitetura
-- `obterRDOsPaginados(offset, limit)` e `contarRDOs()` vivem em `DatabaseHelperExtensions.kt` (versões mais completas, com ordenação por data sortável)
-- Os métodos de paginação/contagem no arquivo principal foram removidos (duplicatas) na Fase 1
-- `inserirRDO()` usa backoff **linear** (10ms × tentativa) — NÃO exponencial
+- ⚠️ **`DatabaseHelperExtensions.kt` inteiro está sem chamadores hoje** (as 7
+  funções, incluindo `obterRDOsPaginados`/`contarRDOs`). A UI usa
+  `obterTodosRDOs()` do arquivo principal, sem paginação. Ver Fragmento 2 em
+  `RELATORIO_QUALIDADE.md`
+- Extensões ordenam por data convertida para formato sortável
+  (`substr(data,7,4)||'-'||...`), porque a coluna `data` guarda `dd/MM/yyyy`
+- `inserirRDO()` **pretende** usar backoff linear (10ms × tentativa) — mas o
+  laço de retry nunca itera (ver aviso na seção Database Layer acima)
 - `marcarRDOComoPendente()` sempre escreve `""` em `mensagem_erro_sync` (nunca NULL)
 - Extensões usam strings literais para nomes de colunas (acesso a `private const val` não é possível de fora da classe)
 
@@ -652,10 +661,15 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - Regex de validação em `AppConstants`
 
 ### RDO Numbers
-- Auto-gerados por `DatabaseHelper.gerarNumeroRDO(numeroOS, data)`
+- Gerados dentro de `DatabaseHelper.inserirRDO()` (a função pública
+  `gerarNumeroRDO()` existe mas não tem chamadores)
 - Formato: `OS-DD.MM.YY-XXX` (ex: "998070-13.11.24-001")
-- Contador sequencial por combinação OS + data
-- UNIQUE constraint com retry automático (backoff linear: 10ms × tentativa)
+- Contador = `COUNT(*) + 1` por combinação OS + data. ⚠️ **Não é "maior
+  sequencial + 1"** — se um RDO daquele dia/OS for deletado, o contador
+  regride e colide com um número já existente (ver Fragmento 2 em
+  `RELATORIO_QUALIDADE.md`)
+- UNIQUE constraint em `numero_rdo`; o retry pensado para tratar a colisão
+  não está funcional
 - Auto-atualização ao editar data ou OS do RDO
 
 ### Coroutines
