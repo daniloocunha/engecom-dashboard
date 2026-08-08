@@ -25,6 +25,7 @@
 9. [Fragmento 9 — Utils: sync, update e logging](#fragmento-9--utils-sync-update-e-logging) — 🟡 2 médios · ⚪ 7 baixos · + padrão sistêmico
 10. [Fragmento 10 — Workers + Application](#fragmento-10--workers--application) — 🟡 2 médios · ⚪ 5 baixos
 11. [Fragmento 11 — ViewModel + Calculadora HH](#fragmento-11--viewmodel--calculadora-hh) — 🟠 2 altos · 🟡 2 médios · ⚪ 4 baixos
+12. [Fragmento 12 — RDOFragment](#fragmento-12--rdofragment) — 🟠 2 altos · 🟡 3 médios · ⚪ 3 baixos
 
 ---
 
@@ -1667,5 +1668,169 @@ critérios diferentes.
 - `adicionarHI` faz o parse em `Dispatchers.Default` e volta à Main para
   atualizar o LiveData — excesso de cuidado para o volume atual, mas correto.
 - O aviso sobre serviço customizado é explícito e honesto quanto à limitação.
+
+---
+
+## Fragmento 12 — RDOFragment
+
+**Escopo:** `ui/fragments/RDOFragment.kt` (1.404 linhas — o maior arquivo de UI
+do app). Conferidos como apoio: `res/values/arrays.xml`, `MainActivity`, e os
+demais arquivos de UI para comparação de padrão.
+
+### O que essa tela faz
+
+É o formulário completo do RDO, organizado em 11 seções em accordion. Concentra
+muita responsabilidade: coleta de ~45 campos, orquestração dos 4 managers de
+lista (Serviços, Materiais, HI, Transportes), visibilidade condicional das
+seções conforme "Houve Serviço", modo de edição vs. inserção, rascunho
+automático, geração e compartilhamento do relatório, sincronização com o Sheets
+e oferta do Checklist de Qualidade após salvar.
+
+### Achados
+
+**🟠 Alto — mudar "Houve Serviço"/"Houve Transporte" para NÃO esconde as seções mas mantém os dados, que acabam gravados e sincronizados**
+
+`mostrarSecoesPorHouveServico()` (`:1188-1208`) altera **apenas** `visibility`.
+O listener do `spinnerHouveServico` (`:317-335`) chama só essa função; o do
+`spinnerHouveTransporte` (`:338-345`) esconde apenas o **botão** de adicionar,
+deixando os transportes já lançados visíveis na tela.
+
+Os managers e os EditTexts de efetivo/equipamentos **só são limpos em
+`limparFormulario()`** (`:1124-1132`), acionado exclusivamente pelo botão
+"Limpar". E `coletarDadosFormulario()` (`:1063-1087`) lê a flag do spinner e as
+listas dos managers de forma **independente**:
+
+```kotlin
+houveServico    = spinnerHouveServico.selectedItem.toString() == "SIM",
+servicos        = servicosManager.getServicos(),
+...
+houveTransporte = spinnerHouveTransporte.selectedItem.toString() == "SIM",
+transportes     = transportesManager.getTransportes(),
+```
+
+Fluxo possível: o usuário preenche serviços, materiais, equipamentos, efetivo e
+transportes; muda "Houve Serviço" para NÃO (as seções somem da tela); salva.
+Resultado gravado: `houveServico = false` **com** serviços, materiais, efetivo e
+equipamentos preenchidos.
+
+E nada barra isso adiante:
+
+- o `RDOValidator` (Fragmento 5) só executa as validações condicionais quando
+  `houveServico == true`; com `false`, exige apenas observações;
+- `SheetsRelatedDataManager.insertRelatedData()` (Fragmento 7) grava as abas
+  relacionadas com `if (rdo.servicos.isNotEmpty())`, **sem consultar
+  `houveServico`**;
+- o dashboard calcula HH a partir da aba `Servicos` por Número RDO.
+
+Ou seja: **um dia declarado "sem serviço" pode contribuir HH de produção no
+dashboard**. O mesmo vale para `houveTransporte = false` com linhas gravadas na
+aba `TransporteSucatas`.
+
+**🟠 Alto — 45 referências de View retidas sem `onDestroyView()`, num Fragment dentro de ViewPager2**
+
+O `RDOFragment` declara **45 `lateinit var` de View** e **não implementa
+`onDestroyView()`**. Como ele vive no ViewPager2 da `MainActivity`, a view é
+destruída quando o fragment sai de tela enquanto a instância sobrevive — e as 45
+referências continuam apontando para a hierarquia destruída, retendo a árvore
+inteira de views.
+
+O `CalculadoraHHFragment`, no mesmo ViewPager2, faz o correto
+(`_binding = null` em `onDestroyView`).
+
+**🟡 Médio — o maior arquivo de UI não usa ViewBinding, contrariando a convenção documentada**
+
+48 chamadas de `findViewById` e nenhum ViewBinding. O CLAUDE.md afirma em duas
+seções: *"Todas as activities e fragments usam ViewBinding"* e *"Nunca usar
+`findViewById()` em código novo"*. Levantamento em todos os arquivos de UI:
+
+| Arquivo | `findViewById` | ViewBinding |
+|---|---|---|
+| `RDOFragment` | **48** | **0** |
+| `CalendarioRDOActivity` | 5 | **0** |
+| `HomeActivity` | 3 | 3 |
+| `ChecklistInspecaoActivity` | 1 | 3 |
+| `CalculadoraHHFragment` | 0 | 3 |
+| `HistoricoRDOActivity` | 0 | 3 |
+| `MainActivity` | 0 | 3 |
+
+Dois arquivos ficaram inteiramente fora da migração. É a causa direta do achado
+anterior: com ViewBinding, o padrão `_binding = null` resolveria as 45
+referências de uma vez.
+
+**🟡 Médio — colisão de Número RDO trava o salvamento com mensagem enganosa (fecha a pendência do Fragmento 2)**
+
+Quando `inserirRDO()` lança — o cenário do Fragmento 2, sequencial
+`COUNT(*) + 1` colidindo após uma deleção — o `catch` em `:501-504` exibe
+`Toast("Erro ao gerar relatório: Não foi possível gerar número único para RDO
+após 10 tentativas")`.
+
+A boa notícia: **os dados digitados não se perdem.** O formulário permanece
+preenchido e `limparRascunho()` só roda no caminho de sucesso.
+
+A má notícia: **não há saída.** Tentar de novo produz exatamente a mesma
+colisão, porque o `COUNT(*)` não mudou. O encarregado fica travado naquela
+O.S + data até alterar um dos dois. E a mensagem é duplamente enganosa: fala em
+"10 tentativas" (o laço executou uma só, conforme o Fragmento 2) e começa com
+"Erro ao gerar relatório", quando o que falhou foi a **gravação**.
+
+**🟡 Médio — ~100 linhas duplicadas entre os dois botões de ação**
+
+`btnGerarRelatorio` (`:395-512`) e `btnCompartilhar` (`:513-614`) repetem quase
+integralmente a mesma lógica: validar, coletar, checar `rdoSalvoNestaSessao`,
+desabilitar botões, ramificar edição/inserção, sincronizar, gerar relatório.
+Diferem só no destino final (diálogo vs. compartilhar direto).
+
+A divergência já começou: o `btnGerarRelatorio` salva e restaura o texto do
+botão ("Salvando…"), o `btnCompartilhar` não. É o terceiro caso do mesmo padrão
+(ver Fragmentos 3 e 5).
+
+**⚪ Baixo — o Snackbar de rascunho apaga o rascunho em qualquer dismissal**
+
+O callback `onDismissed` (`:1327-1332`) limpa o rascunho em **todo**
+encerramento do Snackbar — inclusive por swipe ou por destruição em rotação de
+tela. Girar o aparelho antes de decidir perde o rascunho sem nova oferta.
+
+**⚪ Baixo — `restaurarRascunho` repete o `when` de equipamentos por string exata**
+
+`:1380-1387` reproduz o mesmo `when` de 4 strings do `ModeloLoader`
+(Fragmento 5), com o mesmo descarte silencioso de tipos não previstos — agora
+são duas cópias da mesma tabela.
+
+**⚪ Baixo — `pendingAction` reexecuta o clique inteiro**
+
+`pendingAction = { btnCompartilhar.performClick() }` refaz toda a validação do
+zero após a confirmação. Funciona porque as flags de confirmação tornam a
+revalidação idempotente (Fragmento 5), mas acopla o fluxo de confirmação ao
+evento de UI.
+
+### Correção de rota — Fragmento 5
+
+O achado ⚪ do Fragmento 5 (*"`ModeloLoader` copia transportes mas não a flag
+`houveTransporte`"*) **não se confirma**. As opções do spinner são
+`["SIM", "NÃO"]` (`res/values/arrays.xml`), a posição 0 é "SIM", e o
+`ModeloLoader` deixa o spinner no default — então carregar um modelo com
+transportes resulta em `houveTransporte = true` + lista populada, que é
+coerente. O problema real é o inverso e está no achado 🟠 acima: mudar o
+spinner para NÃO **depois** de lançar os itens.
+
+### O que está bem resolvido
+
+- O **rascunho automático** é uma proteção adequada para uso em campo: salva em
+  `onPause`, descarta após 48 h, valida o JSON ao restaurar e usa
+  `formTemDados()` para não gravar formulário vazio. O guard
+  `if (!::etNumeroOS.isInitialized)` protege contra chamada antes da
+  inicialização das views.
+- O comentário em `:1322-1324` explica por que o Snackbar usa `decorView` como
+  âncora (a raiz do layout é um ScrollView, que lançaria
+  `IllegalStateException`) — decisão não óbvia, documentada no ponto certo.
+- `spinnerHouveServicoListenerAtivo` distingue interação do usuário de carga
+  programática, evitando que o diálogo de causa apareça ao restaurar rascunho ou
+  ao abrir um RDO para edição. Solução correta para um problema clássico de
+  `Spinner`, que dispara `onItemSelected` na inicialização.
+- O diálogo "Novo RDO ou alterar o anterior?" (`:1214+`) resolve bem a
+  ambiguidade de salvar duas vezes na mesma sessão.
+- A oferta do Checklist de Qualidade após salvar está integrada nos **dois**
+  caminhos (gerar relatório e compartilhar) — sem esquecimento.
+- Botões são desabilitados durante o processamento e reabilitados em `finally`.
 
 ---
