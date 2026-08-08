@@ -297,7 +297,9 @@ com.example.calculadorahh/
 │
 ├── utils/
 │   ├── AppConstants.kt                 # Regex, ranges de validação, constantes
-│   ├── AppLogger.kt                    # Logging estruturado com armazenamento em arquivo
+│   ├── AppLogger.kt                    # Wrapper sobre android.util.Log (tag padronizada
+│   │                                   # + gating por BuildConfig.DEBUG). NÃO persiste em
+│   │                                   # arquivo — não há log para diagnóstico pós-fato
 │   ├── DateFormatter.kt                # ⚠️ SEM CHAMADORES — as 15 funções estão
 │   │                                   # mortas; DatabaseHelper, Sheets e as
 │   │                                   # Activities seguem criando SimpleDateFormat

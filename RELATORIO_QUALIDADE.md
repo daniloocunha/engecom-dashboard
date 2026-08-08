@@ -22,6 +22,7 @@
 6. [Fragmento 6 — Checklist de Qualidade](#fragmento-6--checklist-de-qualidade) — 🟡 1 médio · ⚪ 4 baixos
 7. [Fragmento 7 — Sincronização Google Sheets](#fragmento-7--sincronização-google-sheets) — 🔴 **1 crítico (segurança)** · 🟠 1 alto · 🟡 2 médios · ⚪ 6 baixos
 8. [Fragmento 8 — Utils: validação e formatação](#fragmento-8--utils-validação-e-formatação) — 🟠 1 alto · 🟡 1 médio · ⚪ 5 baixos
+9. [Fragmento 9 — Utils: sync, update e logging](#fragmento-9--utils-sync-update-e-logging) — 🟡 2 médios · ⚪ 7 baixos · + padrão sistêmico
 
 ---
 
@@ -1229,5 +1230,179 @@ seja, carrega o mesmo truncamento do `formatarKm` caso venha a ser adotada.
   Java.
 - `REGEX_TIME_FORMAT` (`^([01]?[0-9]|2[0-3]):[0-5][0-9]$`) está correto e é a
   base efetiva da validação de horário em todo o app.
+
+---
+
+## Fragmento 9 — Utils: sync, update e logging
+
+**Escopo:** `utils/SyncHelper.kt` (402), `utils/UpdateChecker.kt` (202),
+`utils/UpdateDownloader.kt` (186), `utils/AppLogger.kt` (246),
+`utils/ErrorHandler.kt` (250), `utils/ServicosCache.kt` (121),
+`utils/RDORelatorioUtil.kt` (323), `utils/IntentExtensions.kt` (18).
+
+### O que essa camada faz
+
+- **`SyncHelper`** é o orquestrador de sincronização chamado pela UI e pelo
+  worker. Três entradas: `syncRDO()` (um RDO, após salvar), `syncPendingRDOs()`
+  (lote de pendentes) e `validarRDOsSincronizados()` — esta última é uma
+  auditoria defensiva: a cada 10 RDOs novos, e uma vez por sessão, confere se
+  os RDOs marcados como sincronizados **realmente existem** no Sheets, e
+  remarca como pendente os que não estiverem.
+- **`UpdateChecker`** lê a aba `Config` (7 chaves) e compara `versao_minima` /
+  `versao_recomendada` com o `versionCode` instalado, persistindo o resultado
+  em `SharedPreferences` para a `HomeActivity` consumir.
+- **`UpdateDownloader`** baixa o APK seguindo redirects manualmente (necessário
+  porque o `HttpURLConnection` não segue cross-domain, e o GitHub redireciona
+  para `objects.githubusercontent.com`), valida o hash e dispara o instalador
+  nativo via FileProvider.
+- **`AppLogger`**, **`ErrorHandler`**, **`ServicosCache`**,
+  **`RDORelatorioUtil`** e **`IntentExtensions`** são utilitários de apoio.
+
+### Achados
+
+**🟡 Médio — `marcarRDOComErroSync` é chamado em situações que não são erro de sincronização, e isso queima o contador de tentativas**
+
+`SyncHelper.syncRDO` chama `marcarRDOComErroSync` quando (a) não há rede
+(`:80`), (b) o serviço não inicializa (`:98`) e (c) o RDO não existe no banco
+(`:113`). Nenhuma dessas é "o Sheets recusou o dado".
+
+O custo aparece ao cruzar com o Fragmento 2: `marcarRDOComErroSync` promove o
+RDO a `ERROR` a partir de 3 tentativas, e `obterRDOsNaoSincronizados()` só
+reprocessa registros em `ERROR` enquanto `tentativas_sync < 10`. Ou seja,
+**10 falhas de inicialização — por exemplo, uma sequência de erros 429 de cota,
+ou um APK montado sem as credenciais — tiram o RDO do laço de sincronização em
+definitivo.** Ele deixa de ser tentado até alguém acionar `resetarErroSync`,
+que só está exposto no Histórico.
+
+O caso "sem rede" é menos alcançável (o `syncPendingRDOs` checa a rede antes e
+retorna sem tocar em contador, e o worker tem constraint de rede), mas o
+caminho de falha de inicialização é realista — ainda mais considerando o
+consumo de cota apontado no Fragmento 7.
+
+**🟡 Médio — `ErrorHandler` (250 linhas) está praticamente sem adoção, e o `SyncHelper` é a prova do que ele deveria resolver**
+
+Único chamador em todo o app: `RDOSyncWorker:93-94`. As funções
+`isRecoverable()`, `getSeverity()` e o enum `ErrorSeverity` **não têm nenhum
+chamador**.
+
+Enquanto isso, o `SyncHelper` — que gera os toasts que o usuário de campo
+realmente vê a cada sincronização — monta as mensagens com
+`e.message?.take(50)` (`:160`), jogando texto técnico truncado no meio da tela.
+É literalmente o exemplo escrito no KDoc do `ErrorHandler`, aplicado ao
+contrário.
+
+Detalhe que amarra os dois achados: o `isRecoverable()` morto responderia
+exatamente à pergunta do achado anterior — se vale incrementar o contador de
+tentativas. Erro de rede → recuperável; `SQLiteConstraintException` → não. A
+lógica já está escrita, é pura e testável, e não é usada.
+
+**⚪ Baixo — `AppLogger` não persiste log em arquivo, ao contrário do que o CLAUDE.md afirma**
+
+O CLAUDE.md descrevia `AppLogger.kt` como "Logging estruturado com
+armazenamento em arquivo". O arquivo **não tem nenhuma operação de arquivo** —
+nem `File`, nem `FileWriter`, nem `filesDir`. São 7 funções (`v`, `d`, `i`,
+`w`, `e`, `wtf`, `printStackTrace`) mais `measureTime`, todas sobre
+`android.util.Log`, com tag padronizada e gating por `BuildConfig.DEBUG`.
+
+Importa na prática: num aparelho de campo com problema de sincronização não há
+log persistido para diagnosticar depois — o que existe morre no logcat.
+**Corrigido no CLAUDE.md.**
+
+**⚪ Baixo — `AppLogger.measureTime` é transitivamente morto**
+
+Seu único chamador é `DatabaseHelperExtensions.obterRDOsPaginados`, que o
+Fragmento 2 mostrou não ter chamadores.
+
+**⚪ Baixo — dois ramos `else` inalcançáveis no `SyncHelper`**
+
+`:137` e `:251` tratam o caso de `sheetsService.syncRDO(...)` devolver `false`.
+Pelo Fragmento 7, essa função só retorna `true` ou lança exceção — nunca
+`false`. As mensagens "Erro desconhecido ao enviar para Google Sheets" e
+"Falha ao enviar para Google Sheets" nunca chegam à tela.
+
+**⚪ Baixo — cada operação de sync recria e reinicializa o `GoogleSheetsService`**
+
+`initializeService()` constrói um serviço novo e chama `initialize()`, que
+executa `ensureSheetsExist()` — um `spreadsheets().get()` completo mais a
+verificação de headers das 7 abas. Isso ocorre em `syncRDO` (a cada RDO salvo),
+em `syncPendingRDOs` (uma vez por lote, correto) e em
+`validarRDOsSincronizados`. Abrir o app e salvar um RDO pode custar 2–3
+inicializações completas, somando ao consumo de cota já apontado no Fragmento 7.
+
+**⚪ Baixo — a marca d'água de validação avança mesmo quando toda a validação falhou**
+
+Em `validarRDOsSincronizados`, o `prefs.edit { putLong(KEY_ULTIMO_ID_VALIDADO,
+…) }` (`:393`) roda mesmo que todas as verificações tenham caído no `catch`
+interno (`:378`). Os RDOs que não puderam ser conferidos ficam para trás e só
+serão reavaliados depois dos próximos 10.
+
+**⚪ Baixo — `isNetworkAvailable` não checa `NET_CAPABILITY_VALIDATED`**
+
+Verifica apenas o transporte (WIFI / CELLULAR / ETHERNET). Um Wi-Fi de portal
+cativo — situação comum em alojamento e escritório de obra — reporta transporte
+válido sem ter internet, e o sync segue adiante só para falhar depois,
+gravando um erro no contador de tentativas (ver o primeiro achado).
+
+**⚪ Baixo — `UpdateDownloader` segue redirects manualmente sem restringir o esquema**
+
+`:80` aceita qualquer `Location` que comece com "http", incluindo um downgrade
+HTTPS→HTTP. O hash da aba Config protege contra troca do binário no caminho,
+mas o download em si passaria a trafegar em claro. Também: o APK baixado
+(~7 MB) fica em `cacheDir` como `update.apk` e não é removido após a
+instalação.
+
+**⚪ Baixo — `tamanho_apk_mb` da aba Config não é lido por ninguém**
+
+O `UpdateChecker` lê 7 chaves e `tamanho_apk_mb` não está entre elas, embora o
+CLAUDE.md documente o campo e o `scripts/update_config_release.py` o atualize a
+cada release. É informativo apenas — não há validação de tamanho do download.
+
+### Padrão sistêmico — utilitários criados e não adotados
+
+Vale consolidar o que vem se repetindo desde o Fragmento 2. O "Programa de
+Qualidade" (v2.5.0 / v5.1.6) criou vários utilitários para centralizar
+responsabilidades, mas a migração dos chamadores não foi concluída:
+
+| Utilitário | Adoção real |
+|---|---|
+| `DatabaseHelperExtensions.kt` (383 linhas) | **0 de 7** funções usadas |
+| `DateFormatter.kt` (237 linhas) | **0 de 15** funções usadas |
+| `ErrorHandler.kt` (250 linhas) | 2 de 5 APIs, **1 chamador** |
+| `AppConstants` (35 constantes) | **18 mortas** |
+| `ServicosCache` | 1 de 5 métodos públicos usado |
+| `TimeValidator` | 3 de 5 usados — **deu certo** |
+| `AppLogger` | 45 referências — **deu certo** |
+
+Os dois que "pegaram" têm algo em comum: são substitutos diretos de algo que o
+desenvolvedor ia escrever de qualquer jeito (`Log.d`, parse de horário). Os que
+não pegaram exigiam voltar a um código que já funcionava para trocar a
+implementação — e essa volta nunca aconteceu. São **~870 linhas** de utilitário
+efetivamente sem uso, enquanto os problemas que elas resolveriam (formatação de
+data espalhada, mensagens de erro cruas, paginação ausente) seguem no código.
+
+### O que está bem resolvido
+
+- `validarRDOsSincronizados` é uma boa ideia defensiva: reconhece que "marcado
+  como sincronizado" pode divergir da realidade do Sheets e se auto-corrige,
+  com throttling duplo (1× por sessão + a cada 10 RDOs) para não custar cota.
+- O tratamento de exceção dentro do laço de validação (`:378`) está **correto**
+  e depende do desenho do Fragmento 7: como `findRowNumberByNumeroRDO`
+  propaga erro de rede em vez de devolver `null`, um problema de conexão aqui
+  não vira um falso "não está no Sheets" e não remarca RDOs indevidamente.
+- `syncPendingRDOs` chama `resetarRDOsPresos()` antes do lote, destravando RDOs
+  que ficaram em `SYNCING` por crash — fechamento de um ciclo que sem isso
+  travaria para sempre.
+- O laço de sincronização continua após falha individual, contabilizando
+  sucesso e erro separadamente e reportando o resumo.
+- A mensagem específica para "APK sem credenciais" (`:192-206`) distingue um
+  problema de empacotamento de um erro genérico, dizendo ao usuário o que
+  fazer.
+- `UpdateDownloader` segue redirects manualmente com limite de 10 e alterna o
+  header `Accept` a partir do primeiro redirect — solução para uma
+  incompatibilidade real de CDN, bem comentada.
+- `UpdateChecker.lerStatusUpdate` revalida contra o `versionCode` atual e limpa
+  o status salvo se o app já foi atualizado por fora, evitando banner fantasma.
+- `RDORelatorioUtil` (6 chamadores) e `IntentExtensions` (4 chamadores) são
+  utilitários pequenos e efetivamente adotados.
 
 ---
