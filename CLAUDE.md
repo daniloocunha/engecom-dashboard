@@ -13,7 +13,7 @@ The project also includes a **web dashboard** (`dashboard/`) hosted on **Cloudfl
 - **RDO Management**: Create, store, and manage daily work reports with auto-generated RDO numbers
 - **Histórico**: View and filter historical RDOs with calendar integration
 - **Export**: Export RDO data to CSV/JSON formats via FileProvider
-- **Database**: Local SQLite storage (v10) with Gson serialization, UNIQUE constraints, and performance indexes
+- **Database**: Local SQLite storage (v11) with Gson serialization, UNIQUE constraints, and performance indexes
 - **Google Sheets Sync**: Automatic background sync every 6 hours via WorkManager with conflict-free offline support
 - **Auto-Update System**: Check for updates, download, validate (MD5), and install APKs from GitHub Releases
 - **Dashboard Web**: Management reporting with TMC calculations, calendars, productivity analysis, and OS management
@@ -297,8 +297,13 @@ com.example.calculadorahh/
 │
 ├── utils/
 │   ├── AppConstants.kt                 # Regex, ranges de validação, constantes
-│   ├── AppLogger.kt                    # Logging estruturado com armazenamento em arquivo
-│   ├── DateFormatter.kt                # Formatação de data/hora
+│   ├── AppLogger.kt                    # Wrapper sobre android.util.Log (tag padronizada
+│   │                                   # + gating por BuildConfig.DEBUG). NÃO persiste em
+│   │                                   # arquivo — não há log para diagnóstico pós-fato
+│   ├── DateFormatter.kt                # ⚠️ SEM CHAMADORES — as 15 funções estão
+│   │                                   # mortas; DatabaseHelper, Sheets e as
+│   │                                   # Activities seguem criando SimpleDateFormat
+│   │                                   # na mão (Fragmento 8 do RELATORIO_QUALIDADE)
 │   ├── ErrorHandler.kt                 # Mensagens de erro amigáveis ao usuário
 │   ├── IntentExtensions.kt             # Compatibilidade de Intent (Android < API 33)
 │   ├── KmInputMask.kt                  # Máscara de entrada KM ferroviário "123+456"
@@ -374,17 +379,21 @@ dashboard/
   - LiveData para atualizações reativas da UI
 
 #### 4. Database Layer
-- **DatabaseHelper** (v10):
+- **DatabaseHelper** (v11):
   - Singleton com `@Volatile` double-checked locking — sempre usar `getInstance(context)`
-  - Tabela principal: `rdo` com 31 colunas
+  - Tabelas: `rdo` (30 colunas) e `checklist_inspecao` (9 colunas, v11)
   - Auto-geração de número RDO: formato `OS-DD.MM.YY-XXX` (ex: "998070-13.11.24-001")
-  - UNIQUE constraint em `numero_rdo` com retry automático (backoff linear: 10ms × tentativa)
+  - UNIQUE constraint em `numero_rdo`. ⚠️ O retry automático descrito abaixo
+    (backoff linear 10ms × tentativa) **não funciona hoje** — ver Fragmento 2 em
+    `RELATORIO_QUALIDADE.md`. `SQLiteDatabase.insert()` retorna -1 em vez de
+    lançar `SQLiteConstraintException`, então o `catch` que faria o retry é
+    inalcançável e a colisão vira exceção imediata
   - Gson para serialização de campos complexos (serviços, HI, transportes)
   - Thread-safe com métodos sincronizados
   - Indexes de performance em: `data`, `numero_os`, `sincronizado`, `numero_rdo`
 
 #### 5. Data Models
-- **RDOData**: Dados completos do RDO para escrita (19 campos incluindo `causaNaoServico`)
+- **RDOData**: Dados completos do RDO para escrita (24 campos incluindo `causaNaoServico`, `houveTransporte`, `transportes` e `nomeColaboradores`)
 - **RDODataCompleto**: Versão extendida para leitura com campos calculados
 - **ServicoRDO**: Serviço com descrição, quantidade, coeficiente, HH manual (opcional)
 - **HIItem**: Horas Improdutivas com tipo, horários, operadores
@@ -393,8 +402,14 @@ dashboard/
 
 #### 6. Business Logic Managers (Template Method Pattern)
 - **BaseItemManager\<T\>**: Classe base abstrata; métodos concretos: `getItens()`, `adicionarItem()`, `removerItem()`; abstratos: `mostrarDialogAdicionar()`, `adicionarView()`, etc.
-- **ServicosManager**: Carrega serviços do JSON, gerencia seleção e cálculos HH
-- **MateriaisManager**: Gerencia materiais com seleção de unidade (KG, M³, M, UN)
+- **ServicosManager**: Carrega serviços do JSON e gerencia a seleção no RDO.
+  ⚠️ A **unidade** de cada serviço não vem do `servicos.json` (que só tem
+  `descricao` + `coeficiente`) — é **inferida por substring** da descrição
+  ("Trilho"→m, "Lastro"/"Pedra"/"Roçada"→m², resto→uni). 75 dos 102 serviços
+  caem no default "uni" e "m³" é inalcançável. Essa unidade é gravada na aba
+  `Servicos` do Sheets. Ver Fragmento 3 em `RELATORIO_QUALIDADE.md`
+- **MateriaisManager**: Gerencia materiais com seleção de unidade
+  (`AppConstants.UNIDADES_MATERIAL`: uni, m, m², m³, kg, L, cx, PC)
 - **HIManager**: Horas Improdutivas com cálculo por categoria (Chuva ÷2, outros × 1)
 - **TransportesManager**: Transportes com validação de KM e horários
 - **RDOValidator**: Validação do formulário RDO — lógica pura sem dependências de UI Android. Retorna `RDOValidationResult` (Valid | Error | ConfirmacaoNecessaria)
@@ -546,9 +561,14 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 **Ver `GERENCIAR_SERVICOS.md` para instruções detalhadas.**
 
 ### DatabaseHelper — Notas de Arquitetura
-- `obterRDOsPaginados(offset, limit)` e `contarRDOs()` vivem em `DatabaseHelperExtensions.kt` (versões mais completas, com ordenação por data sortável)
-- Os métodos de paginação/contagem no arquivo principal foram removidos (duplicatas) na Fase 1
-- `inserirRDO()` usa backoff **linear** (10ms × tentativa) — NÃO exponencial
+- ⚠️ **`DatabaseHelperExtensions.kt` inteiro está sem chamadores hoje** (as 7
+  funções, incluindo `obterRDOsPaginados`/`contarRDOs`). A UI usa
+  `obterTodosRDOs()` do arquivo principal, sem paginação. Ver Fragmento 2 em
+  `RELATORIO_QUALIDADE.md`
+- Extensões ordenam por data convertida para formato sortável
+  (`substr(data,7,4)||'-'||...`), porque a coluna `data` guarda `dd/MM/yyyy`
+- `inserirRDO()` **pretende** usar backoff linear (10ms × tentativa) — mas o
+  laço de retry nunca itera (ver aviso na seção Database Layer acima)
 - `marcarRDOComoPendente()` sempre escreve `""` em `mensagem_erro_sync` (nunca NULL)
 - Extensões usam strings literais para nomes de colunas (acesso a `private const val` não é possível de fora da classe)
 
@@ -652,10 +672,15 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - Regex de validação em `AppConstants`
 
 ### RDO Numbers
-- Auto-gerados por `DatabaseHelper.gerarNumeroRDO(numeroOS, data)`
+- Gerados dentro de `DatabaseHelper.inserirRDO()` (a função pública
+  `gerarNumeroRDO()` existe mas não tem chamadores)
 - Formato: `OS-DD.MM.YY-XXX` (ex: "998070-13.11.24-001")
-- Contador sequencial por combinação OS + data
-- UNIQUE constraint com retry automático (backoff linear: 10ms × tentativa)
+- Contador = `COUNT(*) + 1` por combinação OS + data. ⚠️ **Não é "maior
+  sequencial + 1"** — se um RDO daquele dia/OS for deletado, o contador
+  regride e colide com um número já existente (ver Fragmento 2 em
+  `RELATORIO_QUALIDADE.md`)
+- UNIQUE constraint em `numero_rdo`; o retry pensado para tratar a colisão
+  não está funcional
 - Auto-atualização ao editar data ou OS do RDO
 
 ### Coroutines
@@ -715,6 +740,18 @@ Todos os serviços e coeficientes são gerenciados em **UM único arquivo**:
 - APKs via **GitHub Releases** (não mais incluídos no repositório)
 - APKs são gitignored: `app/release/*.apk`
 - Credenciais de serviço Google são gitignored: `rdo-engecom-*.json`
+
+> 🔴 **ALERTA DE SEGURANÇA — chave de serviço exposta.** O `.gitignore` mantém a
+> credencial fora do repositório, mas ela **é empacotada dentro do APK**
+> (`assets/`, lida por `GoogleSheetsService.initialize()`), e os APKs são
+> publicados em **GitHub Releases de um repositório público**. Um APK é um zip
+> e assets não são ofuscados pelo ProGuard, então a chave da conta de serviço
+> (escopo `SPREADSHEETS`, leitura e escrita) é extraível por qualquer pessoa —
+> e o ID da planilha está em `app/build.gradle.kts`, também público.
+> **A chave deve ser considerada comprometida e rotacionada.** A correção
+> estrutural é o app parar de falar direto com a Sheets API e passar pelo proxy
+> que o dashboard já usa (Cloudflare Worker → Apps Script). Ver Fragmento 7 em
+> `RELATORIO_QUALIDADE.md`.
 
 **Google Sheets Config (aba Config):**
 ```
@@ -878,7 +915,11 @@ conformidades antes da vistoria do fiscal.
   registrando-o em `ChecklistManager.rawPorTipo()` + `ChecklistManager.TIPOS`
 - **Seleção de atividade**: ao abrir pela tela inicial, um diálogo pergunta qual
   atividade inspecionar (Solda / Dormente). Pelo RDO, o tipo é detectado dos
-  serviços (`tiposParaServicos()`); com mais de um, pede a escolha
+  serviços (`tiposParaServicos()`); com mais de um, pede a escolha.
+  ⚠️ A detecção casa **substring da descrição do serviço** contra os termos de
+  `ChecklistManager.TIPOS`, e o `servicos.json` usa abreviações — `Serv Reesp
+  Dorm AMV` não casa o termo "dormente" e **não oferece o checklist**. Falha
+  silenciosa. Ver Fragmento 6 em `RELATORIO_QUALIDADE.md`
 - **Estrutura de solda**: seção geral (localização, PCM, reemprego) + seção
   **repetível por solda** (14 itens técnicos: marcação no trilho, tolerâncias de
   desnível 0,4 mm / desalinhamento 0,3 mm, desgaste vertical, furo/bisel, soldas
@@ -1313,6 +1354,10 @@ calendario-ts,sheets-api,gestao-os,visao-geral}.js`, `package.json`, `tests/calc
 **App Android:**
 - Fix: `DatabaseHelper.marcarRDOComoPendente()` — `putNull` substituído por `put("", "")` (evita NULL em coluna DEFAULT '')
 - Fix: `TransportesManager` — dialog de edição exibia "Adicionar" em vez de "Editar"
+  ⚠️ **Este fix não está no código atual.** Os diálogos de Serviço, Material e
+  Transporte continuam com título e botão "Adicionar" ao editar; os TextViews
+  de título nem têm `android:id`. Só o de HI faz certo. Ver Fragmento 5 em
+  `RELATORIO_QUALIDADE.md`
 - Refactor: removido dead code em `HIManager` (imports mortos), `ValidationHelper` (3 funções nunca usadas), `AppConstants` (2 constantes órfãs), `DatabaseHelper` (2 métodos duplicados)
 - Refactor: `DataCleanupWorker` — constantes do companion object unificadas com `AppConstants`
 
